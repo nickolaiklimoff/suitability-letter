@@ -225,10 +225,8 @@
                 <label class="btn-import" for="importModel">
                   ↑ Upload Excel
                   <input type="file" id="importModel" accept=".xlsx,.xls" style="display:none"
-                    onchange="document.getElementById('modelFileName').textContent=this.files[0]?.name||''"/>
+                    onchange="importModelExcel(this)"/>
                 </label>
-                <span id="modelFileName" class="file-name"></span>
-                <button class="btn-analyze" id="btnAnalyzeModel" onclick="analyzeModelFile()" style="margin-left:8px">Analyze with Claude →</button>
                 <span id="importModelStatus" class="import-status" style="margin-left:8px"></span>
                 <button class="btn-add-row" style="margin-left:auto" onclick="addModelRow()">+ Add row manually</button>
               </div>

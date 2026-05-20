@@ -199,20 +199,17 @@ function getExistingRows() {
   }).filter(r => r.name || r.isin);
 }
 
-// ─── Model portfolio ──────────────────────────────────────────────────────────
-window.analyzeModelFile = async function() {
-  const input = document.getElementById('importModel');
-  if (!input.files[0]) { alert('Please upload the model portfolio Excel file.'); return; }
-
+// ─── Model portfolio — direct Excel parse, no Claude needed ──────────────────
+window.importModelExcel = function(input) {
+  const file = input.files[0];
+  if (!file) return;
   const statusEl = document.getElementById('importModelStatus');
-  const btn = document.getElementById('btnAnalyzeModel');
   statusEl.textContent = 'Reading...';
   statusEl.style.color = '#854f0b';
-  btn.disabled = true;
 
-  try {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
@@ -235,14 +232,12 @@ window.analyzeModelFile = async function() {
       renderModelPortfolioRows(result);
       statusEl.textContent = `✓ ${result.length} rows imported`;
       statusEl.style.color = '#3b6d11';
-      btn.disabled = false;
-    };
-    reader.readAsArrayBuffer(input.files[0]);
-  } catch(e) {
-    statusEl.textContent = 'Error: ' + e.message;
-    statusEl.style.color = '#a32d2d';
-    btn.disabled = false;
-  }
+    } catch(e) {
+      statusEl.textContent = 'Error: ' + e.message;
+      statusEl.style.color = '#a32d2d';
+    }
+  };
+  reader.readAsArrayBuffer(file);
 };
 
 function renderModelPortfolioRows(rows) {
