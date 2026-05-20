@@ -391,8 +391,8 @@ function buildLetter(d) {
   }
 
   letter += `${TEXT.waarExplanation}\n\n`;
-  const wBefore = d.waarBefore ? `${d.waarBefore.toFixed ? d.waarBefore.toFixed(2) : d.waarBefore}${d.irBefore ? ' (' + d.irBefore + ')' : ''}` : '—';
-  const wAfter  = d.waarAfter  ? `${d.waarAfter.toFixed  ? d.waarAfter.toFixed(2)  : d.waarAfter }${d.irAfter  ? ' (' + d.irAfter  + ')' : ''}` : '—';
+  const wBefore = d.waarBefore ? (d.waarBefore.toFixed ? d.waarBefore.toFixed(2) : String(d.waarBefore)) : '—';
+  const wAfter  = d.waarAfter  ? (d.waarAfter.toFixed  ? d.waarAfter.toFixed(2)  : String(d.waarAfter))  : '—';
   letter += `For your reference:\n• The risk level of your portfolio before the transaction is ${wBefore}.\n• The risk level of your portfolio after the transaction will be ${wAfter}.\n\n`;
 
   if (d.waarBreach) {
