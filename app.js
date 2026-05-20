@@ -438,38 +438,24 @@ async function generateLetter() {
 
   // Show modal
   const output = document.getElementById('letterOutput');
-  output.innerHTML = letterText
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/<table[\s\S]*?<\/table>/g, m => m.replace(/&lt;/g,'<').replace(/&gt;/g,'>'))
-    .replace(/\n/g,'<br>');
-
-  // Re-render tables (they got escaped above — fix)
   output.innerHTML = buildLetterHTML(letterText);
 
   document.getElementById('letterModal').classList.remove('hidden');
 }
 
 function buildLetterHTML(text) {
-  // Split on table markers
   const parts = text.split(/(<table[\s\S]*?<\/table>)/);
   return parts.map(part => {
     if (part.startsWith('<table')) return part;
-    // Split into paragraphs on double newline
-    return part.split(/
-
-+/).map(para => {
+    return part.split(/\n\n+/).map(para => {
       para = para.trim();
       if (!para) return '';
-      const lines = para.split('
-');
-      // Section heading: first line is bold, rest is body
-      if (lines.length >= 2 && lines[0].length < 80 && !lines[0].startsWith('•') && !lines[0].startsWith('-')) {
-        const heading = `<strong>${esc(lines[0])}</strong>`;
-        const body = lines.slice(1).map(l => esc(l)).join('<br>');
-        return `<p>${heading}<br>${body}</p>`;
+      const lines = para.split('\n');
+      if (lines.length === 1) return '<p>' + esc(lines[0]) + '</p>';
+      if (lines[0].length < 80 && !lines[0].startsWith('\u2022') && !lines[0].startsWith('-')) {
+        return '<p><strong>' + esc(lines[0]) + '</strong><br>' + lines.slice(1).map(l => esc(l)).join('<br>') + '</p>';
       }
-      // Regular paragraph or bullet list
-      return `<p>${lines.map(l => esc(l)).join('<br>')}</p>`;
+      return '<p>' + lines.map(l => esc(l)).join('<br>') + '</p>';
     }).join('');
   }).join('');
 }
