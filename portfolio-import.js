@@ -220,8 +220,9 @@ function renderTransactionRows(transactions) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="text" value="${escAttr(t.name)}" /></td>
+      <td><input type="text" value="${escAttr(t.isin||'')}" style="width:130px" /></td>
       <td><input type="text" value="${escAttr(formatAmount(t.amountUSD, t.currency))}" /></td>
-      <td><input type="text" value="${escAttr(t.advisoryFee||'')}" /></td>
+      <td><input type="text" value="${escAttr(t.advisoryFee||'0')}" style="width:80px" /></td>
       <td><button class="btn-remove" onclick="this.closest('tr').remove()">×</button></td>`;
     tbody.appendChild(tr);
   });

@@ -210,16 +210,19 @@ function prevStep() {
 
 // ─── Dynamic table rows ───────────────────────────────────────────────────────
 
-function addInvestRow() {
+function addInvestRow(name='', isin='', amount='', fee='0') {
   const tbody = document.getElementById('l-investRows');
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td><input type="text" placeholder="Product name / ISIN" /></td>
-    <td><input type="text" placeholder="e.g. USD 100,000" /></td>
-    <td><input type="text" placeholder="e.g. 0.5%" /></td>
+    <td><input type="text" placeholder="Product name" value="${escVal(name)}" /></td>
+    <td><input type="text" placeholder="e.g. IE00B6R52259" value="${escVal(isin)}" style="width:130px" /></td>
+    <td><input type="text" placeholder="e.g. USD 100,000" value="${escVal(amount)}" /></td>
+    <td><input type="text" placeholder="0" value="${escVal(fee)}" style="width:80px" /></td>
     <td><button class="btn-remove" onclick="this.closest('tr').remove()">×</button></td>`;
   tbody.appendChild(tr);
 }
+
+function escVal(s) { return (s||'').replace(/"/g,'&quot;'); }
 
 function addPortfolioRow(prefix) {
   const tbody = document.getElementById(`l-${prefix}Rows`);
@@ -269,7 +272,7 @@ function collectLetterData() {
 
   const investRows = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
     const i = tr.querySelectorAll('input');
-    return { product: i[0]?.value, amount: i[1]?.value, fee: i[2]?.value };
+    return { product: i[0]?.value, isin: i[1]?.value, amount: i[2]?.value, fee: i[3]?.value || '0' };
   }).filter(r => r.product);
 
   const modelRows = Array.from(document.querySelectorAll('#l-modelRows tr')).map(tr => {
@@ -329,8 +332,8 @@ function buildLetter(d) {
   const docDateStr = d.docDate ? new Date(d.docDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '[date]';
 
   const investTable = tableHtml(
-    ['Investment product', 'Investment amount', 'Advisory fee'],
-    d.investRows.map(r => [r.product, r.amount, r.fee])
+    ['Investment product', 'ISIN', 'Investment amount', 'Advisory fee'],
+    d.investRows.map(r => [r.product, r.isin || '', r.amount, r.fee || '0'])
   );
 
   const modelTable = tableHtml(
@@ -495,3 +498,69 @@ function viewHistoryLetter(i) {
   output.innerHTML = buildLetterHTML(letter.text);
   document.getElementById('letterModal').classList.remove('hidden');
 }
+
+// ─── Portfolio import handlers ────────────────────────────────────────────────
+
+async function handlePortfolioImport(input, prefix) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById(`import${prefix.charAt(0).toUpperCase()+prefix.slice(1)}Status`);
+  statusEl.textContent = 'Parsing...';
+  statusEl.style.color = '#999';
+  try {
+    const holdings = await parsePortfolioExcel(file);
+    renderImportedHoldings(holdings, prefix);
+    statusEl.textContent = `✓ ${holdings.length} holdings imported`;
+    statusEl.style.color = '#3b6d11';
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.style.color = '#a32d2d';
+  }
+}
+
+// Auto-build new portfolio = existing holdings + investments from Step 2
+function buildNewFromExisting() {
+  const existing = readPortfolioRows('existing');
+  const tbody = document.getElementById('l-newRows');
+  tbody.innerHTML = '';
+
+  // Copy existing
+  existing.forEach(h => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${escAttr(h.product)}" /></td>
+      <td><input type="text" value="${h.currency || 'USD'}" style="width:60px" /></td>
+      <td><input type="number" value="${h.amount}" oninput="updateWAAR()" /></td>
+      <td><input type="number" value="${h.riskRating}" min="1" max="6" step="0.5" style="width:55px" oninput="updateWAAR()" /></td>
+      <td><button class="btn-remove" onclick="this.closest('tr').remove();updateWAAR()">×</button></td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Add Step 2 investments with auto risk rating
+  const investRows = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
+    const inputs = tr.querySelectorAll('input');
+    return { product: inputs[0]?.value, amount: parseFloat(inputs[1]?.value) || 0 };
+  }).filter(r => r.product && r.amount > 0);
+
+  investRows.forEach(r => {
+    const rr = RISK_RULES.etf(r.product);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${escAttr(r.product)}" /></td>
+      <td><input type="text" value="USD" style="width:60px" /></td>
+      <td><input type="number" value="${r.amount}" oninput="updateWAAR()" /></td>
+      <td><input type="number" value="${rr}" min="1" max="6" step="0.5" style="width:55px;color:#185fa5" oninput="updateWAAR()" title="Auto-assigned" /></td>
+      <td><button class="btn-remove" onclick="this.closest('tr').remove();updateWAAR()">×</button></td>`;
+    tbody.appendChild(tr);
+  });
+
+  updateWAAR();
+
+  const status = document.getElementById('importNewStatus');
+  if (status) {
+    status.textContent = `✓ Built: ${existing.length} existing + ${investRows.length} new`;
+    status.style.color = '#3b6d11';
+  }
+}
+
+function escAttr(s) { return (s||'').replace(/"/g,'&quot;'); }
