@@ -13,13 +13,21 @@ function irBand(waar) {
   return waar < 1 ? 'IR1' : 'IR6';
 }
 
-function readRows(tbodyId) {
+function readPortfolioRows(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return [];
   return Array.from(tbody.querySelectorAll('tr')).map(tr => {
     const nums = tr.querySelectorAll('input[type=number]');
     return { amount: parseFloat(nums[0]?.value)||0, rating: parseFloat(nums[1]?.value)||0 };
   }).filter(h => h.amount > 0 && h.rating > 0);
+}
+
+// Read Step 2 invest rows - these have text inputs (product, isin, amount, fee)
+// We store risk ratings in a parallel data structure when transactions are analyzed
+window._transactionRatings = []; // filled by portfolio-import.js after analysis
+
+function readInvestRows() {
+  return (window._transactionRatings || []).filter(h => h.amount > 0 && h.rating > 0);
 }
 
 function calcWAAR(rows) {
@@ -34,18 +42,21 @@ function formatWAAR(waar) {
   return `${waar.toFixed(2)}${ir ? ' (' + ir + ')' : ''}`;
 }
 
-// Called on any input change
 window.updateWAAR = window.recalcWAAR = function() {
-  // WAAR before = existing portfolio only
-  const existingRows = readRows('l-existingRows');
+  // WAAR before = existing portfolio
+  const existingRows = readPortfolioRows('l-existingRows');
   const waarBefore = calcWAAR(existingRows);
   const elBefore = document.getElementById('waar-before');
   if (elBefore) elBefore.textContent = formatWAAR(waarBefore);
 
-  // WAAR after = existing + new transactions combined
-  const newRows = readRows('l-newRows');
+  // WAAR after = existing + new transactions from Step 2
+  const newRows = readInvestRows();
   const allRows = [...existingRows, ...newRows];
   const waarAfter = calcWAAR(allRows);
   const elAfter = document.getElementById('waar-after');
   if (elAfter) elAfter.textContent = formatWAAR(waarAfter);
+
+  // Hide note when we have data
+  const note = document.getElementById('waar-after-note');
+  if (note) note.style.display = (existingRows.length > 0 || newRows.length > 0) ? 'none' : '';
 };

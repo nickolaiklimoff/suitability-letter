@@ -248,6 +248,11 @@ function renderTransactionRows(transactions) {
     newTbody.insertBefore(tr, newTbody.firstChild);
   });
 
+  // Store ratings for WAAR after calculation
+  window._transactionRatings = (result.transactions || []).map(t => ({
+    amount: t.amountUSD || 0,
+    rating: t.riskRating || 3
+  }));
   recalcWAAR();
 }
 
