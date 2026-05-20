@@ -14,12 +14,12 @@ function calcWAAR(rows) {
 }
 
 function formatWAAR(waar) {
-  if (waar === null || isNaN(waar)) return '—';
+  if (waar === null || waar === undefined || isNaN(waar)) return '—';
   const ir = irBand(waar);
   return `${waar.toFixed(2)}${ir ? ' (' + ir + ')' : ''}`;
 }
 
-// Read existing portfolio rows (ISIN | Name | Amount | Rating)
+// Read existing portfolio (ISIN | Name | Amount | Rating)
 function readExistingRows() {
   return Array.from(document.querySelectorAll('#l-existingRows tr')).map(tr => {
     const inputs = tr.querySelectorAll('input');
@@ -30,18 +30,27 @@ function readExistingRows() {
   }).filter(r => r.amount > 0 && r.rating > 0);
 }
 
-// New transaction ratings stored by portfolio-import.js after Claude analysis
+// New transaction ratings — set by portfolio-import.js after Claude assigns ratings
 window._transactionRatings = [];
 
 window.updateWAAR = window.recalcWAAR = function() {
   const existing = readExistingRows();
   const waarBefore = calcWAAR(existing);
-  const elBefore = document.getElementById('waar-before');
-  if (elBefore) elBefore.textContent = formatWAAR(waarBefore);
 
   const newTx = (window._transactionRatings || []).filter(r => r.amount > 0 && r.rating > 0);
   const all = [...existing, ...newTx];
   const waarAfter = calcWAAR(all);
-  const elAfter = document.getElementById('waar-after');
-  if (elAfter) elAfter.textContent = formatWAAR(waarAfter);
+
+  const elBefore = document.getElementById('waar-before');
+  const elAfter  = document.getElementById('waar-after');
+  if (elBefore) elBefore.textContent = formatWAAR(waarBefore);
+  if (elAfter)  elAfter.textContent  = formatWAAR(waarAfter);
+
+  // Return values for collectLetterData
+  return {
+    waarBefore: waarBefore ? parseFloat(waarBefore.toFixed(2)) : null,
+    waarAfter:  waarAfter  ? parseFloat(waarAfter.toFixed(2))  : null,
+    irBefore:   irBand(waarBefore) || '',
+    irAfter:    irBand(waarAfter)  || ''
+  };
 };

@@ -272,3 +272,94 @@ function ratingColor(r) {
   if (r <= 2) return '#185fa5'; if (r <= 3) return '#3b6d11'; if (r <= 4) return '#854f0b'; return '#a32d2d';
 }
 function escAttr(s) { return (s||'').replace(/"/g,'&quot;'); }
+
+// ─── Assign risk ratings to new investments (Step 2) ─────────────────────────
+window.assignInvestmentRatings = async function() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { alert('Please enter your Anthropic API key in the sidebar.'); return; }
+
+  const rows = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
+    const inputs = tr.querySelectorAll('input');
+    return {
+      product: inputs[0]?.value || '',
+      isin:    inputs[1]?.value || '',
+      amount:  parseFloat(inputs[2]?.value) || 0
+    };
+  }).filter(r => r.product);
+
+  if (!rows.length) { alert('Please add investments first.'); return; }
+
+  const statusEl = document.getElementById('investRatingStatus');
+  const btn = document.getElementById('btnRateInvestments');
+  statusEl.textContent = 'Assigning ratings with Claude...';
+  statusEl.style.color = '#854f0b';
+  btn.disabled = true;
+
+  const list = rows.map((r,i) =>
+    `${i+1}. Product: ${r.product} | ISIN: ${r.isin||'N/A'} | Amount: ${r.amount}`
+  ).join('\n');
+
+  const prompt = `${METHODOLOGY_PROMPT}
+
+Assign a risk rating (1-6) to each investment below. Use the ISIN and name to identify the instrument.
+
+Investments:
+${list}
+
+Return ONLY valid JSON, no markdown:
+{
+  "investments": [
+    { "index": 1, "riskRating": 3, "ratingReason": "one sentence" }
+  ]
+}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+    const result = JSON.parse(clean);
+
+    // Store ratings for WAAR calculation
+    window._transactionRatings = (result.investments || []).map((inv, i) => ({
+      amount: parseFloat(rows[i]?.amount) || 0,
+      rating: inv.riskRating || 3
+    }));
+
+    // Show reason under each product name
+    const trs = document.querySelectorAll('#l-investRows tr');
+    (result.investments || []).forEach(inv => {
+      const tr = trs[inv.index - 1];
+      if (!tr) return;
+      const cell = tr.querySelectorAll('td')[0];
+      let hint = cell.querySelector('.rating-hint');
+      if (!hint) { hint = document.createElement('div'); hint.className = 'rating-hint'; cell.appendChild(hint); }
+      hint.textContent = `IR${inv.riskRating} — ${inv.ratingReason}`;
+      hint.style.cssText = 'font-size:11px;color:#185fa5;margin-top:2px;font-style:italic';
+    });
+
+    statusEl.textContent = `✓ Ratings assigned — WAAR after will update automatically`;
+    statusEl.style.color = '#3b6d11';
+    recalcWAAR();
+
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.style.color = '#a32d2d';
+  }
+  btn.disabled = false;
+};

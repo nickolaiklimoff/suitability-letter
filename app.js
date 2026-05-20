@@ -216,7 +216,7 @@ function addInvestRow(name='', isin='', amount='', fee='0') {
   tr.innerHTML = `
     <td><input type="text" placeholder="Product name" value="${escVal(name)}" /></td>
     <td><input type="text" placeholder="e.g. IE00B6R52259" value="${escVal(isin)}" style="width:130px" /></td>
-    <td><input type="text" placeholder="e.g. USD 100,000" value="${escVal(amount)}" /></td>
+    <td><input type="number" placeholder="Amount USD" value="${escVal(amount)}" /></td>
     <td><input type="text" placeholder="0" value="${escVal(fee)}" style="width:80px" /></td>
     <td><button class="btn-remove" onclick="this.closest('tr').remove()">×</button></td>`;
   tbody.appendChild(tr);
@@ -272,7 +272,13 @@ function collectLetterData() {
 
   const investRows = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
     const i = tr.querySelectorAll('input');
-    return { product: i[0]?.value, isin: i[1]?.value, amount: i[2]?.value, fee: i[3]?.value || '0' };
+    const amt = parseFloat(i[2]?.value) || 0;
+    return {
+      product: i[0]?.value,
+      isin: i[1]?.value,
+      amount: amt ? `USD ${amt.toLocaleString('en-US', {minimumFractionDigits:2})}` : '',
+      fee: i[3]?.value || '0'
+    };
   }).filter(r => r.product);
 
   const modelRows = Array.from(document.querySelectorAll('#l-modelRows tr')).map(tr => {

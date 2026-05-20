@@ -130,7 +130,11 @@
             </div>
             <div class="field">
               <label>Recommended investments</label>
-              <div class="field-hint">Enter each new investment. Advisory fee defaults to 0 — update if applicable.</div>
+              <div class="field-hint">Enter each new investment. Advisory fee defaults to 0. Click "Assign ratings" to get risk ratings — used for WAAR after calculation.</div>
+              <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+                <button class="btn-analyze" id="btnRateInvestments" onclick="assignInvestmentRatings()" style="font-size:13px;padding:7px 14px">Assign ratings →</button>
+              </div>
+              <span id="investRatingStatus" class="import-status" style="display:block;margin-bottom:8px"></span>
               <div class="table-wrap">
                 <table class="input-table" id="l-investTable">
                   <thead><tr><th>Investment product</th><th>ISIN</th><th>Investment amount</th><th>Advisory fee</th><th></th></tr></thead>
