@@ -13,7 +13,7 @@ RISK RATING SCALE (1-6):
 
 GOVERNMENT BONDS (developed markets): 1-5yr=1, 5-10yr=2, >10yr=3. EM govt bonds=3.
 CORPORATE BONDS IG (developed): senior/secured ≤10yr=2, subordinated/convertible ≤10yr=3, any >10yr=3. IG EM=3. HY developed=4. HY EM=5.
-ETFs: Govt bond ETF developed=2, IG corp bond ETF developed=3, HY/EM fixed income ETF=4, broad equity ETF developed=3, sector equity ETF developed=3, EM equity ETF=4, leveraged/inverse=4.
+ETFs: Govt bond ETF developed=2, IG corp bond ETF developed=3, HY/EM fixed income ETF=4, broad equity ETF developed markets=3, broad global equity ETF (e.g. MSCI World, MSCI ACWI, S&P500, FTSE All-World) where developed markets represent >70% of holdings=3, sector equity ETF developed=3, pure EM equity ETF=4, leveraged/inverse=4.
 EQUITIES: large-cap developed=4, mid/small-cap developed=5, EM=5.
 DEVELOPED MARKETS: USA, Canada, UK, Germany, France, Switzerland, Netherlands, Sweden, Denmark, Norway, Finland, Belgium, Austria, Ireland, Japan, Australia, New Zealand, South Korea, Singapore, Hong Kong, Israel.
 WAAR = Sum(Rating_i × Amount_i) / Sum(Amount_i), rounded to 2 decimal places.
