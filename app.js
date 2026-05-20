@@ -391,7 +391,9 @@ function buildLetter(d) {
   }
 
   letter += `${TEXT.waarExplanation}\n\n`;
-  letter += `For your reference:\n• The risk level of your portfolio before the transaction is ${formatWAAR(d.waarBefore)}${d.irBefore ? ' (' + d.irBefore + ')' : ''}.\n• The risk level of your portfolio after the transaction will be ${formatWAAR(d.waarAfter)}${d.irAfter ? ' (' + d.irAfter + ')' : ''}.\n\n`;
+  const wBefore = d.waarBefore ? `${d.waarBefore.toFixed ? d.waarBefore.toFixed(2) : d.waarBefore}${d.irBefore ? ' (' + d.irBefore + ')' : ''}` : '—';
+  const wAfter  = d.waarAfter  ? `${d.waarAfter.toFixed  ? d.waarAfter.toFixed(2)  : d.waarAfter }${d.irAfter  ? ' (' + d.irAfter  + ')' : ''}` : '—';
+  letter += `For your reference:\n• The risk level of your portfolio before the transaction is ${wBefore}.\n• The risk level of your portfolio after the transaction will be ${wAfter}.\n\n`;
 
   if (d.waarBreach) {
     letter += `${TEXT.waarBreachText}\n\n`;
@@ -448,18 +450,26 @@ async function generateLetter() {
 }
 
 function buildLetterHTML(text) {
-  // Split on table markers, render rest as paragraphs
+  // Split on table markers
   const parts = text.split(/(<table[\s\S]*?<\/table>)/);
   return parts.map(part => {
     if (part.startsWith('<table')) return part;
-    return part.split('\n\n').map(para => {
-      if (!para.trim()) return '';
-      const lines = para.split('\n');
-      if (lines.length === 1) return `<p>${esc(lines[0])}</p>`;
-      const first = lines[0];
-      const rest = lines.slice(1).join('<br>');
-      if (rest) return `<p><strong>${esc(first)}</strong><br>${esc(rest)}</p>`;
-      return `<p>${esc(first)}</p>`;
+    // Split into paragraphs on double newline
+    return part.split(/
+
++/).map(para => {
+      para = para.trim();
+      if (!para) return '';
+      const lines = para.split('
+');
+      // Section heading: first line is bold, rest is body
+      if (lines.length >= 2 && lines[0].length < 80 && !lines[0].startsWith('•') && !lines[0].startsWith('-')) {
+        const heading = `<strong>${esc(lines[0])}</strong>`;
+        const body = lines.slice(1).map(l => esc(l)).join('<br>');
+        return `<p>${heading}<br>${body}</p>`;
+      }
+      // Regular paragraph or bullet list
+      return `<p>${lines.map(l => esc(l)).join('<br>')}</p>`;
     }).join('');
   }).join('');
 }
