@@ -177,3 +177,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-analyze { padding: 10px 18px; background: #185fa5; color: white; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; white-space: nowrap; align-self: flex-end; transition: opacity 0.15s; }
 .btn-analyze:hover { opacity: 0.88; }
 .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Upload blocks (step 4) ── */
+.upload-block { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; }
+.upload-block-header { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.upload-block-header > div:first-child { flex: 1; min-width: 200px; }
+.upload-block-title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.upload-block-sub { font-size: 12px; color: var(--text2); }

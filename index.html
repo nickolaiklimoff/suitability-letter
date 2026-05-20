@@ -160,62 +160,70 @@
         <div class="letter-step hidden" id="lstep-3">
           <div class="form-card">
             <h3>Portfolio &amp; WAAR calculation</h3>
-            <div class="field-hint" style="margin-bottom:1rem">Upload Excel files — Claude will apply the full Orion Ridge Capital risk methodology, assign IR ratings to each holding, and calculate WAAR. You can edit any value after.</div>
+            <div class="field-hint" style="margin-bottom:1.25rem">Upload two Excel files separately — Claude applies the full IR methodology to each and calculates WAAR before and after.</div>
 
-            <div class="claude-upload-bar">
-              <div class="upload-slot">
-                <div class="upload-label">Existing portfolio (before)</div>
+            <!-- Upload slot 1: Existing portfolio -->
+            <div class="upload-block">
+              <div class="upload-block-header">
+                <div>
+                  <div class="upload-block-title">1. Existing portfolio (before transaction)</div>
+                  <div class="upload-block-sub">Full current portfolio — Claude reads all holdings and calculates WAAR before</div>
+                </div>
                 <label class="btn-import" for="importExisting">
                   ↑ Upload Excel
                   <input type="file" id="importExisting" accept=".xlsx,.xls" style="display:none"
                     onchange="document.getElementById('existingFileName').textContent=this.files[0]?.name||''"/>
                 </label>
+                <button class="btn-analyze" id="btnAnalyzeExisting" onclick="analyzeExistingFile()">Analyze →</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
                 <span id="existingFileName" class="file-name"></span>
+                <span id="existingStatus" class="import-status"></span>
               </div>
-              <div class="upload-slot">
-                <div class="upload-label">New portfolio (after) — optional</div>
-                <label class="btn-import" for="importNew">
-                  ↑ Upload Excel
-                  <input type="file" id="importNew" accept=".xlsx,.xls" style="display:none"
-                    onchange="document.getElementById('newFileName').textContent=this.files[0]?.name||''"/>
-                </label>
-                <span id="newFileName" class="file-name"></span>
-                <div class="upload-hint">If empty — auto-builds from existing + Step 2 investments</div>
-              </div>
-              <button class="btn-analyze" id="btnAnalyzePortfolio" onclick="analyzePortfolioFiles()">Analyze with Claude →</button>
-            </div>
-
-            <div id="portfolioAnalysisStatus" class="import-status" style="margin:10px 0"></div>
-
-            <div class="field" style="margin-top:1.25rem">
-              <label>Existing portfolio <span class="label-hint">(editable after analysis)</span></label>
-              <div class="table-wrap">
+              <div class="table-wrap" style="margin-top:10px">
                 <table class="input-table">
                   <thead><tr><th>Product / ISIN</th><th>CCY</th><th>Amount (USD)</th><th>Risk rating</th><th></th></tr></thead>
                   <tbody id="l-existingRows"></tbody>
                 </table>
                 <button class="btn-add-row" onclick="addPortfolioRow('existing')">+ Add row manually</button>
               </div>
-              <div class="waar-result">
+              <div class="waar-result" style="margin-top:10px">
                 <span class="waar-label">WAAR before:</span>
                 <span class="waar-val" id="waar-before">—</span>
               </div>
             </div>
 
-            <div class="field" style="margin-top:1.5rem">
-              <label>New portfolio <span class="label-hint">(editable after analysis)</span></label>
-              <div class="table-wrap">
+            <!-- Upload slot 2: New transactions -->
+            <div class="upload-block" style="margin-top:1.25rem">
+              <div class="upload-block-header">
+                <div>
+                  <div class="upload-block-title">2. New transactions (additions only)</div>
+                  <div class="upload-block-sub">Only the new investments being added — Claude builds the investment table for the letter and calculates WAAR after</div>
+                </div>
+                <label class="btn-import" for="importTransactions">
+                  ↑ Upload Excel
+                  <input type="file" id="importTransactions" accept=".xlsx,.xls" style="display:none"
+                    onchange="document.getElementById('transactionsFileName').textContent=this.files[0]?.name||''"/>
+                </label>
+                <button class="btn-analyze" id="btnAnalyzeTransactions" onclick="analyzeTransactionsFile()">Analyze →</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+                <span id="transactionsFileName" class="file-name"></span>
+                <span id="transactionsStatus" class="import-status"></span>
+              </div>
+              <div class="table-wrap" style="margin-top:10px">
                 <table class="input-table">
                   <thead><tr><th>Product / ISIN</th><th>CCY</th><th>Amount (USD)</th><th>Risk rating</th><th></th></tr></thead>
                   <tbody id="l-newRows"></tbody>
                 </table>
                 <button class="btn-add-row" onclick="addPortfolioRow('new')">+ Add row manually</button>
               </div>
-              <div class="waar-result">
-                <span class="waar-label">WAAR after:</span>
+              <div class="waar-result" style="margin-top:10px">
+                <span class="waar-label">WAAR after (existing + new):</span>
                 <span class="waar-val" id="waar-after">—</span>
               </div>
             </div>
+
           </div>
         </div>
 

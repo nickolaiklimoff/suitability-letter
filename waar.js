@@ -1,65 +1,51 @@
-// ─── WAAR Calculation ────────────────────────────────────────────────────────
-// Weighted Average Asset Rating = sum(RiskRating_i * Amount_i) / TotalAmount
+// ─── WAAR Calculation ─────────────────────────────────────────────────────────
 
-function calcWAAR(holdings) {
-  const valid = holdings.filter(h => h.amount > 0 && h.riskRating >= 1);
-  if (!valid.length) return null;
-  const total = valid.reduce((s, h) => s + h.amount, 0);
-  if (total === 0) return null;
-  const weighted = valid.reduce((s, h) => s + h.riskRating * h.amount, 0);
-  return weighted / total;
+const IR_LIMITS = {
+  IR1:{min:1.0,max:1.99}, IR2:{min:2.0,max:2.99}, IR3:{min:3.0,max:3.99},
+  IR4:{min:4.0,max:4.99}, IR5:{min:5.0,max:5.99}, IR6:{min:6.0,max:9.99}
+};
+
+function irBand(waar) {
+  if (!waar || isNaN(waar)) return null;
+  for (const [ir, r] of Object.entries(IR_LIMITS)) {
+    if (waar >= r.min && waar <= r.max) return ir;
+  }
+  return waar < 1 ? 'IR1' : 'IR6';
 }
 
-function waarToIR(waar) {
-  if (!waar) return null;
-  for (const [ir, range] of Object.entries(IR_LIMITS)) {
-    if (waar >= range.min && waar <= range.max) return ir;
-  }
-  if (waar < 1.5) return 'IR1';
-  return 'IR6';
+function readRows(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return [];
+  return Array.from(tbody.querySelectorAll('tr')).map(tr => {
+    const nums = tr.querySelectorAll('input[type=number]');
+    return { amount: parseFloat(nums[0]?.value)||0, rating: parseFloat(nums[1]?.value)||0 };
+  }).filter(h => h.amount > 0 && h.rating > 0);
+}
+
+function calcWAAR(rows) {
+  const total = rows.reduce((s,h) => s + h.amount, 0);
+  if (!total) return null;
+  return rows.reduce((s,h) => s + h.rating * h.amount, 0) / total;
 }
 
 function formatWAAR(waar) {
-  if (waar === null) return '—';
-  return waar.toFixed(2);
+  if (waar === null || isNaN(waar)) return '—';
+  const ir = irBand(waar);
+  return `${waar.toFixed(2)}${ir ? ' (' + ir + ')' : ''}`;
 }
 
-// ─── Live WAAR update ────────────────────────────────────────────────────────
-
-function updateWAAR() {
-  const before = readPortfolioRows('existing');
-  const after  = readPortfolioRows('new');
-
-  const waarBefore = calcWAAR(before);
-  const waarAfter  = calcWAAR(after);
-
-  const irBefore = waarToIR(waarBefore);
-  const irAfter  = waarToIR(waarAfter);
-
+// Called on any input change
+window.updateWAAR = window.recalcWAAR = function() {
+  // WAAR before = existing portfolio only
+  const existingRows = readRows('l-existingRows');
+  const waarBefore = calcWAAR(existingRows);
   const elBefore = document.getElementById('waar-before');
-  const elAfter  = document.getElementById('waar-after');
+  if (elBefore) elBefore.textContent = formatWAAR(waarBefore);
 
-  if (elBefore) elBefore.textContent = waarBefore !== null
-    ? `${formatWAAR(waarBefore)} (${irBefore})`
-    : '—';
-
-  if (elAfter) elAfter.textContent = waarAfter !== null
-    ? `${formatWAAR(waarAfter)} (${irAfter})`
-    : '—';
-
-  return { waarBefore, waarAfter, irBefore, irAfter };
-}
-
-function readPortfolioRows(prefix) {
-  const tbody = document.getElementById(`l-${prefix}Rows`);
-  if (!tbody) return [];
-  return Array.from(tbody.querySelectorAll('tr')).map(tr => {
-    const inputs = tr.querySelectorAll('input');
-    return {
-      product:    inputs[0]?.value || '',
-      currency:   inputs[1]?.value || 'USD',
-      amount:     parseFloat(inputs[2]?.value) || 0,
-      riskRating: parseFloat(inputs[3]?.value) || 0
-    };
-  }).filter(h => h.product);
-}
+  // WAAR after = existing + new transactions combined
+  const newRows = readRows('l-newRows');
+  const allRows = [...existingRows, ...newRows];
+  const waarAfter = calcWAAR(allRows);
+  const elAfter = document.getElementById('waar-after');
+  if (elAfter) elAfter.textContent = formatWAAR(waarAfter);
+};
