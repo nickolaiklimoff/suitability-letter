@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suitability Letter Generator — Orion Ridge Capital</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Orion Ridge Capital</div>
+    <div class="sidebar-section-label">Clients</div>
+    <div id="clientList" class="client-list"></div>
+    <button class="btn-new-client" onclick="newClient()">+ New client</button>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Settings</div>
+    <div class="sidebar-setting">
+      <label>Anthropic API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-api03-..." />
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div id="emptyState" class="empty-state">
+      <div class="empty-icon">📄</div>
+      <div class="empty-title">Select or create a client</div>
+      <div class="empty-sub">Client profiles are saved locally in your browser</div>
+    </div>
+    <div id="appContent" class="hidden">
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('profile', this)">Client Profile</button>
+        <button class="tab" onclick="switchTab('letter', this)">New Letter</button>
+        <button class="tab" onclick="switchTab('history', this)">History</button>
+      </div>
+
+      <!-- Profile Tab -->
+      <div id="tab-profile" class="tab-content">
+        <div class="section-header">
+          <h2>Client profile</h2>
+          <div class="section-sub">Saved once, used in every letter. Update only on re-profiling.</div>
+        </div>
+
+        <div class="form-card">
+          <div class="form-row">
+            <div class="field">
+              <label>Client full name</label>
+              <input type="text" id="p-name" placeholder="e.g. Ivan Petrov" oninput="markDirty()" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Risk tolerance</label>
+            <div class="radio-group" id="p-riskTolerance"></div>
+          </div>
+
+          <div class="field">
+            <label>Primary investment objective</label>
+            <div class="radio-group" id="p-investmentObjective"></div>
+          </div>
+
+          <div class="field">
+            <label>Financial goal</label>
+            <div class="radio-group" id="p-financialGoal"></div>
+          </div>
+
+          <div class="field">
+            <label>Maximum time horizon</label>
+            <div class="radio-group" id="p-timeHorizon"></div>
+          </div>
+
+          <div class="field">
+            <label>Investment knowledge &amp; experience <span class="label-hint">(select all that apply)</span></label>
+            <div class="checkbox-group" id="p-knowledge"></div>
+          </div>
+
+          <div class="field">
+            <label>Ability to bear losses</label>
+            <div class="radio-group" id="p-abilityToBearLosses"></div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-primary" onclick="saveProfile()">Save profile</button>
+            <span id="savedMsg" class="saved-msg hidden">✓ Saved</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Letter Tab -->
+      <div id="tab-letter" class="tab-content hidden">
+        <div class="section-header">
+          <h2>New suitability letter</h2>
+          <div class="section-sub">Transaction-specific information</div>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="steps" id="letterSteps"></div>
+
+        <!-- Step 1: Meeting -->
+        <div class="letter-step" id="lstep-0">
+          <div class="form-card">
+            <h3>Meeting details</h3>
+            <div class="field">
+              <label>Meeting / call date</label>
+              <input type="date" id="l-date" />
+            </div>
+            <div class="field">
+              <label>Meet or speak?</label>
+              <div class="radio-group inline">
+                <label class="radio-opt"><input type="radio" name="meetspeak" value="meet" checked /> meet</label>
+                <label class="radio-opt"><input type="radio" name="meetspeak" value="speak" /> speak</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Recommendation -->
+        <div class="letter-step hidden" id="lstep-1">
+          <div class="form-card">
+            <h3>Recommendation rationale</h3>
+            <div class="field">
+              <label>Detailed explanation</label>
+              <div class="field-hint">Why the instrument was selected, how it meets the client's objectives (strategy, knowledge, risk tolerance, ability to bear losses), why this issuer, how it relates to the client's financial goal.</div>
+              <textarea id="l-rationale" rows="8" placeholder="Describe the rationale for each recommended instrument..."></textarea>
+            </div>
+            <div class="field">
+              <label>Recommended investments</label>
+              <div class="table-wrap">
+                <table class="input-table" id="l-investTable">
+                  <thead><tr><th>Investment product</th><th>Investment amount</th><th>Advisory fee</th><th></th></tr></thead>
+                  <tbody id="l-investRows"></tbody>
+                </table>
+                <button class="btn-add-row" onclick="addInvestRow()">+ Add product</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Documents -->
+        <div class="letter-step hidden" id="lstep-2">
+          <div class="form-card">
+            <h3>Documents sent to client</h3>
+            <div class="field">
+              <label>List of documents</label>
+              <textarea id="l-documents" rows="4" placeholder="e.g. Key Information Document (KID), Fund Factsheet, Fee Schedule..."></textarea>
+            </div>
+            <div class="field">
+              <label>Date sent / handed</label>
+              <input type="date" id="l-docDate" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Portfolio & WAAR -->
+        <div class="letter-step hidden" id="lstep-3">
+          <div class="form-card">
+            <h3>Portfolio &amp; WAAR calculation</h3>
+            <div class="field">
+              <label>Existing portfolio (before transaction)</label>
+              <div class="field-hint">Enter each holding. Risk rating will be auto-suggested based on product type — you can override.</div>
+              <div class="table-wrap">
+                <table class="input-table">
+                  <thead><tr><th>Product / ISIN</th><th>Currency</th><th>Amount (USD)</th><th>Risk rating (1–6)</th><th></th></tr></thead>
+                  <tbody id="l-existingRows"></tbody>
+                </table>
+                <button class="btn-add-row" onclick="addPortfolioRow('existing')">+ Add holding</button>
+              </div>
+              <div class="waar-result" id="waar-before-box">
+                <span class="waar-label">WAAR before:</span>
+                <span class="waar-val" id="waar-before">—</span>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:1.5rem">
+              <label>New / recommended portfolio (after transaction)</label>
+              <div class="table-wrap">
+                <table class="input-table">
+                  <thead><tr><th>Product / ISIN</th><th>Currency</th><th>Amount (USD)</th><th>Risk rating (1–6)</th><th></th></tr></thead>
+                  <tbody id="l-newRows"></tbody>
+                </table>
+                <button class="btn-add-row" onclick="addPortfolioRow('new')">+ Add holding</button>
+              </div>
+              <div class="waar-result" id="waar-after-box">
+                <span class="waar-label">WAAR after:</span>
+                <span class="waar-val" id="waar-after">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Model Portfolio -->
+        <div class="letter-step hidden" id="lstep-4">
+          <div class="form-card">
+            <h3>Model portfolio allocation</h3>
+            <div class="field">
+              <label>Model portfolio name</label>
+              <input type="text" id="l-modelName" placeholder="e.g. Growth & Income Model Portfolio" />
+            </div>
+            <div class="field">
+              <label>Asset allocation</label>
+              <div class="table-wrap">
+                <table class="input-table">
+                  <thead><tr><th>Asset class</th><th>Percentage (%)</th><th></th></tr></thead>
+                  <tbody id="l-modelRows"></tbody>
+                </table>
+                <button class="btn-add-row" onclick="addModelRow()">+ Add asset class</button>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:1.5rem">
+              <label class="checkbox-label">
+                <input type="checkbox" id="l-hasDeviation" onchange="toggleDeviation()" />
+                Client requested deviation from model portfolio
+              </label>
+            </div>
+            <div id="deviationBlock" class="hidden">
+              <div class="field">
+                <label>Reason for deviation</label>
+                <textarea id="l-deviationReason" rows="3" placeholder="e.g. existing holdings, specific market views..."></textarea>
+              </div>
+              <div class="field">
+                <label>Selected asset allocation</label>
+                <div class="table-wrap">
+                  <table class="input-table">
+                    <thead><tr><th>Asset class</th><th>Percentage (%)</th><th></th></tr></thead>
+                    <tbody id="l-deviationRows"></tbody>
+                  </table>
+                  <button class="btn-add-row" onclick="addDeviationRow()">+ Add asset class</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 6: Special conditions -->
+        <div class="letter-step hidden" id="lstep-5">
+          <div class="form-card">
+            <h3>Special conditions</h3>
+
+            <div class="field">
+              <label>Concentration risk</label>
+              <div class="radio-group">
+                <label class="radio-opt block">
+                  <input type="radio" name="concentration" value="ok" checked />
+                  <span><strong>Does not exceed trigger</strong> — confirm that concentration limits are met</span>
+                </label>
+                <label class="radio-opt block">
+                  <input type="radio" name="concentration" value="breach" />
+                  <span><strong>Exceeds trigger</strong> — portfolio is over-concentrated</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="checkbox-label">
+                <input type="checkbox" id="l-waarBreach" />
+                Client requested products suitable despite WAAR breach
+              </label>
+            </div>
+
+            <div class="field">
+              <label class="checkbox-label">
+                <input type="checkbox" id="l-taa" />
+                Transaction against advice (TAA)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 7: Periodic review -->
+        <div class="letter-step hidden" id="lstep-6">
+          <div class="form-card">
+            <h3>Periodic assessment of suitability</h3>
+            <div class="field">
+              <label>Would / would not require review?</label>
+              <div class="radio-group inline">
+                <label class="radio-opt"><input type="radio" name="wouldReview" value="would" /> Would</label>
+                <label class="radio-opt"><input type="radio" name="wouldReview" value="would not" checked /> Would not</label>
+              </div>
+            </div>
+            <div class="field">
+              <label>Reasons <span class="label-hint">(select all that apply)</span></label>
+              <div class="checkbox-group">
+                <label class="checkbox-opt">
+                  <input type="checkbox" id="rev-maturity" />
+                  <span>Would <strong>not</strong> require review — investment held to maturity</span>
+                </label>
+                <label class="checkbox-opt">
+                  <input type="checkbox" id="rev-nonadv" />
+                  <span>Would require review if client performs non-advised transaction or transfers in an investment</span>
+                </label>
+                <label class="checkbox-opt">
+                  <input type="checkbox" id="rev-leverage" />
+                  <span>Would require review if client buying investment with leverage</span>
+                </label>
+                <label class="checkbox-opt">
+                  <input type="checkbox" id="rev-ir56" />
+                  <span>Would require review if client investing in IR5/IR6 products</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="step-nav">
+          <button class="btn-secondary" id="btnBack" onclick="prevStep()" style="display:none">← Back</button>
+          <button class="btn-primary" id="btnNext" onclick="nextStep()">Continue →</button>
+          <button class="btn-generate hidden" id="btnGenerate" onclick="generateLetter()">Generate letter ↗</button>
+        </div>
+      </div>
+
+      <!-- History Tab -->
+      <div id="tab-history" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Letter history</h2>
+          <div class="section-sub">All generated letters for this client</div>
+        </div>
+        <div id="historyList"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Letter Modal -->
+  <div id="letterModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Suitability Letter</h2>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="copyLetter()">Copy text</button>
+          <button class="btn-secondary" onclick="window.print()">Print / PDF</button>
+          <button class="btn-secondary" onclick="closeModal()">Close</button>
+        </div>
+      </div>
+      <div id="letterOutput" class="letter-output"></div>
+    </div>
+  </div>
+
+</div>
+<script src="data.js"></script>
+<script src="waar.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

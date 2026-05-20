@@ -1,0 +1,163 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #ffffff;
+  --bg2: #f7f6f3;
+  --bg3: #f0efe9;
+  --text: #1a1a1a;
+  --text2: #555;
+  --text3: #999;
+  --border: rgba(0,0,0,0.1);
+  --border2: rgba(0,0,0,0.18);
+  --blue: #185fa5;
+  --blue-bg: #e6f1fb;
+  --blue-border: #b5d4f4;
+  --green-bg: #eaf3de;
+  --green-text: #3b6d11;
+  --green-border: #c0dd97;
+  --sidebar-w: 240px;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); height: 100vh; overflow: hidden; }
+
+.app { display: flex; height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar { width: var(--sidebar-w); background: var(--bg); border-right: 0.5px solid var(--border2); display: flex; flex-direction: column; padding: 1.25rem 0; flex-shrink: 0; overflow-y: auto; }
+.sidebar-logo { font-size: 13px; font-weight: 600; color: var(--text2); padding: 0 1rem 1rem; border-bottom: 0.5px solid var(--border); letter-spacing: 0.02em; }
+.sidebar-section-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 1rem 1rem 0.4rem; }
+.client-list { flex: 1; }
+.client-item { padding: 8px 1rem; font-size: 14px; cursor: pointer; border-radius: 0; transition: background 0.1s; }
+.client-item:hover { background: var(--bg2); }
+.client-item.active { background: var(--blue-bg); color: var(--blue); font-weight: 500; }
+.btn-new-client { margin: 0.5rem 1rem; padding: 8px 12px; border: 1px dashed var(--border2); border-radius: var(--radius); background: none; font-size: 13px; color: var(--text2); cursor: pointer; text-align: left; }
+.btn-new-client:hover { background: var(--bg2); }
+.sidebar-divider { height: 0.5px; background: var(--border); margin: 0.75rem 0; }
+.sidebar-setting { padding: 0 1rem 0.75rem; }
+.sidebar-setting label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+.sidebar-setting input { width: 100%; padding: 6px 8px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-size: 12px; font-family: monospace; background: var(--bg2); }
+
+/* ── Main ── */
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.hidden { display: none !important; }
+
+/* ── Empty state ── */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 12px; }
+.empty-icon { font-size: 40px; }
+.empty-title { font-size: 18px; font-weight: 500; }
+.empty-sub { font-size: 14px; color: var(--text2); }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 4px; border-bottom: 0.5px solid var(--border2); margin-bottom: 1.5rem; }
+.tab { padding: 8px 16px; border: none; background: none; font-size: 14px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; font-family: inherit; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 500; }
+
+/* ── Section header ── */
+.section-header { margin-bottom: 1.25rem; }
+.section-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.section-sub { font-size: 13px; color: var(--text2); }
+
+/* ── Form card ── */
+.form-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1rem; }
+.form-card h3 { font-size: 15px; font-weight: 500; margin-bottom: 1.25rem; color: var(--text2); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* ── Fields ── */
+.field { margin-bottom: 1.25rem; }
+.field label { display: block; font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+.label-hint { font-weight: 400; color: var(--text3); }
+.field-hint { font-size: 12px; color: var(--text3); margin-bottom: 8px; line-height: 1.5; }
+.field input[type=text], .field input[type=date], .field input[type=number], .field textarea, .field select {
+  width: 100%; padding: 8px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius);
+  background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit;
+}
+.field textarea { resize: vertical; line-height: 1.6; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(24,95,165,0.1); }
+
+/* ── Radio / checkbox groups ── */
+.radio-group { display: flex; flex-direction: column; gap: 8px; }
+.radio-group.inline { flex-direction: row; gap: 1.5rem; }
+.radio-opt { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; line-height: 1.5; }
+.radio-opt input { margin-top: 3px; flex-shrink: 0; accent-color: var(--blue); }
+.radio-opt.block { padding: 10px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); transition: border-color 0.15s, background 0.15s; }
+.radio-opt.block:hover { background: var(--bg2); }
+.radio-opt.block:has(input:checked) { background: var(--blue-bg); border-color: var(--blue-border); }
+
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.checkbox-opt { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; padding: 7px 12px; border: 0.5px solid var(--border); border-radius: 20px; transition: all 0.15s; }
+.checkbox-opt:hover { background: var(--bg2); }
+.checkbox-opt:has(input:checked) { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+.checkbox-opt input { accent-color: var(--blue); }
+.checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.checkbox-label input { accent-color: var(--blue); }
+
+/* ── Form actions ── */
+.form-actions { display: flex; align-items: center; gap: 12px; margin-top: 1.5rem; }
+.saved-msg { font-size: 13px; color: var(--green-text); }
+
+/* ── Buttons ── */
+.btn-primary { padding: 9px 20px; background: var(--blue); color: white; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+.btn-primary:hover { opacity: 0.88; }
+.btn-secondary { padding: 8px 16px; background: var(--bg); color: var(--text2); border: 0.5px solid var(--border2); border-radius: var(--radius); font-size: 14px; cursor: pointer; font-family: inherit; }
+.btn-secondary:hover { background: var(--bg2); }
+.btn-generate { padding: 10px 24px; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; }
+.btn-generate:hover { opacity: 0.88; }
+.btn-add-row { margin-top: 8px; font-size: 13px; color: var(--blue); background: none; border: none; cursor: pointer; padding: 4px 0; font-family: inherit; }
+.btn-add-row:hover { text-decoration: underline; }
+.btn-remove { width: 26px; height: 26px; border-radius: 50%; border: 0.5px solid var(--border2); background: none; color: var(--text3); cursor: pointer; font-size: 16px; line-height: 1; }
+.btn-remove:hover { background: #fce; color: #a32; border-color: #f7c1c1; }
+
+/* ── Steps ── */
+.steps { display: flex; align-items: center; gap: 0; margin-bottom: 1.5rem; }
+.step-dot { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--border2); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text2); flex-shrink: 0; }
+.step-dot.active { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+.step-dot.done { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+.step-line { flex: 1; height: 1px; background: var(--border2); }
+.step-line.done { background: var(--green-border); }
+.step-nav { display: flex; gap: 12px; margin-top: 1.5rem; }
+
+/* ── Table ── */
+.table-wrap { overflow-x: auto; }
+.input-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.input-table th { text-align: left; padding: 6px 8px; font-size: 12px; font-weight: 500; color: var(--text3); border-bottom: 0.5px solid var(--border2); }
+.input-table td { padding: 4px 4px; border-bottom: 0.5px solid var(--border); }
+.input-table input { width: 100%; padding: 6px 8px; border: 0.5px solid transparent; border-radius: 4px; font-size: 13px; font-family: inherit; background: transparent; }
+.input-table input:focus { border-color: var(--blue); background: white; outline: none; }
+
+/* ── WAAR ── */
+.waar-result { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 14px; background: var(--bg2); border-radius: var(--radius); font-size: 14px; }
+.waar-label { color: var(--text2); font-weight: 500; }
+.waar-val { font-weight: 600; color: var(--blue); }
+
+/* ── History ── */
+.history-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; }
+.history-meta { display: flex; flex-direction: column; gap: 2px; }
+.history-date { font-size: 14px; font-weight: 500; }
+.history-meeting { font-size: 12px; color: var(--text3); }
+.empty-history { font-size: 14px; color: var(--text3); padding: 2rem 0; }
+
+/* ── Letter Modal ── */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 2rem; }
+.modal-content { background: var(--bg); border-radius: var(--radius-lg); width: 100%; max-width: 800px; padding: 2rem; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.modal-header h2 { font-size: 20px; font-weight: 500; }
+.modal-actions { display: flex; gap: 8px; }
+
+/* ── Letter output ── */
+.letter-output { font-family: Georgia, 'Times New Roman', serif; font-size: 14px; line-height: 1.85; color: #1a1a1a; }
+.letter-output p { margin-bottom: 1rem; }
+.letter-output strong { font-weight: 600; }
+.letter-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: -apple-system, sans-serif; font-size: 13px; }
+.letter-table th { background: #f7f6f3; padding: 8px 12px; text-align: left; font-weight: 600; border: 0.5px solid #ddd; }
+.letter-table td { padding: 8px 12px; border: 0.5px solid #ddd; }
+
+/* ── Print ── */
+@media print {
+  .sidebar, .tabs, .modal-header .modal-actions, .step-nav { display: none !important; }
+  .modal { position: static; padding: 0; background: none; }
+  .modal-content { box-shadow: none; border: none; }
+  body { overflow: visible; }
+}
