@@ -162,11 +162,7 @@ Return ONLY valid JSON, no markdown:
       hint.style.cssText = 'font-size:11px;color:#999;margin-top:2px;font-style:italic';
     });
 
-    // Update WAAR
-    const el = document.getElementById('waar-before');
-    if (el && result.waarBefore) el.textContent = `${result.waarBefore} (${result.irBefore||irBand(result.waarBefore)})`;
-
-    statusEl.textContent = `✓ Ratings assigned — WAAR: ${result.waarBefore} (${result.irBefore})`;
+    statusEl.textContent = `✓ ${result.holdings?.length || 0} ratings assigned`;
     statusEl.style.color = '#3b6d11';
     recalcWAAR();
 
