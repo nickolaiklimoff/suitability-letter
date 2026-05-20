@@ -160,25 +160,41 @@
         <div class="letter-step hidden" id="lstep-3">
           <div class="form-card">
             <h3>Portfolio &amp; WAAR calculation</h3>
+            <div class="field-hint" style="margin-bottom:1rem">Upload Excel files — Claude will apply the full Orion Ridge Capital risk methodology, assign IR ratings to each holding, and calculate WAAR. You can edit any value after.</div>
 
-            <!-- Existing portfolio -->
-            <div class="field">
-              <label>Existing portfolio (before transaction)</label>
-              <div class="field-hint">Upload your portfolio Excel export — risk ratings are assigned automatically. You can override any value.</div>
-              <div class="import-bar">
+            <div class="claude-upload-bar">
+              <div class="upload-slot">
+                <div class="upload-label">Existing portfolio (before)</div>
                 <label class="btn-import" for="importExisting">
-                  ↑ Upload portfolio Excel
+                  ↑ Upload Excel
                   <input type="file" id="importExisting" accept=".xlsx,.xls" style="display:none"
-                    onchange="handlePortfolioImport(this, 'existing')" />
+                    onchange="document.getElementById('existingFileName').textContent=this.files[0]?.name||''"/>
                 </label>
-                <span id="importExistingStatus" class="import-status"></span>
-                <button class="btn-add-row" style="margin-left:auto" onclick="addPortfolioRow('existing')">+ Add row manually</button>
+                <span id="existingFileName" class="file-name"></span>
               </div>
+              <div class="upload-slot">
+                <div class="upload-label">New portfolio (after) — optional</div>
+                <label class="btn-import" for="importNew">
+                  ↑ Upload Excel
+                  <input type="file" id="importNew" accept=".xlsx,.xls" style="display:none"
+                    onchange="document.getElementById('newFileName').textContent=this.files[0]?.name||''"/>
+                </label>
+                <span id="newFileName" class="file-name"></span>
+                <div class="upload-hint">If empty — auto-builds from existing + Step 2 investments</div>
+              </div>
+              <button class="btn-analyze" id="btnAnalyzePortfolio" onclick="analyzePortfolioFiles()">Analyze with Claude →</button>
+            </div>
+
+            <div id="portfolioAnalysisStatus" class="import-status" style="margin:10px 0"></div>
+
+            <div class="field" style="margin-top:1.25rem">
+              <label>Existing portfolio <span class="label-hint">(editable after analysis)</span></label>
               <div class="table-wrap">
                 <table class="input-table">
-                  <thead><tr><th>Product / ISIN</th><th>CCY</th><th>Amount (USD)</th><th>Risk rating (1–6)</th><th></th></tr></thead>
+                  <thead><tr><th>Product / ISIN</th><th>CCY</th><th>Amount (USD)</th><th>Risk rating</th><th></th></tr></thead>
                   <tbody id="l-existingRows"></tbody>
                 </table>
+                <button class="btn-add-row" onclick="addPortfolioRow('existing')">+ Add row manually</button>
               </div>
               <div class="waar-result">
                 <span class="waar-label">WAAR before:</span>
@@ -186,32 +202,20 @@
               </div>
             </div>
 
-            <!-- New portfolio -->
-            <div class="field" style="margin-top:1.75rem">
-              <label>New portfolio (after transaction)</label>
-              <div class="field-hint">Upload the updated portfolio Excel, or the system will combine existing holdings + new investments from Step 2 automatically.</div>
-              <div class="import-bar">
-                <label class="btn-import" for="importNew">
-                  ↑ Upload new portfolio Excel
-                  <input type="file" id="importNew" accept=".xlsx,.xls" style="display:none"
-                    onchange="handlePortfolioImport(this, 'new')" />
-                </label>
-                <span id="importNewStatus" class="import-status"></span>
-                <button class="btn-secondary" style="margin-left:8px;font-size:13px" onclick="buildNewFromExisting()">Auto-build from existing + Step 2</button>
-                <button class="btn-add-row" style="margin-left:auto" onclick="addPortfolioRow('new')">+ Add row manually</button>
-              </div>
+            <div class="field" style="margin-top:1.5rem">
+              <label>New portfolio <span class="label-hint">(editable after analysis)</span></label>
               <div class="table-wrap">
                 <table class="input-table">
-                  <thead><tr><th>Product / ISIN</th><th>CCY</th><th>Amount (USD)</th><th>Risk rating (1–6)</th><th></th></tr></thead>
+                  <thead><tr><th>Product / ISIN</th><th>CCY</th><th>Amount (USD)</th><th>Risk rating</th><th></th></tr></thead>
                   <tbody id="l-newRows"></tbody>
                 </table>
+                <button class="btn-add-row" onclick="addPortfolioRow('new')">+ Add row manually</button>
               </div>
               <div class="waar-result">
                 <span class="waar-label">WAAR after:</span>
                 <span class="waar-val" id="waar-after">—</span>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -227,11 +231,13 @@
               <label>Asset allocation</label>
               <div class="import-bar">
                 <label class="btn-import" for="importModel">
-                  ↑ Upload allocation Excel
+                  ↑ Upload Excel
                   <input type="file" id="importModel" accept=".xlsx,.xls" style="display:none"
-                    onchange="handleModelImport(this)" />
+                    onchange="document.getElementById('modelFileName').textContent=this.files[0]?.name||''"/>
                 </label>
-                <span id="importModelStatus" class="import-status"></span>
+                <span id="modelFileName" class="file-name"></span>
+                <button class="btn-analyze" id="btnAnalyzeModel" onclick="analyzeModelFile()" style="margin-left:8px">Analyze with Claude →</button>
+                <span id="importModelStatus" class="import-status" style="margin-left:8px"></span>
                 <button class="btn-add-row" style="margin-left:auto" onclick="addModelRow()">+ Add row manually</button>
               </div>
               <div class="table-wrap">
