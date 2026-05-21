@@ -130,9 +130,16 @@
             </div>
             <div class="field">
               <label>Recommended investments</label>
-              <div class="field-hint">Enter each new investment. Advisory fee defaults to 0. Click "Assign ratings" to get risk ratings — used for WAAR after calculation.</div>
-              <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-                <button class="btn-analyze" id="btnRateInvestments" onclick="assignInvestmentRatings()" style="font-size:13px;padding:7px 14px">Assign ratings →</button>
+              <div class="field-hint">Enter or import new investments. Advisory fee defaults to 0. Click "Assign ratings" to get risk ratings for WAAR calculation.</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                <button class="btn-secondary" onclick="downloadInvestTemplate()" style="font-size:13px">↓ Template</button>
+                <label class="btn-import" for="importInvestFile" style="margin:0">
+                  ↑ Import Excel
+                  <input type="file" id="importInvestFile" accept=".xlsx,.xls" style="display:none"
+                    onchange="importInvestExcel(this)"/>
+                </label>
+                <span id="importInvestStatus" class="import-status"></span>
+                <button class="btn-analyze" id="btnRateInvestments" onclick="assignInvestmentRatings()" style="font-size:13px;padding:7px 14px;margin-left:auto">Assign ratings →</button>
               </div>
               <span id="investRatingStatus" class="import-status" style="display:block;margin-bottom:8px"></span>
               <div class="table-wrap">

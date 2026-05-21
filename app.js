@@ -106,7 +106,7 @@ function resetLetterForm() {
   if (devBlock) devBlock.classList.add('hidden');
 
   // Reset file inputs
-  ['importExistingFile','importModel'].forEach(id => {
+  ['importExistingFile','importModel','importInvestFile'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });

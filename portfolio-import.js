@@ -354,3 +354,71 @@ Return ONLY valid JSON, no markdown:
   }
   btn.disabled = false;
 };
+
+// ─── New investments template & import ───────────────────────────────────────
+window.downloadInvestTemplate = function() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['Name', 'ISIN', 'Amount USD'],
+    ['iShares MSCI ACWI UCITS ETF', 'IE00B6R52259', 20000],
+    ['Xtrackers MSCI World Financials UCITS ETF', 'IE00BM67HL84', 3319.70],
+    ['Goldman Sachs 6.125% 2033', 'US38141GCU87', 19469.50]
+  ]);
+  ws['!cols'] = [{wch:45},{wch:18},{wch:15}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Investments');
+  XLSX.writeFile(wb, 'investments_template.xlsx');
+};
+
+window.importInvestExcel = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('importInvestStatus');
+  statusEl.textContent = 'Reading...';
+  statusEl.style.color = '#854f0b';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // Find header row
+      let startRow = 0;
+      for (let i = 0; i < Math.min(5, rows.length); i++) {
+        const r = rows[i].map(v => String(v).toLowerCase());
+        if (r.some(v => v.includes('name') || v.includes('isin'))) { startRow = i + 1; break; }
+      }
+
+      const tbody = document.getElementById('l-investRows');
+      tbody.innerHTML = '';
+      let count = 0;
+
+      for (let i = startRow; i < rows.length; i++) {
+        const row = rows[i];
+        const name   = String(row[0] || '').trim();
+        const isin   = String(row[1] || '').trim();
+        const amount = parseFloat(String(row[2] || '').replace(/,/g, '')) || 0;
+        if (!name) continue;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" value="${escAttr(name)}" placeholder="Product name"/></td>
+          <td><input type="text" value="${escAttr(isin)}" style="width:130px" placeholder="ISIN"/></td>
+          <td><input type="number" value="${amount}" placeholder="Amount USD"/></td>
+          <td><input type="text" value="0" style="width:80px" placeholder="0"/></td>
+          <td><button class="btn-remove" onclick="this.closest('tr').remove()">×</button></td>`;
+        tbody.appendChild(tr);
+        count++;
+      }
+
+      statusEl.textContent = `✓ ${count} rows imported`;
+      statusEl.style.color = '#3b6d11';
+    } catch(err) {
+      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.style.color = '#a32d2d';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
