@@ -58,6 +58,66 @@ function selectClient(id) {
   document.getElementById('appContent').classList.remove('hidden');
   switchTab('profile', document.querySelector('.tab'));
   loadProfileForm();
+  resetLetterForm();
+}
+
+function resetLetterForm() {
+  currentStep = 0;
+  showStep(0);
+
+  // Clear text fields
+  ['l-date','l-rationale','l-documents','l-docDate','l-modelName','l-deviationReason'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Clear tables
+  ['l-existingRows','l-investRows','l-modelRows','l-deviationRows','l-newRows'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
+  // Clear status messages
+  ['existingStatus','investRatingStatus','importModelStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+
+  // Reset WAAR
+  const wb = document.getElementById('waar-before');
+  const wa = document.getElementById('waar-after');
+  if (wb) wb.textContent = '—';
+  if (wa) wa.textContent = '—';
+
+  // Reset radios
+  const meetspeak = document.querySelector('input[name="meetspeak"][value="meet"]');
+  if (meetspeak) meetspeak.checked = true;
+  const wouldNotReview = document.querySelector('input[name="wouldReview"][value="would not"]');
+  if (wouldNotReview) wouldNotReview.checked = true;
+  const concOk = document.querySelector('input[name="concentration"][value="ok"]');
+  if (concOk) concOk.checked = true;
+
+  // Reset checkboxes
+  ['l-hasDeviation','l-waarBreach','l-taa','rev-maturity','rev-nonadv','rev-leverage','rev-ir56'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+  const devBlock = document.getElementById('deviationBlock');
+  if (devBlock) devBlock.classList.add('hidden');
+
+  // Reset file inputs
+  ['importExistingFile','importModel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Reset transaction ratings
+  window._transactionRatings = [];
+
+  // Add initial empty rows
+  addInvestRow();
+  addExistingRow();
+  addModelRow();
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
