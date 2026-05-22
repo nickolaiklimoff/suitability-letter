@@ -24,11 +24,19 @@ window.parseCbondsExport = function(file) {
         const bonds = bondRows.map(r => ({
           name: String(r[0]).trim(),
           type: 'bond',
-          quantity: parseFloat(r[2]) || 0,
+          pricingSource: String(r[1]||'').trim(),
+          quantity: parseFloat(String(r[2]||'').replace(/,/g,'')) || 0,
+          faceValue: String(r[3]||'').trim(),
           price: parseFloat(r[4]) || 0,
-          holdingValue: parseFloat(r[7]) || parseFloat(r[5]) || 0,
+          holdingValue: parseFloat(r[5]) || 0,
           purchasePrice: parseFloat(r[6]) || 0,
+          convertedHoldingValue: parseFloat(r[7]) || parseFloat(r[5]) || 0,
           unrealizedPnL: parseFloat(r[8]) || 0,
+          isin: String(r[10]||'').trim(),
+          issuerRating: String(r[16]||'').trim(),
+          maturityDate: r[17] ? new Date(r[17]).toLocaleDateString('en-GB') : '',
+          putCallDate: r[18] ? new Date(r[18]).toLocaleDateString('en-GB') : '',
+          pctOfPortfolio: parseFloat(r[19]) || 0,
         }));
 
         // Parse funds/ETFs
@@ -36,12 +44,17 @@ window.parseCbondsExport = function(file) {
         const funds = fundRows.map(r => ({
           name: String(r[0]).trim(),
           type: 'etf',
-          exchange: String(r[1] || '').trim(),
+          exchange: String(r[1]||'').trim(),
           quantity: parseFloat(r[2]) || 0,
           price: parseFloat(r[3]) || 0,
-          holdingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
+          holdingValue: parseFloat(r[4]) || 0,
           purchasePrice: parseFloat(r[5]) || 0,
+          convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
           unrealizedPnL: parseFloat(r[7]) || 0,
+          ticker: String(r[12]||'').trim(),
+          tradingCurrency: String(r[13]||'').trim(),
+          totalCostRatio: parseFloat(r[14]) || 0,
+          pctOfPortfolio: parseFloat(r[15]) || 0,
           tradeDate: r[9] ? new Date(r[9]).toLocaleDateString('en-GB') : '',
         }));
 
@@ -50,12 +63,15 @@ window.parseCbondsExport = function(file) {
         const stocks = stockRows.map(r => ({
           name: String(r[0]).trim(),
           type: 'equity',
-          exchange: String(r[1] || '').trim(),
-          quantity: parseFloat(r[2]) || 0,
-          price: parseFloat(r[3]) || 0,
-          holdingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
-          purchasePrice: parseFloat(r[5]) || 0,
-          unrealizedPnL: parseFloat(r[7]) || 0,
+          quantity: parseFloat(r[1]) || 0,
+          price: parseFloat(r[2]) || 0,
+          holdingValue: parseFloat(r[3]) || 0,
+          purchasePrice: parseFloat(r[4]) || 0,
+          convertedHoldingValue: parseFloat(r[5]) || parseFloat(r[3]) || 0,
+          unrealizedPnL: parseFloat(r[6]) || 0,
+          tradingCurrency: String(r[7]||'').trim(),
+          ticker: String(r[8]||'').trim(),
+          pctOfPortfolio: parseFloat(r[10]) || 0,
         }));
 
         // Parse income
@@ -471,66 +487,143 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     </tr>`;
   }).join('');
 
-  // Section 5: Performance per position
+  // Section 5: Performance tables
   const incomeMap = buildIncomeMap(portfolioData);
   const reportDateObj = reportDate ? new Date(reportDate) : new Date();
-  const totalCostBasis = portfolioData.holdings.reduce((s, h) => {
-    const cost = h.type === 'bond'
-      ? (h.purchasePrice / 100) * parseFloat(String(h.quantity||'').replace(/,/g,'')) * 1000
-      : h.purchasePrice * (h.quantity || 0);
-    return s + (cost || 0);
-  }, 0);
 
-  // Portfolio MWRR from deposits + current value
-  const deposits = (portfolioData.tradeRows || [])
-    .filter(r => r[2] === 'Buy')
-    .map(r => ({
-      date: new Date(r[0]),
-      amount: -(parseFloat(r[7]) * parseFloat(r[6]) || 0) // negative = outflow
-    }));
-  const depositSheet = []; // from deposits and withdrawals — already in totalCostBasis
-  const mwrrFlows = [
-    ...portfolioData.holdings.map(h => {
-      const cost = h.type === 'bond'
-        ? (h.purchasePrice / 100) * parseFloat(String(h.quantity||'').replace(/,/g,'')) * 1000
-        : h.purchasePrice * (h.quantity || 0);
-      const date = findFirstPurchaseDate(h.name, portfolioData.firstPurchaseMap, portfolioData.tradeRows);
-      return date ? { date, amount: -cost } : null;
-    }).filter(Boolean),
-    { date: reportDateObj, amount: portfolioData.totalValue } // terminal value
-  ].sort((a,b) => a.date - b.date);
+  // Cost basis helper
+  const getCostBasis = (h) => h.type === 'bond'
+    ? (h.purchasePrice / 100) * parseFloat(String(h.quantity||'').replace(/,/g,'')) * 1000
+    : h.purchasePrice * (h.quantity || 0);
 
-  const portfolioMWRR = calcMWRR(mwrrFlows);
-  const portfolioTotalReturnUSD = portfolioData.totalValue - totalCostBasis + portfolioData.totalIncome;
-  const portfolioTotalReturnPct = totalCostBasis > 0 ? (portfolioTotalReturnUSD / totalCostBasis) * 100 : 0;
-
-  const perfRows = [...portfolioData.holdings].sort((a,b) => b.holdingValue - a.holdingValue).map(h => {
-    const perf = calcPositionPerformance(h, incomeMap, portfolioData.firstPurchaseMap, portfolioData.tradeRows, reportDateObj);
-    const pnlColor = perf.totalReturnUSD >= 0 ? '#3b6d11' : '#a32d2d';
-    const annStr = perf.annReturn !== null ? (perf.annReturn * 100).toFixed(1) + '%' : '—';
+  // ── Bonds table ──
+  const bondPerfRows = (portfolioData.bonds||[]).map(h => {
+    const costBasis = getCostBasis(h);
+    const interestIncome = incomeMap[h.name] || 0;
+    const totalPnL = h.unrealizedPnL + interestIncome;
+    const totalPnLPct = costBasis > 0 ? (totalPnL / costBasis) * 100 : 0;
+    const c = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
+    const pctPort = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
     return `<tr>
       <td>${h.name}</td>
-      <td>${fmtUSD(perf.costBasis)}</td>
-      <td>${fmtUSD(perf.income)}</td>
-      <td style="color:${pnlColor}">${perf.unrealizedPnL>=0?'+':''}${fmtUSD(perf.unrealizedPnL)}</td>
-      <td style="color:${pnlColor}">${perf.totalReturnUSD>=0?'+':''}${fmtUSD(perf.totalReturnUSD)}</td>
-      <td style="color:${pnlColor}">${perf.totalReturnPct>=0?'+':''}${perf.totalReturnPct.toFixed(1)}%</td>
-      <td style="color:${pnlColor}">${annStr}</td>
+      <td>${h.isin||'—'}</td>
+      <td>${h.quantity||'—'}</td>
+      <td>${h.faceValue||'—'}</td>
+      <td>${h.price ? h.price.toFixed(2)+'%' : '—'}</td>
+      <td>${fmtUSD(h.holdingValue)}</td>
+      <td>${h.purchasePrice ? h.purchasePrice.toFixed(2)+'%' : '—'}</td>
+      <td>${fmtUSD(h.convertedHoldingValue)}</td>
+      <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${h.unrealizedPnL>=0?'+':''}${fmtUSD(h.unrealizedPnL)}</td>
+      <td>${fmtUSD(interestIncome)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
+      <td>${h.issuerRating||'—'}</td>
+      <td>${h.maturityDate||'—'}</td>
+      <td>${pctPort}</td>
     </tr>`;
   }).join('');
 
-  const pnlPortColor = portfolioTotalReturnUSD >= 0 ? '#3b6d11' : '#a32d2d';
-  const perfSummary = `<tfoot style="font-weight:600;background:var(--bg2)">
-    <tr>
-      <td>PORTFOLIO TOTAL</td>
-      <td>${fmtUSD(totalCostBasis)}</td>
-      <td>${fmtUSD(portfolioData.totalIncome)}</td>
-      <td style="color:${pnlPortColor}">${portfolioData.totalUnrealizedPnL>=0?'+':''}${fmtUSD(portfolioData.totalUnrealizedPnL)}</td>
-      <td style="color:${pnlPortColor}">${portfolioTotalReturnUSD>=0?'+':''}${fmtUSD(portfolioTotalReturnUSD)}</td>
-      <td style="color:${pnlPortColor}">${portfolioTotalReturnPct>=0?'+':''}${portfolioTotalReturnPct.toFixed(1)}%</td>
-      <td style="color:${pnlPortColor}">${portfolioMWRR !== null ? (portfolioMWRR*100).toFixed(1)+'% p.a. (MWRR)' : '—'}</td>
-    </tr>
-  </tfoot>`;
+  const bondTotCost = (portfolioData.bonds||[]).reduce((s,h) => s+getCostBasis(h), 0);
+  const bondTotIncome = (portfolioData.bonds||[]).reduce((s,h) => s+(incomeMap[h.name]||0), 0);
+  const bondTotUnreal = (portfolioData.bonds||[]).reduce((s,h) => s+h.unrealizedPnL, 0);
+  const bondTotPnL = bondTotUnreal + bondTotIncome;
+  const bondTotPnLPct = bondTotCost > 0 ? (bondTotPnL/bondTotCost*100).toFixed(1)+'%' : '—';
+  const bc = bondTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
+
+  const bondPerfFooter = `<tfoot style="font-weight:600"><tr>
+    <td colspan="8">BONDS TOTAL</td>
+    <td style="color:${bondTotUnreal>=0?'#3b6d11':'#a32d2d'}">${bondTotUnreal>=0?'+':''}${fmtUSD(bondTotUnreal)}</td>
+    <td>${fmtUSD(bondTotIncome)}</td>
+    <td style="color:${bc}">${bondTotPnL>=0?'+':''}${fmtUSD(bondTotPnL)}</td>
+    <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPnLPct}</td>
+    <td colspan="3"></td>
+  </tr></tfoot>`;
+
+  // ── Funds table ──
+  const fundPerfRows = (portfolioData.funds||[]).map(h => {
+    const costBasis = getCostBasis(h);
+    const dividends = incomeMap[h.name] || 0;
+    const totalPnL = h.unrealizedPnL + dividends;
+    const totalPnLPct = costBasis > 0 ? (totalPnL / costBasis) * 100 : 0;
+    const c = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
+    const pctPort = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
+    return `<tr>
+      <td>${h.name}</td>
+      <td>${h.ticker||'—'}</td>
+      <td>${h.exchange||'—'}</td>
+      <td>${h.quantity||'—'}</td>
+      <td>${h.price ? h.price.toFixed(2) : '—'}</td>
+      <td>${fmtUSD(h.holdingValue)}</td>
+      <td>${h.purchasePrice ? h.purchasePrice.toFixed(4) : '—'}</td>
+      <td>${fmtUSD(h.convertedHoldingValue)}</td>
+      <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${h.unrealizedPnL>=0?'+':''}${fmtUSD(h.unrealizedPnL)}</td>
+      <td>${fmtUSD(dividends)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
+      <td>${pctPort}</td>
+    </tr>`;
+  }).join('');
+
+  const fundTotCost = (portfolioData.funds||[]).reduce((s,h) => s+getCostBasis(h), 0);
+  const fundTotIncome = (portfolioData.funds||[]).reduce((s,h) => s+(incomeMap[h.name]||0), 0);
+  const fundTotUnreal = (portfolioData.funds||[]).reduce((s,h) => s+h.unrealizedPnL, 0);
+  const fundTotPnL = fundTotUnreal + fundTotIncome;
+  const fundTotPnLPct = fundTotCost > 0 ? (fundTotPnL/fundTotCost*100).toFixed(1)+'%' : '—';
+  const fc = fundTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
+
+  const fundPerfFooter = `<tfoot style="font-weight:600"><tr>
+    <td colspan="8">FUNDS TOTAL</td>
+    <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
+    <td>${fmtUSD(fundTotIncome)}</td>
+    <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
+    <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPnLPct}</td>
+    <td></td>
+  </tr></tfoot>`;
+
+  // ── Stocks table ──
+  const stockPerfRows = (portfolioData.stocks||[]).map(h => {
+    const costBasis = getCostBasis(h);
+    const dividends = incomeMap[h.name] || 0;
+    const totalPnL = h.unrealizedPnL + dividends;
+    const totalPnLPct = costBasis > 0 ? (totalPnL / costBasis) * 100 : 0;
+    const c = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
+    const pctPort = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
+    return `<tr>
+      <td>${h.name}</td>
+      <td>${h.ticker||'—'}</td>
+      <td>${h.quantity||'—'}</td>
+      <td>${h.price ? h.price.toFixed(2) : '—'}</td>
+      <td>${fmtUSD(h.holdingValue)}</td>
+      <td>${h.purchasePrice ? h.purchasePrice.toFixed(4) : '—'}</td>
+      <td>${fmtUSD(h.convertedHoldingValue)}</td>
+      <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${h.unrealizedPnL>=0?'+':''}${fmtUSD(h.unrealizedPnL)}</td>
+      <td>${fmtUSD(dividends)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
+      <td>${pctPort}</td>
+    </tr>`;
+  }).join('');
+
+  // ── Portfolio total ──
+  const totalCostBasis = bondTotCost + fundTotCost +
+    (portfolioData.stocks||[]).reduce((s,h) => s+getCostBasis(h), 0);
+  const totalIncome = bondTotIncome + fundTotIncome +
+    (portfolioData.stocks||[]).reduce((s,h) => s+(incomeMap[h.name]||0), 0);
+  const totalUnreal = portfolioData.totalUnrealizedPnL;
+  const totalPnL = totalUnreal + totalIncome;
+  const totalPnLPct = totalCostBasis > 0 ? (totalPnL/totalCostBasis*100).toFixed(1)+'%' : '—';
+
+  // MWRR
+  const mwrrFlows = [
+    ...portfolioData.holdings.map(h => {
+      const cost = getCostBasis(h);
+      const date = findFirstPurchaseDate(h.name, portfolioData.firstPurchaseMap, portfolioData.tradeRows);
+      return date && cost > 0 ? { date, amount: -cost } : null;
+    }).filter(Boolean),
+    { date: reportDateObj, amount: portfolioData.totalValue + totalIncome }
+  ].sort((a,b) => a.date - b.date);
+  const portfolioMWRR = calcMWRR(mwrrFlows);
+  const pc = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
 
   // Section 6: Holdings detail
   const holdingRows = [...classified].sort((a,b) => b.holdingValue - a.holdingValue).map(h => {
@@ -597,16 +690,68 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       <div class="report-section">
-        <div class="report-section-title">5. Performance by Position</div>
-        <table class="report-table">
+        <div class="report-section-title">5. Performance</div>
+
+        <div style="font-size:13px;font-weight:600;margin:1rem 0 0.5rem;font-family:-apple-system,sans-serif">Bonds</div>
+        <div style="overflow-x:auto">
+        <table class="report-table" style="font-size:11px;min-width:900px">
           <thead><tr>
-            <th>Position</th><th>Cost Basis</th><th>Income</th>
-            <th>Unrealized PnL</th><th>Total Return $</th>
-            <th>Total Return %</th><th>Annualized</th>
+            <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
+            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
+            <th>Unrealized PnL</th><th>Interest Income</th>
+            <th>Total PnL</th><th>Total PnL %</th>
+            <th>Rating</th><th>Maturity</th><th>% Port.</th>
           </tr></thead>
-          <tbody>${perfRows}</tbody>
-          ${perfSummary}
+          <tbody>${bondPerfRows}</tbody>
+          ${bondPerfFooter}
         </table>
+        </div>
+
+        <div style="font-size:13px;font-weight:600;margin:1.5rem 0 0.5rem;font-family:-apple-system,sans-serif">Funds / ETFs</div>
+        <div style="overflow-x:auto">
+        <table class="report-table" style="font-size:11px;min-width:900px">
+          <thead><tr>
+            <th>Name</th><th>Ticker</th><th>Exchange</th><th>Qty</th><th>Price</th>
+            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th>
+            <th>Total P&amp;L</th><th>Total P&amp;L %</th><th>% Port.</th>
+          </tr></thead>
+          <tbody>${fundPerfRows}</tbody>
+          ${fundPerfFooter}
+        </table>
+        </div>
+
+        ${stockPerfRows ? `
+        <div style="font-size:13px;font-weight:600;margin:1.5rem 0 0.5rem;font-family:-apple-system,sans-serif">Stocks</div>
+        <div style="overflow-x:auto">
+        <table class="report-table" style="font-size:11px;min-width:800px">
+          <thead><tr>
+            <th>Name</th><th>Ticker</th><th>Qty</th><th>Price</th>
+            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th>
+            <th>Total P&amp;L</th><th>Total P&amp;L %</th><th>% Port.</th>
+          </tr></thead>
+          <tbody>${stockPerfRows}</tbody>
+        </table>
+        </div>` : ''}
+
+        <div style="margin-top:1.25rem">
+        <table class="report-table" style="font-size:12px">
+          <thead><tr>
+            <th>PORTFOLIO TOTAL</th><th>Cost Basis</th><th>Income</th>
+            <th>Unrealized PnL</th><th>Total PnL $</th><th>Total PnL %</th><th>MWRR p.a.</th>
+          </tr></thead>
+          <tbody><tr style="font-weight:600">
+            <td>${portfolioData.totalValue ? fmtUSD(portfolioData.totalValue) : '—'}</td>
+            <td>${fmtUSD(totalCostBasis)}</td>
+            <td>${fmtUSD(totalIncome)}</td>
+            <td style="color:${totalUnreal>=0?'#3b6d11':'#a32d2d'}">${totalUnreal>=0?'+':''}${fmtUSD(totalUnreal)}</td>
+            <td style="color:${pc}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
+            <td style="color:${pc}">${totalPnL>=0?'+':''}${totalPnLPct}</td>
+            <td style="color:${pc}">${portfolioMWRR !== null ? (portfolioMWRR>=0?'+':'')+(portfolioMWRR*100).toFixed(1)+'%' : '—'}</td>
+          </tr></tbody>
+        </table>
+        </div>
       </div>
 
       <div class="report-section">
