@@ -590,8 +590,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <td>${fmtUSD(dividends)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
-      <td>${pctPort}</td>
-    </tr>`;
+      </tr>`;
   }).join('');
 
   const fundTotCost = (portfolioData.funds||[]).reduce((s,h) => s+getCostBasis(h), 0);
@@ -717,12 +716,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div style="overflow-x:auto">
         <table class="report-table" style="font-size:11px;min-width:900px">
           <thead><tr>
-            <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
-            <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th>
-            <th>Unrealized PnL</th><th>Interest Income</th>
-            <th>Total PnL</th><th>Total PnL %</th>
-            <th>Rating</th><th>Maturity</th>
-          </tr></thead>
+            <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th><th>Rating</th><th>Maturity</th></tr></thead>
           <tbody>${bondPerfRows}</tbody>
           ${bondPerfFooter}
         </table>
@@ -750,7 +744,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
             <th>Name</th><th>Ticker</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
             <th>Unrealized PnL</th><th>Dividends Paid</th>
-            <th>Total P&amp;L</th><th>Total P&amp;L %</th><th>% Port.</th>
+            <th>Total P&L</th><th>Total P&L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}</tbody>
         </table>
