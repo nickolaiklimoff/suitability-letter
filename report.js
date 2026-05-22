@@ -326,35 +326,57 @@ function annualizedReturn(totalReturnPct, years) {
   return Math.pow(1 + totalReturnPct / 100, 1 / years) - 1;
 }
 
+// Normalize name for matching — strip (USD), ®, The, extra spaces
+function normName(s) {
+  return String(s||'')
+    .replace(/\s*\(USD\)\s*/gi, '')
+    .replace(/®/g, '')
+    .replace(/^The\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 // Build per-position income map from dividends + coupons
 function buildIncomeMap(portfolioData) {
   const map = {};
+  const allHoldings = [
+    ...(portfolioData.bonds||[]),
+    ...(portfolioData.funds||[]),
+    ...(portfolioData.stocks||[])
+  ];
 
-  // Dividends — match by partial name
-  (portfolioData.divRows || []).forEach(r => {
-    const name = String(r[4] || r[3] || '').trim();
-    const amount = parseFloat(r[7]) || parseFloat(r[5]) || 0;
-    if (!name || !amount) return;
-    // Find matching holding
-    for (const h of [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]) {
-      if (h.name.includes(name.substring(0, 20)) || name.includes(h.name.substring(0, 20))) {
-        map[h.name] = (map[h.name] || 0) + amount;
-        break;
-      }
+  // Pre-build normalized name lookup
+  const holdingByNorm = {};
+  allHoldings.forEach(h => { holdingByNorm[normName(h.name)] = h.name; });
+
+  const findHolding = (rawName) => {
+    const norm = normName(rawName);
+    // Exact match
+    if (holdingByNorm[norm]) return holdingByNorm[norm];
+    // Partial match — check if norm contains or is contained by any holding norm
+    for (const [hn, hname] of Object.entries(holdingByNorm)) {
+      if (norm.includes(hn.substring(0, 18)) || hn.includes(norm.substring(0, 18))) return hname;
     }
+    return null;
+  };
+
+  // Dividends — name is in column index 3 (Asset)
+  (portfolioData.divRows || []).forEach(r => {
+    const rawName = String(r[3] || '').trim();
+    const amount = parseFloat(r[7]) || parseFloat(r[5]) || 0;
+    if (!rawName || !amount) return;
+    const hname = findHolding(rawName);
+    if (hname) map[hname] = (map[hname] || 0) + amount;
   });
 
-  // Coupons
+  // Coupons — name is in column index 1 (Bond)
   (portfolioData.couponRows || []).forEach(r => {
-    const name = String(r[1] || '').trim();
+    const rawName = String(r[1] || '').trim();
     const amount = parseFloat(r[5]) || parseFloat(r[3]) || 0;
-    if (!name || !amount) return;
-    for (const h of (portfolioData.bonds||[])) {
-      if (h.name.includes(name.substring(0, 20)) || name.includes(h.name.substring(0, 20))) {
-        map[h.name] = (map[h.name] || 0) + amount;
-        break;
-      }
-    }
+    if (!rawName || !amount) return;
+    const hname = findHolding(rawName);
+    if (hname) map[hname] = (map[hname] || 0) + amount;
   });
 
   return map;
