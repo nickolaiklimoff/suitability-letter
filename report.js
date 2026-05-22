@@ -776,18 +776,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
 
 
-      <div class="report-section">
-        <div class="report-section-title">6. Income Summary (total period)</div>
-        <table class="report-table">
-          <thead><tr><th>Type</th><th>Amount</th></tr></thead>
-          <tbody>
-            <tr><td>Dividends</td><td>${fmtUSD(dividends)}</td></tr>
-            <tr><td>Coupons</td><td>${fmtUSD(coupons)}</td></tr>
-            <tr style="font-weight:600"><td>Total income</td><td>${fmtUSD(totalIncome)}</td></tr>
-            <tr><td>Unrealized PnL</td><td style="color:${totalUnrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${totalUnrealizedPnL>=0?'+':''}${fmtUSD(totalUnrealizedPnL)}</td></tr>
-          </tbody>
-        </table>
-      </div>
+
 
       <div class="report-disclaimer">
         <strong>Important Disclaimer</strong><br>

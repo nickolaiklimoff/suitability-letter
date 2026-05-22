@@ -223,8 +223,25 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 @media print {
   @page { size: A4 landscape; margin: 1.5cm 1.5cm; }
+
+  /* Hide everything except the report output */
+  body > * { display: none !important; }
+  .app { display: block !important; }
+  .sidebar { display: none !important; }
+  .main { display: block !important; padding: 0 !important; overflow: visible !important; }
+  #appContent { display: block !important; }
+  .tabs { display: none !important; }
+  #tab-report { display: block !important; }
+
+  /* Hide form, show only report output */
+  #tab-report > *:not(#r-reportOutput) { display: none !important; }
+  #r-reportOutput { display: block !important; }
+  #r-reportOutput > .btn-secondary,
+  #r-reportOutput > button { display: none !important; }
+
   .report-doc { max-width: 100%; }
   .report-table { font-size: 10px; }
   .report-table th, .report-table td { padding: 3px 5px; }
   .report-section { margin-bottom: 1rem; }
+  .report-header { padding: 1rem 0; }
 }
