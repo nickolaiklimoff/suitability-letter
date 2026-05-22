@@ -432,7 +432,7 @@ function decodeObjective(v) {
 window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate) {
   const bm = benchmark[clientIR] || {};
   const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics;
-  const { dividends, coupons, totalIncome, totalUnrealizedPnL } = portfolioData;
+  const { dividends, coupons, totalUnrealizedPnL } = portfolioData;
 
   const irBandLocal = (w) => {
     if (w < 2) return 'IR1'; if (w < 3) return 'IR2'; if (w < 4) return 'IR3';
