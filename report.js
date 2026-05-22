@@ -26,7 +26,8 @@ window.parseCbondsExport = function(file) {
           type: 'bond',
           pricingSource: String(r[1]||'').trim(),
           quantity: parseFloat(String(r[2]||'').replace(/,/g,'')) || 0,
-          faceValue: String(r[3]||'').trim(),
+          faceValueStr: String(r[3]||'').trim(),
+          faceValueNum: parseFloat(String(r[3]||'').replace(/,/g,'')) || 0,
           price: parseFloat(r[4]) || 0,
           holdingValue: parseFloat(r[5]) || 0,
           purchasePrice: parseFloat(r[6]) || 0,
@@ -514,9 +515,16 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const reportDateObj = reportDate ? new Date(reportDate) : new Date();
 
   // Cost basis helper
-  const getCostBasis = (h) => h.type === 'bond'
-    ? (h.purchasePrice / 100) * parseFloat(String(h.quantity||'').replace(/,/g,'')) * 1000
-    : h.purchasePrice * (h.quantity || 0);
+  // Bonds: purchasePrice is % of face value (e.g. 97.77), faceValueNum is total face value in USD
+  // Funds/Stocks: purchasePrice is price per unit
+  const getCostBasis = (h) => {
+    if (h.type === 'bond') {
+      return h.faceValueNum > 0
+        ? (h.purchasePrice / 100) * h.faceValueNum
+        : (h.purchasePrice / 100) * h.quantity * 1000; // fallback
+    }
+    return h.purchasePrice * (h.quantity || 0);
+  };
 
   // ── Bonds table ──
   const bondPerfRows = (portfolioData.bonds||[]).map(h => {
@@ -527,10 +535,10 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     const c = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
     const pctPort = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
     return `<tr>
-      <td>${h.name}</td>
+      <td style="min-width:200px">${h.name}</td>
       <td>${h.isin||'—'}</td>
       <td>${h.quantity||'—'}</td>
-      <td>${h.faceValue||'—'}</td>
+      <td>${h.faceValueStr||'—'}</td>
       <td>${h.price ? h.price.toFixed(2)+'%' : '—'}</td>
       <td>${fmtUSD(h.holdingValue)}</td>
       <td>${h.purchasePrice ? h.purchasePrice.toFixed(2)+'%' : '—'}</td>
@@ -719,7 +727,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <table class="report-table" style="font-size:11px;min-width:900px">
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
-            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
+            <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th>
             <th>Unrealized PnL</th><th>Interest Income</th>
             <th>Total PnL</th><th>Total PnL %</th>
             <th>Rating</th><th>Maturity</th><th>% Port.</th>
@@ -776,16 +784,10 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </div>
       </div>
 
-      <div class="report-section">
-        <div class="report-section-title">6. Holdings Detail</div>
-        <table class="report-table">
-          <thead><tr><th>Position</th><th>Type</th><th>Weight</th><th>Value</th><th>Unrealized PnL</th><th>IR Rating</th></tr></thead>
-          <tbody>${holdingRows}</tbody>
-        </table>
-      </div>
+
 
       <div class="report-section">
-        <div class="report-section-title">7. Income Summary (total period)</div>
+        <div class="report-section-title">6. Income Summary (total period)</div>
         <table class="report-table">
           <thead><tr><th>Type</th><th>Amount</th></tr></thead>
           <tbody>
