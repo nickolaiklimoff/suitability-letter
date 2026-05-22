@@ -62,13 +62,10 @@ window.parseCbondsExport = function(file) {
         const divRows = getSheet('dividends').slice(1).filter(r => r[0]);
         const couponRows = getSheet('coupons').slice(1).filter(r => r[0]);
 
-        const currentYear = new Date().getFullYear();
-        const dividendsYTD = divRows
-          .filter(r => new Date(r[1] || r[0]).getFullYear() === currentYear)
+        const dividends = divRows
           .reduce((s, r) => s + (parseFloat(r[7]) || parseFloat(r[5]) || 0), 0);
 
-        const couponsYTD = couponRows
-          .filter(r => new Date(r[0]).getFullYear() === currentYear)
+        const coupons = couponRows
           .reduce((s, r) => s + (parseFloat(r[5]) || parseFloat(r[3]) || 0), 0);
 
         const holdings = [...bonds, ...funds, ...stocks];
@@ -78,8 +75,8 @@ window.parseCbondsExport = function(file) {
         resolve({
           holdings, bonds, funds, stocks,
           cash, totalValue, totalUnrealizedPnL,
-          dividendsYTD, couponsYTD,
-          totalIncomeYTD: dividendsYTD + couponsYTD
+          dividends, coupons,
+          totalIncome: dividends + coupons
         });
       } catch(err) { reject(err); }
     };
@@ -267,7 +264,7 @@ function devColor(v) { return Math.abs(v) < 0.02 ? '#3b6d11' : Math.abs(v) < 0.0
 window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate) {
   const bm = benchmark[clientIR] || {};
   const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics;
-  const { dividendsYTD, couponsYTD, totalIncomeYTD, totalUnrealizedPnL } = portfolioData;
+  const { dividends, coupons, totalIncome, totalUnrealizedPnL } = portfolioData;
 
   const irBandLocal = (w) => {
     if (w < 2) return 'IR1'; if (w < 3) return 'IR2'; if (w < 4) return 'IR3';
@@ -395,13 +392,13 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       <div class="report-section">
-        <div class="report-section-title">6. Income Summary (YTD)</div>
+        <div class="report-section-title">6. Income Summary (total period)</div>
         <table class="report-table">
           <thead><tr><th>Type</th><th>Amount</th></tr></thead>
           <tbody>
-            <tr><td>Dividends</td><td>${fmtUSD(dividendsYTD)}</td></tr>
-            <tr><td>Coupons</td><td>${fmtUSD(couponsYTD)}</td></tr>
-            <tr style="font-weight:600"><td>Total income YTD</td><td>${fmtUSD(totalIncomeYTD)}</td></tr>
+            <tr><td>Dividends</td><td>${fmtUSD(dividends)}</td></tr>
+            <tr><td>Coupons</td><td>${fmtUSD(coupons)}</td></tr>
+            <tr style="font-weight:600"><td>Total income</td><td>${fmtUSD(totalIncome)}</td></tr>
             <tr><td>Unrealized PnL</td><td style="color:${totalUnrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${totalUnrealizedPnL>=0?'+':''}${fmtUSD(totalUnrealizedPnL)}</td></tr>
           </tbody>
         </table>
