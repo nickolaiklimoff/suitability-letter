@@ -21,6 +21,14 @@
       <label>Anthropic API Key</label>
       <input type="password" id="apiKey" placeholder="sk-ant-api03-..." />
     </div>
+    <div class="sidebar-setting">
+      <label>IR Benchmark <span id="benchmarkLoadedLabel" style="color:#3b6d11;font-weight:500"></span></label>
+      <label class="btn-import" for="sidebarBenchmarkFile" style="font-size:12px;padding:5px 10px;margin:0;display:inline-flex">
+        ↑ Upload monthly file
+        <input type="file" id="sidebarBenchmarkFile" accept=".xlsx,.xls" style="display:none"
+          onchange="loadBenchmarkFile(this)" />
+      </label>
+    </div>
   </aside>
 
   <!-- Main -->
@@ -393,21 +401,6 @@
                   onchange="document.getElementById('r-portfolioFileName').textContent=this.files[0]?.name||''"/>
               </label>
               <span id="r-portfolioFileName" class="file-name"></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-card">
-          <h3>IR Benchmark</h3>
-          <div class="field">
-            <div class="field-hint">Monthly benchmark file (IR1-IR6 weights). Once loaded it applies to all clients.</div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <label class="btn-import" for="r-benchmarkFile">
-                ↑ Upload benchmark Excel
-                <input type="file" id="r-benchmarkFile" accept=".xlsx,.xls" style="display:none"
-                  onchange="loadBenchmarkFile(this)"/>
-              </label>
-              <span id="r-benchmarkStatus" class="import-status"></span>
             </div>
           </div>
         </div>

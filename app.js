@@ -14,6 +14,15 @@ document.addEventListener('DOMContentLoaded', () => {
   buildProfileForm();
   initLetterForm();
   renderSteps();
+  // Restore benchmark from localStorage
+  try {
+    const stored = localStorage.getItem('suitability-benchmark');
+    if (stored) {
+      _benchmark = JSON.parse(stored);
+      const label = document.getElementById('benchmarkLoadedLabel');
+      if (label) { label.textContent = '✓ Loaded'; label.style.color = '#3b6d11'; }
+    }
+  } catch(e) {}
 });
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -644,18 +653,16 @@ function initReportTab() {
 window.loadBenchmarkFile = async function(input) {
   const file = input.files[0];
   if (!file) return;
-  const statusEl = document.getElementById('r-benchmarkStatus');
-  statusEl.textContent = 'Loading...';
-  statusEl.style.color = '#854f0b';
+  const label = document.getElementById('benchmarkLoadedLabel');
+  if (label) { label.textContent = 'Loading...'; label.style.color = '#854f0b'; }
   try {
     _benchmark = await parseBenchmarkExcel(file);
-    statusEl.textContent = '✓ Benchmark loaded';
-    statusEl.style.color = '#3b6d11';
-    // Persist in localStorage
     try { localStorage.setItem('suitability-benchmark', JSON.stringify(_benchmark)); } catch(e) {}
+    const month = file.name.match(/\w+_\d{4}/)?.[0] || file.name.replace('.xlsx','');
+    if (label) { label.textContent = '✓ ' + month; label.style.color = '#3b6d11'; }
   } catch(e) {
-    statusEl.textContent = 'Error: ' + e.message;
-    statusEl.style.color = '#a32d2d';
+    if (label) { label.textContent = 'Error'; label.style.color = '#a32d2d'; }
+    alert('Error loading benchmark: ' + e.message);
   }
 };
 
