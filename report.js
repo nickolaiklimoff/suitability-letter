@@ -721,7 +721,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
             <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th>
             <th>Unrealized PnL</th><th>Interest Income</th>
             <th>Total PnL</th><th>Total PnL %</th>
-            <th>Rating</th><th>Maturity</th><th>% Port.</th>
+            <th>Rating</th><th>Maturity</th>
           </tr></thead>
           <tbody>${bondPerfRows}</tbody>
           ${bondPerfFooter}
@@ -735,7 +735,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
             <th>Name</th><th>Ticker</th><th>Exchange</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
             <th>Unrealized PnL</th><th>Dividends Paid</th>
-            <th>Total P&amp;L</th><th>Total P&amp;L %</th><th>% Port.</th>
+            <th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
           <tbody>${fundPerfRows}</tbody>
           ${fundPerfFooter}
