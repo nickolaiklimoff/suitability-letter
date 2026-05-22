@@ -502,13 +502,11 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     const rec = bm.bondSegments?.[s] || 0;
     const client = bondSegments[s] || 0;
     const dev = client - rec;
-    const gap = dev * totalValue;
     return `<tr>
       <td>${s}</td>
       <td>${fmtPct(rec)}</td>
       <td>${fmtPct(client)}</td>
       <td style="color:${devColor(dev)}">${fmtDev(dev)}</td>
-      <td style="color:${devColor(dev)}">${fmtUSDSigned(gap)}</td>
     </tr>`;
   }).join('');
 
@@ -707,7 +705,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <div class="report-section">
         <div class="report-section-title">4. Bond Sleeve — Segment Allocation vs ${clientIR}</div>
         <table class="report-table">
-          <thead><tr><th>Bond Segment</th><th>${clientIR} Rec.</th><th>Client (% of port.)</th><th>Deviation</th><th>$$ Gap</th></tr></thead>
+          <thead><tr><th>Bond Segment</th><th>${clientIR} Rec.</th><th>Client (% of port.)</th><th>Deviation</th></tr></thead>
           <tbody>${segmentRows}</tbody>
         </table>
       </div>
