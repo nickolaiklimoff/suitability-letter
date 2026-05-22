@@ -261,6 +261,145 @@ function fmtUSDSigned(v) { return (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toL
 function devColor(v) { return Math.abs(v) < 0.02 ? '#3b6d11' : Math.abs(v) < 0.05 ? '#854f0b' : '#a32d2d'; }
 
 // ─── Generate HTML report ─────────────────────────────────────────────────────
+
+
+// ─── Performance Analytics ────────────────────────────────────────────────────
+
+// MWRR (IRR) via Newton-Raphson
+function calcMWRR(cashFlows) {
+  // cashFlows: [{date, amount}] where deposits are negative, final value is positive
+  if (!cashFlows || cashFlows.length < 2) return null;
+  const t0 = cashFlows[0].date;
+  const flows = cashFlows.map(cf => ({
+    t: (cf.date - t0) / (365.25 * 24 * 3600 * 1000), // years from start
+    a: cf.amount
+  }));
+
+  let r = 0.1; // initial guess 10%
+  for (let iter = 0; iter < 100; iter++) {
+    let npv = 0, dnpv = 0;
+    flows.forEach(f => {
+      const disc = Math.pow(1 + r, f.t);
+      npv  += f.a / disc;
+      dnpv -= f.t * f.a / (disc * (1 + r));
+    });
+    if (Math.abs(npv) < 0.01) break;
+    if (Math.abs(dnpv) < 1e-10) break;
+    r -= npv / dnpv;
+    if (r < -0.999) r = -0.999;
+  }
+  return isFinite(r) ? r : null;
+}
+
+// Simple annualized return from holding period
+function annualizedReturn(totalReturnPct, years) {
+  if (years <= 0) return null;
+  return Math.pow(1 + totalReturnPct / 100, 1 / years) - 1;
+}
+
+// Build per-position income map from dividends + coupons
+function buildIncomeMap(portfolioData) {
+  const map = {};
+
+  // Dividends — match by partial name
+  (portfolioData.divRows || []).forEach(r => {
+    const name = String(r[4] || r[3] || '').trim();
+    const amount = parseFloat(r[7]) || parseFloat(r[5]) || 0;
+    if (!name || !amount) return;
+    // Find matching holding
+    for (const h of [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]) {
+      if (h.name.includes(name.substring(0, 20)) || name.includes(h.name.substring(0, 20))) {
+        map[h.name] = (map[h.name] || 0) + amount;
+        break;
+      }
+    }
+  });
+
+  // Coupons
+  (portfolioData.couponRows || []).forEach(r => {
+    const name = String(r[1] || '').trim();
+    const amount = parseFloat(r[5]) || parseFloat(r[3]) || 0;
+    if (!name || !amount) return;
+    for (const h of (portfolioData.bonds||[])) {
+      if (h.name.includes(name.substring(0, 20)) || name.includes(h.name.substring(0, 20))) {
+        map[h.name] = (map[h.name] || 0) + amount;
+        break;
+      }
+    }
+  });
+
+  return map;
+}
+
+// Build first purchase date map from trades
+function buildFirstPurchaseMap(tradeRows) {
+  const map = {};
+  (tradeRows || []).forEach(r => {
+    const date = r[0] ? new Date(r[0]) : null;
+    const name = String(r[4] || '').trim();
+    if (!date || !name) return;
+    if (!map[name] || date < map[name]) {
+      // Match by partial name
+      map[name] = date;
+    }
+  });
+  return map;
+}
+
+function findFirstPurchaseDate(holdingName, firstPurchaseMap, tradeRows) {
+  // Direct match
+  if (firstPurchaseMap[holdingName]) return firstPurchaseMap[holdingName];
+  // Partial match
+  for (const [name, date] of Object.entries(firstPurchaseMap)) {
+    if (holdingName.includes(name.substring(0, 15)) || name.includes(holdingName.substring(0, 15))) {
+      return date;
+    }
+  }
+  return null;
+}
+
+// Calculate per-position performance
+function calcPositionPerformance(h, incomeMap, firstPurchaseMap, tradeRows, reportDate) {
+  const costBasis = (h.purchasePrice / 100) * (h.quantity || 0) * (h.type === 'bond' ? 1000 : 1);
+  // For ETFs/stocks: purchasePrice * quantity directly
+  const costBasisFinal = h.type === 'bond'
+    ? (h.purchasePrice / 100) * parseFloat(String(h.quantity || '').replace(/,/g,'')) * 1000
+    : h.purchasePrice * (h.quantity || 0);
+
+  const income = incomeMap[h.name] || 0;
+  const unrealizedPnL = h.unrealizedPnL || 0;
+  const totalReturnUSD = unrealizedPnL + income;
+  const totalReturnPct = costBasisFinal > 0 ? (totalReturnUSD / costBasisFinal) * 100 : 0;
+
+  const firstDate = findFirstPurchaseDate(h.name, firstPurchaseMap, tradeRows);
+  const refDate = reportDate ? new Date(reportDate) : new Date();
+  const years = firstDate ? (refDate - firstDate) / (365.25 * 24 * 3600 * 1000) : null;
+  const annReturn = years && years > 0 ? annualizedReturn(totalReturnPct, years) : null;
+
+  return { costBasis: costBasisFinal, income, unrealizedPnL, totalReturnUSD, totalReturnPct, annReturn, years };
+}
+
+function decodeHorizon(v) {
+  const map = {
+    'lt1': 'Less than 1 year', 'lt3': 'Up to 3 years', 'lt5': 'Up to 5 years',
+    'lt10': 'Up to 10 years', 'gt10': 'Over 10 years'
+  };
+  return map[v] || v || '—';
+}
+
+function decodeObjective(v) {
+  const map = {
+    'IR1-cap-pres': 'Capital Preservation',
+    'IR2-defensive': 'Defensive',
+    'IR2-income': 'Income Oriented',
+    'IR3-income-growth': 'Income & Growth',
+    'IR4-growth': 'Growth Oriented',
+    'IR5-high-growth': 'High Growth',
+    'IR6-speculation': 'Market Speculation'
+  };
+  return map[v] || v || '—';
+}
+
 window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate) {
   const bm = benchmark[clientIR] || {};
   const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics;
@@ -319,7 +458,68 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     </tr>`;
   }).join('');
 
-  // Section 5: Holdings detail
+  // Section 5: Performance per position
+  const incomeMap = buildIncomeMap(portfolioData);
+  const reportDateObj = reportDate ? new Date(reportDate) : new Date();
+  const totalCostBasis = portfolioData.holdings.reduce((s, h) => {
+    const cost = h.type === 'bond'
+      ? (h.purchasePrice / 100) * parseFloat(String(h.quantity||'').replace(/,/g,'')) * 1000
+      : h.purchasePrice * (h.quantity || 0);
+    return s + (cost || 0);
+  }, 0);
+
+  // Portfolio MWRR from deposits + current value
+  const deposits = (portfolioData.tradeRows || [])
+    .filter(r => r[2] === 'Buy')
+    .map(r => ({
+      date: new Date(r[0]),
+      amount: -(parseFloat(r[7]) * parseFloat(r[6]) || 0) // negative = outflow
+    }));
+  const depositSheet = []; // from deposits and withdrawals — already in totalCostBasis
+  const mwrrFlows = [
+    ...portfolioData.holdings.map(h => {
+      const cost = h.type === 'bond'
+        ? (h.purchasePrice / 100) * parseFloat(String(h.quantity||'').replace(/,/g,'')) * 1000
+        : h.purchasePrice * (h.quantity || 0);
+      const date = findFirstPurchaseDate(h.name, portfolioData.firstPurchaseMap, portfolioData.tradeRows);
+      return date ? { date, amount: -cost } : null;
+    }).filter(Boolean),
+    { date: reportDateObj, amount: portfolioData.totalValue } // terminal value
+  ].sort((a,b) => a.date - b.date);
+
+  const portfolioMWRR = calcMWRR(mwrrFlows);
+  const portfolioTotalReturnUSD = portfolioData.totalValue - totalCostBasis + portfolioData.totalIncome;
+  const portfolioTotalReturnPct = totalCostBasis > 0 ? (portfolioTotalReturnUSD / totalCostBasis) * 100 : 0;
+
+  const perfRows = [...portfolioData.holdings].sort((a,b) => b.holdingValue - a.holdingValue).map(h => {
+    const perf = calcPositionPerformance(h, incomeMap, portfolioData.firstPurchaseMap, portfolioData.tradeRows, reportDateObj);
+    const pnlColor = perf.totalReturnUSD >= 0 ? '#3b6d11' : '#a32d2d';
+    const annStr = perf.annReturn !== null ? (perf.annReturn * 100).toFixed(1) + '%' : '—';
+    return `<tr>
+      <td>${h.name}</td>
+      <td>${fmtUSD(perf.costBasis)}</td>
+      <td>${fmtUSD(perf.income)}</td>
+      <td style="color:${pnlColor}">${perf.unrealizedPnL>=0?'+':''}${fmtUSD(perf.unrealizedPnL)}</td>
+      <td style="color:${pnlColor}">${perf.totalReturnUSD>=0?'+':''}${fmtUSD(perf.totalReturnUSD)}</td>
+      <td style="color:${pnlColor}">${perf.totalReturnPct>=0?'+':''}${perf.totalReturnPct.toFixed(1)}%</td>
+      <td style="color:${pnlColor}">${annStr}</td>
+    </tr>`;
+  }).join('');
+
+  const pnlPortColor = portfolioTotalReturnUSD >= 0 ? '#3b6d11' : '#a32d2d';
+  const perfSummary = `<tfoot style="font-weight:600;background:var(--bg2)">
+    <tr>
+      <td>PORTFOLIO TOTAL</td>
+      <td>${fmtUSD(totalCostBasis)}</td>
+      <td>${fmtUSD(portfolioData.totalIncome)}</td>
+      <td style="color:${pnlPortColor}">${portfolioData.totalUnrealizedPnL>=0?'+':''}${fmtUSD(portfolioData.totalUnrealizedPnL)}</td>
+      <td style="color:${pnlPortColor}">${portfolioTotalReturnUSD>=0?'+':''}${fmtUSD(portfolioTotalReturnUSD)}</td>
+      <td style="color:${pnlPortColor}">${portfolioTotalReturnPct>=0?'+':''}${portfolioTotalReturnPct.toFixed(1)}%</td>
+      <td style="color:${pnlPortColor}">${portfolioMWRR !== null ? (portfolioMWRR*100).toFixed(1)+'% p.a. (MWRR)' : '—'}</td>
+    </tr>
+  </tfoot>`;
+
+  // Section 6: Holdings detail
   const holdingRows = [...classified].sort((a,b) => b.holdingValue - a.holdingValue).map(h => {
     const pnlColor = h.unrealizedPnL >= 0 ? '#3b6d11' : '#a32d2d';
     return `<tr>
@@ -352,9 +552,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div class="report-section-title">1. Client Risk Profile</div>
         <table class="report-table profile-table">
           <tr><td class="profile-label">Client</td><td>${client.name}</td></tr>
-          <tr><td class="profile-label">Profile</td><td><strong>${clientIR}</strong></td></tr>
-          <tr><td class="profile-label">Investment Horizon</td><td>${client.profile?.timeHorizon || '—'}</td></tr>
-          <tr><td class="profile-label">Primary Objective</td><td>${client.profile?.investmentObjective || '—'}</td></tr>
+          <tr><td class="profile-label">Risk Profile</td><td><strong>${clientIR}</strong></td></tr>
+          <tr><td class="profile-label">Investment Horizon</td><td>${decodeHorizon(client.profile?.timeHorizon)}</td></tr>
+          <tr><td class="profile-label">Primary Objective</td><td>${decodeObjective(client.profile?.investmentObjective)}</td></tr>
           <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)} (${irBandLocal(waar)})</strong></td></tr>
         </table>
       </div>
@@ -384,7 +584,20 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       <div class="report-section">
-        <div class="report-section-title">5. Holdings Detail</div>
+        <div class="report-section-title">5. Performance by Position</div>
+        <table class="report-table">
+          <thead><tr>
+            <th>Position</th><th>Cost Basis</th><th>Income</th>
+            <th>Unrealized PnL</th><th>Total Return $</th>
+            <th>Total Return %</th><th>Annualized</th>
+          </tr></thead>
+          <tbody>${perfRows}</tbody>
+          ${perfSummary}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">6. Holdings Detail</div>
         <table class="report-table">
           <thead><tr><th>Position</th><th>Type</th><th>Weight</th><th>Value</th><th>Unrealized PnL</th><th>IR Rating</th></tr></thead>
           <tbody>${holdingRows}</tbody>
@@ -392,7 +605,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       <div class="report-section">
-        <div class="report-section-title">6. Income Summary (total period)</div>
+        <div class="report-section-title">7. Income Summary (total period)</div>
         <table class="report-table">
           <thead><tr><th>Type</th><th>Amount</th></tr></thead>
           <tbody>
