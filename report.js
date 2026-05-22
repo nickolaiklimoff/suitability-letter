@@ -549,7 +549,6 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
       <td>${h.issuerRating||'—'}</td>
       <td>${h.maturityDate||'—'}</td>
-      <td>${pctPort}</td>
     </tr>`;
   }).join('');
 
@@ -561,12 +560,12 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const bc = bondTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
 
   const bondPerfFooter = `<tfoot style="font-weight:600"><tr>
-    <td colspan="8">BONDS TOTAL</td>
+    <td colspan="9">BONDS TOTAL</td>
     <td style="color:${bondTotUnreal>=0?'#3b6d11':'#a32d2d'}">${bondTotUnreal>=0?'+':''}${fmtUSD(bondTotUnreal)}</td>
     <td>${fmtUSD(bondTotIncome)}</td>
     <td style="color:${bc}">${bondTotPnL>=0?'+':''}${fmtUSD(bondTotPnL)}</td>
     <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPnLPct}</td>
-    <td colspan="3"></td>
+    
   </tr></tfoot>`;
 
   // ── Funds table ──
