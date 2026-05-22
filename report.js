@@ -72,11 +72,24 @@ window.parseCbondsExport = function(file) {
         const totalValue = holdings.reduce((s, h) => s + h.holdingValue, 0) + cash;
         const totalUnrealizedPnL = holdings.reduce((s, h) => s + h.unrealizedPnL, 0);
 
+        const tradeRows = getSheet('trades').slice(1).filter(r => r[0]);
+        const firstPurchaseMap = {};
+        tradeRows.forEach(r => {
+          const date = r[0] ? new Date(r[0]) : null;
+          const name = String(r[4] || '').trim();
+          if (!date || !name) return;
+          if (!firstPurchaseMap[name] || date < firstPurchaseMap[name]) {
+            firstPurchaseMap[name] = date;
+          }
+        });
+
         resolve({
           holdings, bonds, funds, stocks,
           cash, totalValue, totalUnrealizedPnL,
           dividends, coupons,
-          totalIncome: dividends + coupons
+          totalIncome: dividends + coupons,
+          divRows, couponRows,
+          tradeRows, firstPurchaseMap
         });
       } catch(err) { reject(err); }
     };
