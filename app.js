@@ -128,11 +128,12 @@ function switchTab(name, btn) {
   if (btn) btn.classList.add('active');
   else {
     const tabs = document.querySelectorAll('.tab');
-    const idx = ['profile','letter','history'].indexOf(name);
+    const idx = ['profile','letter','report','history'].indexOf(name);
     if (tabs[idx]) tabs[idx].classList.add('active');
   }
   document.getElementById('tab-' + name).classList.remove('hidden');
   if (name === 'history') renderHistory();
+  if (name === 'report') initReportTab();
 }
 
 // ─── Profile form ─────────────────────────────────────────────────────────────
@@ -626,3 +627,128 @@ function buildNewFromExisting() {
 }
 
 function escAttr(s) { return (s||'').replace(/"/g,'&quot;'); }
+
+// ─── Portfolio Report handlers ────────────────────────────────────────────────
+
+let _benchmark = null; // stored after monthly upload
+
+function initReportTab() {
+  // Pre-fill IR from client profile
+  const client = clients[currentClientId];
+  if (!client?.profile?.riskTolerance) return;
+  const ir = client.profile.riskTolerance.replace(/IR(\d+)-.*/, 'IR$1');
+  const radio = document.querySelector(`input[name="r-ir"][value="${ir}"]`);
+  if (radio) radio.checked = true;
+}
+
+window.loadBenchmarkFile = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('r-benchmarkStatus');
+  statusEl.textContent = 'Loading...';
+  statusEl.style.color = '#854f0b';
+  try {
+    _benchmark = await parseBenchmarkExcel(file);
+    statusEl.textContent = '✓ Benchmark loaded';
+    statusEl.style.color = '#3b6d11';
+    // Persist in localStorage
+    try { localStorage.setItem('suitability-benchmark', JSON.stringify(_benchmark)); } catch(e) {}
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.style.color = '#a32d2d';
+  }
+};
+
+window.runPortfolioReport = async function() {
+  const portfolioInput = document.getElementById('r-portfolioFile');
+  if (!portfolioInput.files[0]) { alert('Please upload the cbonds portfolio export.'); return; }
+
+  // Try to load benchmark from localStorage if not in memory
+  if (!_benchmark) {
+    try {
+      const stored = localStorage.getItem('suitability-benchmark');
+      if (stored) _benchmark = JSON.parse(stored);
+    } catch(e) {}
+  }
+
+  if (!_benchmark) { alert('Please upload the IR benchmark file first.'); return; }
+
+  const btn = document.querySelector('.btn-generate');
+  btn.textContent = 'Generating...';
+  btn.disabled = true;
+
+  try {
+    const portfolioData = await parseCbondsExport(portfolioInput.files[0]);
+    const clientIR = document.querySelector('input[name="r-ir"]:checked')?.value || 'IR3';
+    const client = clients[currentClientId] || { name: 'Client', profile: {} };
+
+    // Get IR ratings from Claude for each holding
+    const apiKey = document.getElementById('apiKey').value.trim();
+    let irRatings = {};
+    if (apiKey) {
+      irRatings = await assignPortfolioRatings(portfolioData.holdings, apiKey);
+    }
+
+    const analytics = calculatePortfolioAnalytics(portfolioData, irRatings, clientIR);
+
+    const reportDate = document.getElementById('r-reportDate').value
+      ? new Date(document.getElementById('r-reportDate').value).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})
+      : new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
+    const dataDate = document.getElementById('r-dataDate').value
+      ? new Date(document.getElementById('r-dataDate').value).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})
+      : reportDate;
+
+    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate);
+    document.getElementById('r-reportContent').innerHTML = html;
+    document.getElementById('r-reportOutput').classList.remove('hidden');
+    document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
+
+  } catch(e) {
+    alert('Error generating report: ' + e.message);
+  }
+
+  btn.textContent = 'Generate report ↗';
+  btn.disabled = false;
+};
+
+async function assignPortfolioRatings(holdings, apiKey) {
+  const list = holdings.map((h,i) => `${i+1}. ${h.name} (${h.type})`).join('\n');
+  const prompt = `Assign IR risk ratings (1-6) to each holding per Orion Ridge Capital methodology:
+- Govt bonds developed <5yr=1, 5-10yr=2, >10yr=3
+- IG corp bonds ≤10yr=2, >10yr=3, HY bonds=4
+- Broad/sector equity ETFs developed=3, HY/EM bond ETFs=4
+- Large-cap equities developed=4
+
+Holdings:
+${list}
+
+Return ONLY JSON: {"ratings": [{"index":1,"rating":2}, ...]}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+    const result = JSON.parse(clean);
+    const ratings = {};
+    (result.ratings || []).forEach((r, i) => {
+      if (holdings[r.index - 1]) ratings[holdings[r.index - 1].name] = r.rating;
+    });
+    return ratings;
+  } catch(e) {
+    return {};
+  }
+}
