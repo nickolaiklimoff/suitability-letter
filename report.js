@@ -718,7 +718,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div style="overflow-x:auto">
         <table class="report-table" style="font-size:11px;min-width:700px">
           <thead><tr>
-            <th>Name</th><th>Ticker</th><th>Exchange</th><th>Qty</th><th>Price</th>
+            <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
             <th>Unrealized PnL</th><th>Dividends Paid</th>
             <th>Total P&amp;L</th><th>Total P&amp;L %</th>
