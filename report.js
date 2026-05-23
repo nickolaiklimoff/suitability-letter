@@ -471,14 +471,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     ['Cash', bm.cash || 0, cashPct],
   ].map(([label, rec, client]) => {
     const dev = client - rec;
-    const gap = dev * totalValue;
-    return `<tr>
-      <td>${label}</td>
-      <td>${fmtPct(rec)}</td>
-      <td>${fmtPct(client)}</td>
-      <td style="color:${devColor(dev)}">${fmtDev(dev)}</td>
-      <td style="color:${devColor(dev)}">${fmtUSDSigned(gap)}</td>
-    </tr>`;
+    return `<tr><td>${label}</td><td>${fmtPct(rec)}</td><td>${fmtPct(client)}</td><td style="color:${devColor(dev)}">${fmtDev(dev)}</td></tr>`;
   }).join('');
 
   // Section 3: Equity sectors
@@ -535,8 +528,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     const c = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
     const pctPort = h.pctOfPortfolio ? (h.pctOfPortfolio * 100).toFixed(1) + '%' : (portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—');
     return `<tr>
-      <td style="min-width:200px">${h.name}</td>
+      <td style="min-width:160px">${h.name}</td>
       <td>${h.isin||'—'}</td>
+      <td>${h.issuerRating||'—'}</td>
       <td>${h.quantity||'—'}</td>
       <td>${h.faceValueStr||'—'}</td>
       <td>${h.price ? h.price.toFixed(2)+'%' : '—'}</td>
@@ -547,7 +541,6 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <td>${fmtUSD(interestIncome)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
-      <td>${h.issuerRating||'—'}</td>
       <td>${h.maturityDate||'—'}</td>
     </tr>`;
   }).join('');
@@ -687,7 +680,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <div class="report-section">
         <div class="report-section-title">2. Asset Allocation vs ${clientIR} Benchmark</div>
         <table class="report-table">
-          <thead><tr><th>Asset Class</th><th>${clientIR} Rec.</th><th>Client Portfolio</th><th>Deviation</th><th>$$ Gap</th></tr></thead>
+          <thead><tr><th>Asset Class</th><th>${clientIR} Rec.</th><th>Client Portfolio</th><th>Deviation</th></tr></thead>
           <tbody>${allocationRows}</tbody>
         </table>
       </div>
@@ -715,7 +708,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div style="overflow-x:auto">
         <table class="report-table" style="font-size:11px;min-width:900px">
           <thead><tr>
-            <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th><th>Rating</th><th>Maturity</th></tr></thead>
+            <th>Bond</th><th>ISIN</th><th>Rating</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th><th>Maturity</th></tr></thead>
           <tbody>${bondPerfRows}</tbody>
           ${bondPerfFooter}
         </table>
