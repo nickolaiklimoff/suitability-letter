@@ -676,9 +676,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       ${chartSrc ? `
-      <div class="report-section">
+      <div class="report-section" style="page-break-inside:avoid">
         <div class="report-section-title">Portfolio Value Over Time</div>
-        <img src="${chartSrc}" style="width:100%;max-height:280px;object-fit:contain;border-radius:6px" />
+        <img src="${chartSrc}" style="width:100%;max-height:260px;object-fit:contain;object-position:left center;border-radius:6px;display:block" />
       </div>` : ''}
 
       <div class="report-section">
