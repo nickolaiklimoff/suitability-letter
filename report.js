@@ -712,7 +712,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
         <div style="font-size:13px;font-weight:600;margin:1rem 0 0.5rem;font-family:-apple-system,sans-serif">Bonds</div>
         <div style="overflow-x:auto">
-        <table class="report-table" style="font-size:11px;min-width:900px">
+        <table class="report-table" style="font-size:11px">
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Rating</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th><th>Maturity</th></tr></thead>
           <tbody>${bondPerfRows}</tbody>
@@ -722,7 +722,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
         <div style="font-size:13px;font-weight:600;margin:1.5rem 0 0.5rem;font-family:-apple-system,sans-serif">Funds / ETFs</div>
         <div style="overflow-x:auto">
-        <table class="report-table" style="font-size:11px;min-width:700px">
+        <table class="report-table" style="font-size:11px">
           <thead><tr>
             <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
@@ -737,7 +737,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         ${stockPerfRows ? `
         <div style="font-size:13px;font-weight:600;margin:1.5rem 0 0.5rem;font-family:-apple-system,sans-serif">Stocks</div>
         <div style="overflow-x:auto">
-        <table class="report-table" style="font-size:11px;min-width:800px">
+        <table class="report-table" style="font-size:11px">
           <thead><tr>
             <th>Name</th><th>Ticker</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>

@@ -204,22 +204,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 
 /* ── Portfolio Report ── */
-.report-doc { font-family: Georgia, 'Times New Roman', serif; max-width: 900px; }
-.report-header { text-align: center; padding: 2rem 0 1.5rem; border-bottom: 2px solid var(--text); margin-bottom: 1.5rem; }
-.report-logo { font-family: -apple-system, sans-serif; font-size: 11px; letter-spacing: 0.15em; font-weight: 600; color: var(--text2); margin-bottom: 0.5rem; }
-.report-title { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
-.report-subtitle { font-size: 14px; color: var(--text2); margin-bottom: 1rem; }
-.report-meta { font-size: 13px; line-height: 1.8; }
-.report-confidential { margin-top: 1rem; font-size: 11px; letter-spacing: 0.1em; font-weight: 600; color: var(--text2); }
-.report-section { margin-bottom: 2rem; }
-.report-section-title { font-size: 16px; font-weight: 700; font-family: -apple-system, sans-serif; margin-bottom: 0.75rem; padding-bottom: 4px; border-bottom: 0.5px solid var(--border2); }
-.report-table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: -apple-system, sans-serif; margin-bottom: 0.5rem; }
-.report-table th { background: var(--bg2); padding: 7px 10px; text-align: left; font-weight: 600; border: 0.5px solid var(--border2); font-size: 12px; }
-.report-table td { padding: 6px 10px; border: 0.5px solid var(--border); }
+.report-doc { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 960px; font-size: 13px; }
+.report-header { text-align: center; padding: 1.5rem 0 1.25rem; border-bottom: 2px solid var(--text); margin-bottom: 1.25rem; }
+.report-logo { font-size: 10px; letter-spacing: 0.15em; font-weight: 700; color: var(--text2); margin-bottom: 0.5rem; }
+.report-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+.report-subtitle { font-size: 13px; color: var(--text2); margin-bottom: 0.75rem; }
+.report-meta { font-size: 12px; line-height: 1.8; }
+.report-confidential { margin-top: 0.75rem; font-size: 10px; letter-spacing: 0.1em; font-weight: 600; color: var(--text2); }
+.report-section { margin-bottom: 1.5rem; }
+.report-section-title { font-size: 14px; font-weight: 700; margin-bottom: 0.6rem; padding-bottom: 3px; border-bottom: 0.5px solid var(--border2); }
+.report-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 0.5rem; }
+.report-table th { background: var(--bg2); padding: 5px 8px; text-align: left; font-weight: 600; border: 0.5px solid var(--border2); font-size: 11px; }
+.report-table td { padding: 4px 8px; border: 0.5px solid var(--border); }
 .report-table tbody tr:nth-child(even) { background: var(--bg2); }
-.profile-table td { padding: 8px 12px; }
-.profile-label { font-weight: 600; width: 180px; color: var(--text2); font-size: 12px; }
-.report-disclaimer { font-size: 11px; color: var(--text2); line-height: 1.6; padding: 1rem; background: var(--bg2); border-radius: var(--radius); margin-top: 2rem; font-family: -apple-system, sans-serif; }
+.profile-table td { padding: 6px 10px; }
+.profile-label { font-weight: 600; width: 160px; color: var(--text2); font-size: 11px; }
+.report-disclaimer { font-size: 10px; color: var(--text2); line-height: 1.5; padding: 0.75rem; background: var(--bg2); border-radius: var(--radius); margin-top: 1.5rem; }
 
 @media print {
   @page { size: A4 landscape; margin: 1.5cm 1.5cm; }
