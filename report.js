@@ -531,7 +531,6 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     return `<tr>
       <td style="min-width:160px">${h.name}</td>
       <td>${h.isin||'—'}</td>
-      <td>${h.issuerRating||'—'}</td>
       <td>${h.quantity||'—'}</td>
       <td>${h.faceValueStr||'—'}</td>
       <td>${h.price ? h.price.toFixed(2)+'%' : '—'}</td>
@@ -706,13 +705,48 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       <div class="report-section">
-        <div class="report-section-title">5. Performance</div>
+        <div class="report-section-title">5. Bond Analysis</div>
+
+        <table class="report-table" style="margin-bottom:1rem">
+          <thead><tr>
+            <th>Bond</th><th>ISIN</th><th>Rating</th><th>Maturity</th><th>Duration (years)</th><th>Weight</th>
+          </tr></thead>
+          <tbody>
+            ${(portfolioData.bonds||[]).map(h => {
+              const w = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
+              return `<tr>
+                <td>${h.name}</td>
+                <td>${h.isin||'—'}</td>
+                <td>${h.issuerRating||'—'}</td>
+                <td>${h.maturityDate||'—'}</td>
+                <td>${h.durationYears > 0 ? h.durationYears.toFixed(2) : '—'}</td>
+                <td>${w}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="font-weight:600;background:var(--bg2)">
+              <td colspan="4">Weighted Average Duration</td>
+              <td>${(() => {
+                const bonds = portfolioData.bonds||[];
+                const totalBondVal = bonds.reduce((s,h) => s + h.convertedHoldingValue, 0);
+                const wadur = totalBondVal > 0 ? bonds.reduce((s,h) => s + h.durationYears * h.convertedHoldingValue, 0) / totalBondVal : 0;
+                return wadur.toFixed(2) + ' years';
+              })()}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${buildBondCharts(portfolioData.bonds||[], portfolioData.totalValue)}
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">6. Performance</div>
 
         <div style="font-size:13px;font-weight:600;margin:1rem 0 0.5rem;font-family:-apple-system,sans-serif">Bonds</div>
         <div style="overflow-x:auto">
         <table class="report-table" style="">
           <thead><tr>
-            <th>Bond</th><th>ISIN</th><th>Rating</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th></tr></thead>
+            <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th></tr></thead>
           <tbody>${bondPerfRows}</tbody>
           ${bondPerfFooter}
         </table>
@@ -799,3 +833,271 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
     </div>`;
 };
+
+// ─── Export report to Word (.docx) ───────────────────────────────────────────
+window.exportReportToWord = async function() {
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+          HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType,
+          PageOrientation } = docx;
+
+  const btn = document.querySelector('.no-print button:nth-child(2)');
+  if (btn) { btn.textContent = 'Generating...'; btn.disabled = true; }
+
+  try {
+    // Read current report data from DOM
+    const reportContent = document.getElementById('r-reportContent');
+    if (!reportContent) throw new Error('No report generated yet');
+
+    const border = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
+    const borders = { top: border, bottom: border, left: border, right: border };
+    const cellMargins = { top: 60, bottom: 60, left: 100, right: 100 };
+
+    // Helper to make header cell
+    const hCell = (text, w) => new TableCell({
+      borders, width: { size: w, type: WidthType.DXA },
+      shading: { fill: 'F0F0EC', type: ShadingType.CLEAR },
+      margins: cellMargins,
+      children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 18, font: 'Arial' })] })]
+    });
+
+    // Helper to make data cell
+    const dCell = (text, w, color) => new TableCell({
+      borders, width: { size: w, type: WidthType.DXA },
+      margins: cellMargins,
+      children: [new Paragraph({ children: [new TextRun({ text: String(text||''), size: 18, font: 'Arial', color: color || '000000' })] })]
+    });
+
+    // Helper to parse table from DOM
+    const parseTable = (tableEl) => {
+      if (!tableEl) return [];
+      const rows = [];
+      tableEl.querySelectorAll('tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('th, td').forEach(td => cells.push(td.textContent.trim()));
+        if (cells.length) rows.push(cells);
+      });
+      return rows;
+    };
+
+    // Build Word table from DOM table
+    const buildWordTable = (tableEl, totalWidth) => {
+      const rows = parseTable(tableEl);
+      if (!rows.length) return null;
+      const colCount = rows[0].length;
+      const colW = Math.floor(totalWidth / colCount);
+      const colWidths = Array(colCount).fill(colW);
+
+      return new Table({
+        width: { size: totalWidth, type: WidthType.DXA },
+        columnWidths: colWidths,
+        rows: rows.map((row, ri) => new TableRow({
+          children: row.map((cell, ci) => {
+            const isHeader = ri === 0 || tableEl.querySelectorAll('tr')[ri]?.querySelector('th');
+            const isBold = ri === 0 || cell.includes('TOTAL') || cell.includes('Total');
+            return new TableCell({
+              borders, width: { size: colWidths[ci], type: WidthType.DXA },
+              shading: { fill: (ri === 0 || cell.includes('TOTAL')) ? 'F0F0EC' : (ri % 2 === 0 ? 'FAFAF8' : 'FFFFFF'), type: ShadingType.CLEAR },
+              margins: cellMargins,
+              children: [new Paragraph({ children: [new TextRun({
+                text: cell, size: 17, font: 'Arial', bold: isBold,
+                color: cell.startsWith('+') ? '3b6d11' : cell.startsWith('−') || cell.startsWith('-') ? 'a32d2d' : '000000'
+              })] })]
+            });
+          })
+        }))
+      });
+    };
+
+    // Content width for landscape A4: (16838 - 2*1134) = 14570 DXA
+    const W = 14570;
+
+    const children = [];
+
+    // Title
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+      children: [new TextRun({ text: 'ORION RIDGE CAPITAL', size: 20, font: 'Arial', color: '666666' })]
+    }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+      children: [new TextRun({ text: 'Portfolio Report', size: 48, bold: true, font: 'Arial' })]
+    }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: 'Investment Analysis & Advisory', size: 22, font: 'Arial', color: '666666' })]
+    }));
+
+    // Extract meta info
+    const metaText = reportContent.querySelector('.report-meta')?.textContent || '';
+    metaText.split('\n').filter(l => l.trim()).forEach(line => {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 40 },
+        children: [new TextRun({ text: line.trim(), size: 20, font: 'Arial' })]
+      }));
+    });
+
+    children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun('')] }));
+
+    // Process each section
+    reportContent.querySelectorAll('.report-section').forEach(section => {
+      const title = section.querySelector('.report-section-title')?.textContent || '';
+      if (title) {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 240, after: 120 },
+          children: [new TextRun({ text: title, bold: true, size: 26, font: 'Arial' })]
+        }));
+      }
+
+      // Handle chart image
+      const img = section.querySelector('img');
+      if (img && img.src) {
+        children.push(new Paragraph({
+          spacing: { after: 120 },
+          children: [new TextRun({ text: '[Portfolio Value Chart — see PDF version for chart image]', size: 18, font: 'Arial', italics: true, color: '888888' })]
+        }));
+      }
+
+      // Handle tables
+      section.querySelectorAll('table').forEach(tbl => {
+        const wordTable = buildWordTable(tbl, W);
+        if (wordTable) {
+          children.push(wordTable);
+          children.push(new Paragraph({ spacing: { after: 120 }, children: [new TextRun('')] }));
+        }
+      });
+
+      // Sub-headings (Bonds, Funds/ETFs labels)
+      section.querySelectorAll('div[style*="font-weight:600"]').forEach(div => {
+        const text = div.textContent.trim();
+        if (text && !div.closest('table')) {
+          children.push(new Paragraph({
+            spacing: { before: 160, after: 80 },
+            children: [new TextRun({ text, bold: true, size: 22, font: 'Arial' })]
+          }));
+        }
+      });
+    });
+
+    // Disclaimer
+    const disclaimer = reportContent.querySelector('.report-disclaimer')?.textContent || '';
+    if (disclaimer) {
+      children.push(new Paragraph({ spacing: { before: 240 }, children: [new TextRun('─'.repeat(60))] }));
+      children.push(new Paragraph({
+        spacing: { after: 60 },
+        children: [new TextRun({ text: disclaimer.trim(), size: 16, font: 'Arial', color: '666666' })]
+      }));
+    }
+
+    const doc = new Document({
+      styles: {
+        default: { document: { run: { font: 'Arial', size: 20 } } },
+        paragraphStyles: [
+          { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal',
+            run: { size: 26, bold: true, font: 'Arial' },
+            paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 } }
+        ]
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE },
+            margin: { top: 720, right: 720, bottom: 720, left: 720 }
+          }
+        },
+        children
+      }]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'portfolio_report.docx';
+    a.click();
+    URL.revokeObjectURL(url);
+
+  } catch(e) {
+    alert('Error generating Word: ' + e.message);
+  }
+
+  if (btn) { btn.textContent = 'Export Word'; btn.disabled = false; }
+};
+
+// ─── Bond Analysis Charts ─────────────────────────────────────────────────────
+function buildBondCharts(bonds, totalValue) {
+  if (!bonds.length) return '';
+  const totalBondVal = bonds.reduce((s,h) => s + h.convertedHoldingValue, 0);
+  if (!totalBondVal) return '';
+  const now = new Date();
+
+  // Tenor buckets
+  const tenorBuckets = {'<3 years': 0, '3-5 years': 0, '>5 years': 0};
+  bonds.forEach(h => {
+    const yrs = h.maturityDateObj ? (h.maturityDateObj - now) / (365.25*24*3600*1000) : 0;
+    const w = h.convertedHoldingValue / totalBondVal;
+    if (yrs < 3) tenorBuckets['<3 years'] += w;
+    else if (yrs <= 5) tenorBuckets['3-5 years'] += w;
+    else tenorBuckets['>5 years'] += w;
+  });
+
+  // Sector buckets
+  const sectorBuckets = {};
+  bonds.forEach(h => {
+    const name = h.name.toLowerCase();
+    const sector = (name.includes('treasury') || name.includes('government') || name.includes('gilt')) ? 'Government' : 'Corporate';
+    sectorBuckets[sector] = (sectorBuckets[sector] || 0) + h.convertedHoldingValue / totalBondVal;
+  });
+
+  return '<div style="display:flex;gap:2rem;align-items:flex-start;margin-top:1rem">' +
+    donutChart(tenorBuckets, ['#5BA4CF','#E85D5D','#5BBFA8'], 'Tenor') +
+    donutChart(sectorBuckets, ['#5BA4CF','#E8A85D'], 'Sector') +
+    '</div>';
+}
+
+function donutChart(data, colors, title) {
+  const entries = Object.entries(data).filter(([,v]) => v > 0);
+  const total = entries.reduce((s,[,v]) => s+v, 0);
+  const r = 70, ri = 44, cx = 150, cy = 115;
+  let angle = -Math.PI / 2;
+  let paths = '';
+  let legends = '';
+
+  entries.forEach(([label, val], i) => {
+    const pct = val / total;
+    const sweep = pct * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(angle);
+    const y1 = cy + r * Math.sin(angle);
+    angle += sweep;
+    const x2 = cx + r * Math.cos(angle);
+    const y2 = cy + r * Math.sin(angle);
+    const xi1 = cx + ri * Math.cos(angle - sweep);
+    const yi1 = cy + ri * Math.sin(angle - sweep);
+    const xi2 = cx + ri * Math.cos(angle);
+    const yi2 = cy + ri * Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    const midA = angle - sweep / 2;
+    const lx = cx + (r + 20) * Math.cos(midA);
+    const ly = cy + (r + 20) * Math.sin(midA);
+    const col = colors[i] || '#aaa';
+
+    paths += '<path d="M' + x1 + ',' + y1 +
+      ' A' + r + ',' + r + ' 0 ' + large + ',1 ' + x2 + ',' + y2 +
+      ' L' + xi2 + ',' + yi2 +
+      ' A' + ri + ',' + ri + ' 0 ' + large + ',0 ' + xi1 + ',' + yi1 +
+      ' Z" fill="' + col + '"/>';
+    paths += '<text x="' + lx + '" y="' + ly + '" text-anchor="middle" font-size="9" fill="#333">' +
+      (pct * 100).toFixed(1) + '%</text>';
+    legends += '<rect x="10" y="' + (195 + i * 20) + '" width="12" height="12" fill="' + col + '" rx="2"/>';
+    legends += '<text x="26" y="' + (205 + i * 20) + '" font-size="10" fill="#444">' +
+      label + ': ' + (pct * 100).toFixed(1) + '%</text>';
+  });
+
+  return '<svg width="310" height="' + (200 + entries.length * 20) + '" xmlns="http://www.w3.org/2000/svg">' +
+    '<text x="150" y="18" text-anchor="middle" font-size="13" font-weight="600" fill="#222">' + title + '</text>' +
+    paths + legends + '</svg>';
+}
