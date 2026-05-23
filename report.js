@@ -542,7 +542,6 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <td>${fmtUSD(interestIncome)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${totalPnLPct.toFixed(1)}%</td>
-      <td>${h.maturityDate||'—'}</td>
     </tr>`;
   }).join('');
 
