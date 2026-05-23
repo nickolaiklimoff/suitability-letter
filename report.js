@@ -1,6 +1,19 @@
 // ─── Portfolio Report Module ──────────────────────────────────────────────────
 
 // ─── Parse cbonds Excel export ────────────────────────────────────────────────
+// Excel serial date helpers (for raw mode parsing)
+function excelDateToObj(serial) {
+  if (!serial) return null;
+  if (serial instanceof Date) return serial;
+  // Excel serial: days since 1900-01-01 (with leap year bug)
+  const d = new Date((serial - 25569) * 86400 * 1000);
+  return isNaN(d.getTime()) ? null : d;
+}
+function excelDateToStr(serial) {
+  const d = excelDateToObj(serial);
+  return d ? d.toLocaleDateString('en-GB') : '—';
+}
+
 window.parseCbondsExport = function(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -9,10 +22,16 @@ window.parseCbondsExport = function(file) {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: 'array', cellDates: true });
 
-        const getSheet = (name) => {
+        const getSheet = (name, raw) => {
           const ws = wb.Sheets[name];
           if (!ws) return [];
-          return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+          return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: raw || false, cellDates: !raw });
+        };
+        // Use raw=true for bonds to preserve numeric duration (not parsed as date)
+        const getBondSheet = () => {
+          const ws = wb.Sheets['bonds'];
+          if (!ws) return [];
+          return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true, cellDates: false });
         };
 
         // Parse currencies (cash)
@@ -20,7 +39,7 @@ window.parseCbondsExport = function(file) {
         const cash = currRows.reduce((s, r) => s + (parseFloat(r[2]) || 0), 0);
 
         // Parse bonds
-        const bondRows = getSheet('bonds').slice(1).filter(r => r[0]);
+        const bondRows = getBondSheet().slice(1).filter(r => r[0]);
         const bonds = bondRows.map(r => ({
           name: String(r[0]).trim(),
           type: 'bond',
