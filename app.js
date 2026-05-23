@@ -65,7 +65,7 @@ function selectClient(id) {
   renderClientList();
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('appContent').classList.remove('hidden');
-  switchTab('profile', document.querySelector('.tab'));
+  switchTab('report', document.querySelector('.tab'));
   loadProfileForm();
   resetLetterForm();
 }
@@ -137,7 +137,7 @@ function switchTab(name, btn) {
   if (btn) btn.classList.add('active');
   else {
     const tabs = document.querySelectorAll('.tab');
-    const idx = ['profile','letter','report','history'].indexOf(name);
+    const idx = ['report','letter','profile','history'].indexOf(name);
     if (tabs[idx]) tabs[idx].classList.add('active');
   }
   document.getElementById('tab-' + name).classList.remove('hidden');
