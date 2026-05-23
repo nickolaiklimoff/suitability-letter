@@ -714,7 +714,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div style="overflow-x:auto">
         <table class="report-table" style="">
           <thead><tr>
-            <th>Bond</th><th>ISIN</th><th>Rating</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th><th>Maturity</th></tr></thead>
+            <th>Bond</th><th>ISIN</th><th>Rating</th><th>Qty</th><th>Face Value</th><th>Price</th><th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th><th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th></tr></thead>
           <tbody>${bondPerfRows}</tbody>
           ${bondPerfFooter}
         </table>
