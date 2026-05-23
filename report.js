@@ -597,7 +597,6 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     <td>${fmtUSD(fundTotIncome)}</td>
     <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
     <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPnLPct}</td>
-    <td></td>
   </tr></tfoot>`;
 
   // ── Stocks table ──
@@ -747,22 +746,17 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </table>
         </div>` : ''}
 
-        <div style="margin-top:1.25rem">
-        <table class="report-table" style="font-size:12px">
-          <thead><tr>
-            <th>PORTFOLIO TOTAL</th><th>Cost Basis</th><th>Income</th>
-            <th>Unrealized PnL</th><th>Total PnL $</th><th>Total PnL %</th>
-          </tr></thead>
-          <tbody><tr style="font-weight:600">
+        <table class="report-table" style="margin-top:0.5rem">
+          <tfoot style="font-weight:600;background:var(--bg2)"><tr>
+            <td><strong>PORTFOLIO TOTAL</strong></td>
             <td>${portfolioData.totalValue ? fmtUSD(portfolioData.totalValue) : '—'}</td>
             <td>${fmtUSD(totalCostBasis)}</td>
             <td>${fmtUSD(totalIncome)}</td>
             <td style="color:${totalUnreal>=0?'#3b6d11':'#a32d2d'}">${totalUnreal>=0?'+':''}${fmtUSD(totalUnreal)}</td>
             <td style="color:${pc}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
             <td style="color:${pc}">${totalPnL>=0?'+':''}${totalPnLPct}</td>
-          </tr></tbody>
+          </tr></tfoot>
         </table>
-        </div>
       </div>
 
 
