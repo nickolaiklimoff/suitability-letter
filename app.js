@@ -242,8 +242,7 @@ function saveProfile() {
 
 function initLetterForm() {
   addInvestRow();
-  addPortfolioRow('existing');
-  addPortfolioRow('new');
+  addExistingRow();
   addModelRow();
 }
 
@@ -296,6 +295,7 @@ function escVal(s) { return (s||'').replace(/"/g,'&quot;'); }
 
 function addPortfolioRow(prefix) {
   const tbody = document.getElementById(`l-${prefix}Rows`);
+  if (!tbody) return;
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text" placeholder="Product / ISIN" /></td>
