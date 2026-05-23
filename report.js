@@ -56,8 +56,9 @@ window.parseCbondsExport = function(file) {
           unrealizedPnL: parseFloat(r[7]) || 0,
           ticker: String(r[12]||'').trim(),
           tradingCurrency: String(r[13]||'').trim(),
-          totalCostRatio: parseFloat(r[14]) || 0,
-          pctOfPortfolio: parseFloat(r[15]) || 0,
+          isin: String(r[14]||'').trim(),
+          totalCostRatio: parseFloat(r[15]) || 0,
+          pctOfPortfolio: parseFloat(r[18]) || 0,
           tradeDate: r[9] ? new Date(r[9]).toLocaleDateString('en-GB') : '',
         }));
 
@@ -571,6 +572,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     const pctPort = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
     return `<tr>
       <td>${h.name}</td>
+      <td>${h.isin||'—'}</td>
       <td>${h.ticker||'—'}</td>
       <td>${h.exchange||'—'}</td>
       <td>${h.quantity||'—'}</td>
@@ -593,7 +595,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fc = fundTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
 
   const fundPerfFooter = `<tfoot style="font-weight:600"><tr>
-    <td colspan="8">FUNDS TOTAL</td>
+    <td colspan="9">FUNDS TOTAL</td>
     <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
     <td>${fmtUSD(fundTotIncome)}</td>
     <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
@@ -673,7 +675,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <tr><td class="profile-label">Risk Profile</td><td><strong>${clientIR}</strong></td></tr>
           <tr><td class="profile-label">Investment Horizon</td><td>${decodeHorizon(client.profile?.timeHorizon)}</td></tr>
           <tr><td class="profile-label">Primary Objective</td><td>${decodeObjective(client.profile?.investmentObjective)}</td></tr>
-          <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)} (${irBandLocal(waar)})</strong></td></tr>
+          <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)}</strong></td></tr>
         </table>
       </div>
 
