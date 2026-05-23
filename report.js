@@ -591,13 +591,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fundTotPnLPct = fundTotCost > 0 ? (fundTotPnL/fundTotCost*100).toFixed(1)+'%' : '—';
   const fc = fundTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
 
-  const fundPerfFooter = `<tfoot style="font-weight:600"><tr>
-    <td colspan="7">FUNDS TOTAL</td>
-    <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
-    <td>${fmtUSD(fundTotIncome)}</td>
-    <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
-    <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPnLPct}</td>
-  </tr></tfoot>`;
+  const fundPerfFooter = '';
 
   // ── Stocks table ──
   const stockPerfRows = (portfolioData.stocks||[]).map(h => {
@@ -747,8 +741,32 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </div>` : ''}
 
         <table class="report-table" style="margin-top:0.5rem">
+          <thead><tr>
+            <th>Summary</th><th>Portfolio Value</th><th>Cost Basis</th><th>Income</th>
+            <th>Unrealized PnL</th><th>Total PnL $</th><th>Total PnL %</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>Bonds</td>
+              <td>—</td>
+              <td>${fmtUSD(bondTotCost)}</td>
+              <td>${fmtUSD(bondTotIncome)}</td>
+              <td style="color:${bondTotUnreal>=0?'#3b6d11':'#a32d2d'}">${bondTotUnreal>=0?'+':''}${fmtUSD(bondTotUnreal)}</td>
+              <td style="color:${bc}">${bondTotPnL>=0?'+':''}${fmtUSD(bondTotPnL)}</td>
+              <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPnLPct}</td>
+            </tr>
+            <tr>
+              <td>Funds / ETFs</td>
+              <td>—</td>
+              <td>${fmtUSD(fundTotCost)}</td>
+              <td>${fmtUSD(fundTotIncome)}</td>
+              <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
+              <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
+              <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPnLPct}</td>
+            </tr>
+          </tbody>
           <tfoot style="font-weight:600;background:var(--bg2)"><tr>
-            <td><strong>PORTFOLIO TOTAL</strong></td>
+            <td>PORTFOLIO TOTAL</td>
             <td>${portfolioData.totalValue ? fmtUSD(portfolioData.totalValue) : '—'}</td>
             <td>${fmtUSD(totalCostBasis)}</td>
             <td>${fmtUSD(totalIncome)}</td>
