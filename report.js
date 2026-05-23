@@ -571,10 +571,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     const c = totalPnL >= 0 ? '#3b6d11' : '#a32d2d';
     const pctPort = portfolioData.totalValue > 0 ? (h.convertedHoldingValue / portfolioData.totalValue * 100).toFixed(1) + '%' : '—';
     return `<tr>
-      <td>${h.name}</td>
+      <td style="min-width:160px">${h.name}</td>
       <td>${h.isin||'—'}</td>
-      <td>${h.ticker||'—'}</td>
-      <td>${h.exchange||'—'}</td>
       <td>${h.quantity||'—'}</td>
       <td>${h.price ? h.price.toFixed(2) : '—'}</td>
       <td>${fmtUSD(h.holdingValue)}</td>
@@ -595,7 +593,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fc = fundTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
 
   const fundPerfFooter = `<tfoot style="font-weight:600"><tr>
-    <td colspan="9">FUNDS TOTAL</td>
+    <td colspan="7">FUNDS TOTAL</td>
     <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
     <td>${fmtUSD(fundTotIncome)}</td>
     <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
@@ -718,7 +716,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
         <div style="font-size:13px;font-weight:600;margin:1.5rem 0 0.5rem;font-family:-apple-system,sans-serif">Funds / ETFs</div>
         <div style="overflow-x:auto">
-        <table class="report-table" style="font-size:11px;min-width:900px">
+        <table class="report-table" style="font-size:11px;min-width:700px">
           <thead><tr>
             <th>Name</th><th>Ticker</th><th>Exchange</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
