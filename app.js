@@ -705,7 +705,8 @@ window.runPortfolioReport = async function() {
       ? new Date(document.getElementById('r-dataDate').value).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})
       : reportDate;
 
-    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate);
+    const chartSrc = document.getElementById('r-chartImg')?.src || '';
+    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc);
     document.getElementById('r-reportContent').innerHTML = html;
     document.getElementById('r-reportOutput').classList.remove('hidden');
     document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
@@ -759,3 +760,25 @@ Return ONLY JSON: {"ratings": [{"index":1,"rating":2}, ...]}`;
     return {};
   }
 }
+
+// ─── Chart image handlers ─────────────────────────────────────────────────────
+window.previewChart = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('r-chartImg').src = e.target.result;
+    document.getElementById('r-chartFileName').textContent = file.name;
+    document.getElementById('r-chartPreview').style.display = 'block';
+    document.getElementById('r-clearChart').style.display = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.clearChart = function() {
+  document.getElementById('r-chartFile').value = '';
+  document.getElementById('r-chartImg').src = '';
+  document.getElementById('r-chartFileName').textContent = '';
+  document.getElementById('r-chartPreview').style.display = 'none';
+  document.getElementById('r-clearChart').style.display = 'none';
+};

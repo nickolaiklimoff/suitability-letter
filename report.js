@@ -455,7 +455,7 @@ function decodeObjective(v) {
   return map[v] || v || '—';
 }
 
-window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate) {
+window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc) {
   const bm = benchmark[clientIR] || {};
   const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics;
   const { dividends, coupons, totalUnrealizedPnL } = portfolioData;
@@ -676,6 +676,12 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)}</strong></td></tr>
         </table>
       </div>
+
+      ${chartSrc ? `
+      <div class="report-section">
+        <div class="report-section-title">Portfolio Value Over Time</div>
+        <img src="${chartSrc}" style="width:100%;max-height:280px;object-fit:contain;border-radius:6px" />
+      </div>` : ''}
 
       <div class="report-section">
         <div class="report-section-title">2. Asset Allocation vs ${clientIR} Benchmark</div>
