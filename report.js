@@ -591,7 +591,13 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fundTotPnLPct = fundTotCost > 0 ? (fundTotPnL/fundTotCost*100).toFixed(1)+'%' : '—';
   const fc = fundTotPnL >= 0 ? '#3b6d11' : '#a32d2d';
 
-  const fundPerfFooter = '';
+  const fundPerfFooter = `<tbody><tr style="font-weight:600;background:var(--bg2)">
+    <td colspan="7">Funds total</td>
+    <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
+    <td>${fmtUSD(fundTotIncome)}</td>
+    <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
+    <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPnLPct}</td>
+  </tr></tbody>`;
 
   // ── Stocks table ──
   const stockPerfRows = (portfolioData.stocks||[]).map(h => {
