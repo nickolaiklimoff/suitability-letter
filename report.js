@@ -22,10 +22,10 @@ window.parseCbondsExport = function(file) {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: 'array', cellDates: true });
 
-        const getSheet = (name, raw) => {
+        const getSheet = (name) => {
           const ws = wb.Sheets[name];
           if (!ws) return [];
-          return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: raw || false, cellDates: !raw });
+          return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false, cellDates: true });
         };
         // Use raw=true for bonds to preserve numeric duration (not parsed as date)
         const getBondSheet = () => {
@@ -56,8 +56,11 @@ window.parseCbondsExport = function(file) {
           totalPnLFile: parseFloat(r[11]) || 0,
           isin: String(r[24]||'').trim(),
           issuerRating: String(r[22]||'').trim(),
-          maturityDate: r[27] ? new Date(r[27]).toLocaleDateString('en-GB') : '',
-          putCallDate: r[28] ? new Date(r[28]).toLocaleDateString('en-GB') : '',
+          durationDays: parseFloat(r[18]) || 0,
+          durationYears: parseFloat(r[18]) > 0 ? parseFloat(r[18]) / 365.25 : 0,
+          maturityDate: r[27] ? excelDateToStr(r[27]) : '',
+          maturityDateObj: r[27] ? excelDateToObj(r[27]) : null,
+          putCallDate: r[28] ? excelDateToStr(r[28]) : '',
           pctOfPortfolio: parseFloat(r[29]) || 0,
         }));
 
