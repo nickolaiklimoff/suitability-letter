@@ -33,9 +33,11 @@ window.parseCbondsExport = function(file) {
           convertedHoldingValue: parseFloat(r[7]) || parseFloat(r[5]) || 0,
           unrealizedPnL:         parseFloat(r[8]) || 0,
           interestIncome:        parseFloat(r[10]) || 0,
-          isin:                  String(r[24]||'').trim(),
+          durationDays:          parseFloat(String(r[18]||'').replace(/,/g,'')) || 0,
           issuerRating:          String(r[22]||'').trim(),
+          isin:                  String(r[24]||'').trim(),
           maturityDate:          r[27] ? (r[27] instanceof Date ? r[27].toLocaleDateString('en-GB') : new Date(r[27]).toLocaleDateString('en-GB')) : '',
+          maturityDateRaw:       r[27] ? (r[27] instanceof Date ? r[27] : new Date(r[27])) : null,
           pctOfPortfolio:        parseFloat(r[29]) || 0,
         }));
 
@@ -298,6 +300,55 @@ function decodeObjective(v) {
   return map[v] || v || '—';
 }
 
+// ─── Bond Analysis section HTML ───────────────────────────────────────────────
+function buildBondAnalysisSection(bonds, totalPortfolioValue) {
+  if (!bonds || bonds.length === 0) return '';
+
+  const tableRows = bonds.map(b => {
+    const durYears = b.durationDays > 0 ? (b.durationDays / 365.25).toFixed(2) : '—';
+    const weight   = totalPortfolioValue > 0
+      ? ((b.convertedHoldingValue / totalPortfolioValue) * 100).toFixed(1) + '%'
+      : (b.pctOfPortfolio ? (b.pctOfPortfolio * 100).toFixed(1) + '%' : '—');
+    return `<tr>
+      <td style="min-width:160px">${b.name}</td>
+      <td style="font-family:monospace;font-size:11px">${b.isin || '—'}</td>
+      <td>${b.issuerRating || '—'}</td>
+      <td>${b.maturityDate || '—'}</td>
+      <td>${durYears}</td>
+      <td>${weight}</td>
+    </tr>`;
+  }).join('');
+
+  let wavgNum = 0, wavgDen = 0;
+  bonds.forEach(b => {
+    const w = b.convertedHoldingValue || 0;
+    const d = b.durationDays > 0 ? b.durationDays / 365.25 : 0;
+    wavgNum += w * d;
+    wavgDen += w;
+  });
+  const wavgDur = wavgDen > 0 ? (wavgNum / wavgDen).toFixed(2) : '—';
+
+  return `
+    <div class="report-section">
+      <div class="report-section-title">6. Bond Analysis</div>
+      <div style="overflow-x:auto">
+        <table class="report-table">
+          <thead><tr>
+            <th>Bond</th><th>ISIN</th><th>Rating</th><th>Maturity</th>
+            <th>Duration (yrs)</th><th>Weight</th>
+          </tr></thead>
+          <tbody>
+            ${tableRows}
+            <tr style="font-weight:600;background:var(--bg2)">
+              <td colspan="4">Weighted-average duration</td>
+              <td colspan="2">${wavgDur} yrs</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 // ─── Generate HTML report ─────────────────────────────────────────────────────
 window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc) {
   const bm = benchmark[clientIR] || {};
@@ -537,6 +588,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           </tbody>
         </table>
       </div>
+
+      ${buildBondAnalysisSection(portfolioData.bonds || [], totalValue)}
 
       <div class="report-disclaimer">
         <strong>Important Disclaimer</strong><br>
