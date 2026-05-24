@@ -365,11 +365,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     ['Cash',     bm.cash||0,     cashPct],
   ].map(([label, rec, cli]) => {
     const dev = cli - rec;
-    const gap = dev * totalValue;
     return `<tr>
       <td>${label}</td><td>${fmtPct(rec)}</td><td>${fmtPct(cli)}</td>
       <td style="color:${devColor(dev)}">${fmtDev(dev)}</td>
-      <td style="color:${devColor(dev)}">${fmtUSDSigned(gap)}</td>
     </tr>`;
   }).join('');
 
@@ -494,7 +492,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <div class="report-section">
         <div class="report-section-title">2. Asset Allocation vs ${clientIR} Benchmark</div>
         <table class="report-table">
-          <thead><tr><th>Asset Class</th><th>${clientIR} Rec.</th><th>Client Portfolio</th><th>Deviation</th><th>$$ Gap</th></tr></thead>
+          <thead><tr><th>Asset Class</th><th>${clientIR} Rec.</th><th>Client Portfolio</th><th>Deviation</th></tr></thead>
           <tbody>${allocationRows}</tbody>
         </table>
       </div>
