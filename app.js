@@ -547,6 +547,20 @@ function copyLetter() {
 // ─── History ──────────────────────────────────────────────────────────────────
 
 function renderHistory() {
+  switchHistoryTab('letters');
+}
+
+function switchHistoryTab(tab) {
+  document.getElementById('historyList').classList.toggle('hidden', tab !== 'letters');
+  document.getElementById('reportHistoryList').classList.toggle('hidden', tab !== 'reports');
+  document.getElementById('hist-tab-letters').style.fontWeight = tab === 'letters' ? '700' : '';
+  document.getElementById('hist-tab-reports').style.fontWeight = tab === 'reports' ? '700' : '';
+
+  if (tab === 'letters') renderLetterHistory();
+  else renderReportHistory();
+}
+
+function renderLetterHistory() {
   const client = clients[currentClientId];
   const el = document.getElementById('historyList');
   if (!client?.letters?.length) {
@@ -562,6 +576,73 @@ function renderHistory() {
       <button class="btn-secondary" onclick="viewHistoryLetter(${i})">View letter</button>
     </div>`).join('');
 }
+
+function renderReportHistory() {
+  const client = clients[currentClientId];
+  const el = document.getElementById('reportHistoryList');
+  if (!client?.reports?.length) {
+    el.innerHTML = '<div class="empty-history">No saved portfolio reports yet for this client.</div>';
+    return;
+  }
+  el.innerHTML = [...client.reports].reverse().map((r, i) => {
+    const realIdx = client.reports.length - 1 - i;
+    return `
+    <div class="history-item">
+      <div class="history-meta">
+        <span class="history-date">${new Date(r.savedAt).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+        <span class="history-meeting">Data: ${r.dataDate || '—'} · Portfolio: ${r.totalValue || '—'}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-secondary" onclick="viewSavedReport(${realIdx})">View</button>
+        <button class="btn-secondary" onclick="deleteSavedReport(${realIdx})" style="color:#a32d2d">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function saveCurrentReport() {
+  const client = clients[currentClientId];
+  if (!client) return;
+  const html = document.getElementById('r-reportContent')?.innerHTML;
+  if (!html) { alert('No report to save.'); return; }
+  if (!client.reports) client.reports = [];
+  const cfg = window._lastReportConfig || {};
+  const pd  = window._lastPortfolioData;
+  client.reports.push({
+    savedAt:    new Date().toISOString(),
+    dataDate:   cfg.dataDate || '',
+    totalValue: pd ? '$' + Math.round(pd.totalValue).toLocaleString('en-US') : '',
+    html,
+  });
+  saveToStorage();
+  // Flash button
+  const btn = event.target;
+  btn.textContent = '✓ Saved!';
+  btn.style.background = '#3b6d11';
+  setTimeout(() => { btn.textContent = '💾 Save Report'; btn.style.background = ''; }, 1800);
+}
+
+function viewSavedReport(i) {
+  const client = clients[currentClientId];
+  const report = client.reports[i];
+  if (!report) return;
+  // Open in modal or new tab
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Portfolio Report</title>
+    <link rel="stylesheet" href="${location.origin}${location.pathname.replace(/[^/]*$/,'')}style.css">
+    <style>body{padding:2rem;} @media print { @page{size:A4 landscape;margin:1.5cm} }</style>
+    </head><body>${report.html}</body></html>`);
+  w.document.close();
+}
+
+function deleteSavedReport(i) {
+  if (!confirm('Delete this saved report?')) return;
+  clients[currentClientId].reports.splice(i, 1);
+  saveToStorage();
+  renderReportHistory();
+}
+
+
 
 function viewHistoryLetter(i) {
   const client = clients[currentClientId];

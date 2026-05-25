@@ -434,19 +434,24 @@
           <div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">
             <button class="btn-secondary" onclick="window.print()">Print / PDF</button>
             <button class="btn-secondary" onclick="exportReportToWord()">Export Word</button>
+            <button class="btn-primary" onclick="saveCurrentReport()">💾 Save Report</button>
             <button class="btn-secondary" onclick="document.getElementById('r-reportOutput').classList.add('hidden')">Close</button>
           </div>
           <div id="r-reportContent"></div>
         </div>
       </div>
 
-      <!-- History Tab -->
       <div id="tab-history" class="tab-content hidden">
         <div class="section-header">
-          <h2>Letter history</h2>
-          <div class="section-sub">All generated letters for this client</div>
+          <h2>History</h2>
+          <div class="section-sub">Saved letters and portfolio reports for this client</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:1rem">
+          <button class="btn-secondary" id="hist-tab-letters" onclick="switchHistoryTab('letters')" style="font-weight:600">📄 Letters</button>
+          <button class="btn-secondary" id="hist-tab-reports" onclick="switchHistoryTab('reports')">📊 Portfolio Reports</button>
         </div>
         <div id="historyList"></div>
+        <div id="reportHistoryList" class="hidden"></div>
       </div>
 
     </div>

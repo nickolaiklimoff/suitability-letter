@@ -646,6 +646,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <tr><td class="profile-label">Investment Horizon</td><td>${decodeHorizon(client.profile?.timeHorizon)}</td></tr>
           <tr><td class="profile-label">Primary Objective</td><td>${decodeObjective(client.profile?.investmentObjective)}</td></tr>
           <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)}</strong></td></tr>
+          ${(client.profile?.knowledge||[]).length > 0 ? `
+          <tr><td class="profile-label" style="vertical-align:top">Knowledge &amp; Experience</td>
+              <td>${(client.profile.knowledge).map(k=>`<span style="display:inline-block;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 7px;margin:2px 3px 2px 0;font-size:11px">${k}</span>`).join('')}</td></tr>` : ''}
         </table>
       </div>
 
