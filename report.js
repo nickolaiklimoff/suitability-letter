@@ -776,7 +776,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
 // ─── Export to Word ───────────────────────────────────────────────────────────
 window.exportReportToWord = async function() {
-  const previewEl = document.getElementById('report-preview');
+  const previewEl = document.getElementById('r-reportContent');
   if (!previewEl || !previewEl.innerHTML.trim()) {
     alert('Please generate the report first.'); return;
   }
