@@ -781,44 +781,226 @@ window.exportReportToWord = async function() {
     alert('Please generate the report first.'); return;
   }
 
-  // Collect all stylesheets into one string
-  const styles = Array.from(document.styleSheets)
-    .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
-    .map(r => r.cssText).join('\n');
+  const D = docx;
+  const BRAND = '1F4E79', GRAY = '595959', GREEN = '3B6D11', RED = 'A32D2D';
+  const pt = n => n * 20;
+  // A4 landscape usable width in DXA (twips): 16838 - 1400 margins = 15438
+  const PAGE_W = 15438;
 
-  // sectPr forces Word into A4 landscape (twips: 16838w x 11906h)
-  const sectPr = `
-    <sectPr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-      <pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
-      <pgMar w:top="850" w:right="1000" w:bottom="850" w:left="1000"/>
-    </sectPr>`;
+  // ── Border helpers ──────────────────────────────────────────────────────
+  const thinBorder = { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB' };
+  const hairBorder = { style: D.BorderStyle.SINGLE, size: 2, color: 'E5E7EB' };
+  const noBorder   = { style: D.BorderStyle.NONE, size: 0, color: 'auto' };
 
-  const html = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-  <meta charset="utf-8">
-  <title>Portfolio Report</title>
-  <xml>${sectPr}</xml>
-  <style>
-    body { font-family: Calibri, Arial, sans-serif; font-size: 10pt; color: #1f2937; margin: 0; }
-    ${styles}
-    .report-doc { max-width: 100% !important; width: 100% !important; }
-    .report-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
-    .report-table th, .report-table td { padding: 3pt 5pt; white-space: nowrap; }
-    .report-table td:first-child { white-space: normal; }
-    img { max-width: 100%; }
-  </style>
-</head>
-<body>${previewEl.innerHTML}</body>
-</html>`;
+  // ── Convert a DOM <table> to docx Table ────────────────────────────────
+  function domTableToDocx(tbl) {
+    const domRows = Array.from(tbl.querySelectorAll('tr'));
+    if (!domRows.length) return null;
 
-  const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
+    // Measure column count
+    const colCount = Math.max(...domRows.map(r => r.querySelectorAll('th,td').length));
+    if (!colCount) return null;
+    const colW = Math.floor(PAGE_W / colCount);
+
+    const docxRows = domRows.map((tr, ri) => {
+      const cells = Array.from(tr.querySelectorAll('th, td')).map(td => {
+        const isHdr = td.tagName === 'TH';
+        const text  = (td.innerText || td.textContent || '').trim();
+        const isBold = isHdr || getComputedStyle(td).fontWeight >= 600;
+
+        // Extract colour from inline style
+        let color = GRAY;
+        const inlineColor = td.style?.color || '';
+        if (inlineColor) {
+          const m = inlineColor.match(/\d+/g);
+          if (m && m.length >= 3) {
+            const hex = m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+            if (hex !== '000000') color = hex.toUpperCase();
+          }
+        }
+        // Check span colour too
+        const span = td.querySelector('span');
+        if (!inlineColor && span) {
+          const sc = span.style?.color || '';
+          const m = sc.match(/\d+/g);
+          if (m && m.length >= 3) {
+            const hex = m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+            if (hex !== '000000') color = hex.toUpperCase();
+          }
+        }
+
+        return new D.TableCell({
+          children: [new D.Paragraph({
+            children: [new D.TextRun({
+              text, bold: isBold,
+              size: isHdr ? 17 : 16,
+              color: isHdr ? 'FFFFFF' : color,
+              font: 'Calibri',
+            })],
+            spacing: { before: 30, after: 30 },
+          })],
+          width: { size: colW, type: 'dxa' },
+          shading: isHdr
+            ? { fill: BRAND, type: 'clear', color: 'auto' }
+            : { fill: ri % 2 === 0 ? 'FFFFFF' : 'F5F7FA', type: 'clear', color: 'auto' },
+          borders: {
+            top: hairBorder, bottom: hairBorder,
+            left: noBorder, right: noBorder,
+          },
+          margins: { top: 50, bottom: 50, left: 90, right: 90 },
+        });
+      });
+
+      // Pad if fewer cells than colCount
+      while (cells.length < colCount) {
+        cells.push(new D.TableCell({
+          children: [new D.Paragraph({ children: [] })],
+          width: { size: colW, type: 'dxa' },
+          borders: { top: hairBorder, bottom: hairBorder, left: noBorder, right: noBorder },
+        }));
+      }
+
+      return new D.TableRow({ children: cells, tableHeader: tr.querySelector('th') !== null });
+    });
+
+    return new D.Table({
+      rows: docxRows,
+      width: { size: PAGE_W, type: 'dxa' },
+      borders: {
+        top: thinBorder, bottom: thinBorder,
+        left: noBorder, right: noBorder,
+        insideH: hairBorder, insideV: noBorder,
+      },
+    });
+  }
+
+  // ── Walk DOM and produce children ───────────────────────────────────────
+  const children = [];
+  const spacer = () => new D.Paragraph({ children: [], spacing: { after: pt(3) } });
+
+  const reportDoc = previewEl.querySelector('.report-doc') || previewEl;
+
+  for (const el of reportDoc.children) {
+
+    // ── Header ──
+    if (el.classList.contains('report-header')) {
+      const logo = el.querySelector('.report-logo');
+      if (logo) children.push(new D.Paragraph({
+        children: [new D.TextRun({ text: logo.innerText.trim(), bold: true, size: 34, color: BRAND, font: 'Calibri' })],
+        spacing: { after: pt(2) },
+      }));
+      el.querySelectorAll('.report-title,.report-subtitle,.report-meta div,.report-confidential').forEach(m => {
+        const txt = m.innerText.trim();
+        if (!txt) return;
+        const isTitle = m.classList.contains('report-title');
+        children.push(new D.Paragraph({
+          children: [new D.TextRun({ text: txt, bold: isTitle, size: isTitle ? 24 : 17, color: GRAY, font: 'Calibri' })],
+          spacing: { after: pt(1) },
+          alignment: D.AlignmentType ? D.AlignmentType.CENTER : 'center',
+        }));
+      });
+      children.push(spacer());
+      continue;
+    }
+
+    // ── Chart section ──
+    if (el.querySelector && el.querySelector('canvas,img')) {
+      const img = el.querySelector('img');
+      const canvas = el.querySelector('canvas');
+
+      // Section title
+      const titleEl = el.querySelector('.report-section-title');
+      if (titleEl) children.push(new D.Paragraph({
+        children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Calibri' })],
+        spacing: { before: pt(8), after: pt(4) },
+        border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
+      }));
+
+      let src = img?.src || '';
+      if (!src && canvas) src = canvas.toDataURL('image/png');
+      if (src && src.startsWith('data:')) {
+        try {
+          const [meta, b64] = src.split(',');
+          const ext = meta.includes('png') ? 'png' : 'jpg';
+          children.push(new D.Paragraph({
+            children: [new D.ImageRun({
+              data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
+              transformation: { width: 680, height: 200 },
+              type: ext,
+            })],
+            spacing: { after: pt(6) },
+          }));
+        } catch(e) { /* skip */ }
+      }
+      continue;
+    }
+
+    // ── Report sections ──
+    if (el.classList.contains('report-section') || el.classList.contains('report-disclaimer')) {
+      const titleEl = el.querySelector('.report-section-title');
+      if (titleEl) {
+        children.push(new D.Paragraph({
+          children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Calibri' })],
+          spacing: { before: pt(10), after: pt(4) },
+          border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
+        }));
+      }
+
+      // Walk direct children for sub-labels and tables
+      for (const child of el.children) {
+        if (child.classList.contains('report-section-title')) continue;
+
+        // Sub-label (e.g. "Bonds", "Funds / ETFs")
+        const childText = (child.innerText || '').trim();
+        if (!child.querySelector('table') && !child.querySelector('img') && !child.querySelector('canvas') && childText && childText.length < 80) {
+          children.push(new D.Paragraph({
+            children: [new D.TextRun({ text: childText, bold: true, size: 19, color: BRAND, font: 'Calibri' })],
+            spacing: { before: pt(5), after: pt(2) },
+          }));
+          continue;
+        }
+
+        // Tables (direct or nested in overflow div)
+        child.querySelectorAll('table').forEach(tbl => {
+          const t = domTableToDocx(tbl);
+          if (t) { children.push(t); children.push(spacer()); }
+        });
+        // Direct table
+        if (child.tagName === 'TABLE') {
+          const t = domTableToDocx(child);
+          if (t) { children.push(t); children.push(spacer()); }
+        }
+      }
+
+      // Disclaimer plain text
+      if (el.classList.contains('report-disclaimer')) {
+        children.push(new D.Paragraph({
+          children: [new D.TextRun({ text: el.innerText.trim(), size: 14, color: '9CA3AF', italics: true, font: 'Calibri' })],
+          spacing: { before: pt(12) },
+          border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 6 } },
+        }));
+      }
+    }
+  }
+
+  // ── Build document ──────────────────────────────────────────────────────
+  const doc = new D.Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 11906, height: 16838, orientation: D.PageOrientation.LANDSCAPE },
+          margin: { top: 600, right: 700, bottom: 600, left: 700 },
+        },
+      },
+      children: children.length ? children : [new D.Paragraph({ children: [new D.TextRun('No content')] })],
+    }],
+  });
+
+  const blob = await D.Packer.toBlob(doc);
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url;
-  a.download = `Portfolio_Report_${new Date().toISOString().slice(0,10)}.doc`;
+  a.download = `Portfolio_Report_${new Date().toISOString().slice(0,10)}.docx`;
   a.click();
   URL.revokeObjectURL(url);
 };
