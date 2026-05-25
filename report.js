@@ -300,6 +300,165 @@ function decodeObjective(v) {
   return map[v] || v || '—';
 }
 
+// ─── Section 7: Coupons ───────────────────────────────────────────────────────
+function buildCouponsSection(couponRows) {
+  if (!couponRows || couponRows.length === 0) return '';
+
+  const fmtDate = v => {
+    if (!v) return '—';
+    const d = v instanceof Date ? v : new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const fmtAmt = v => {
+    const n = parseFloat(v) || 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+
+  const sorted = [...couponRows].sort((a, b) => new Date(b[0]) - new Date(a[0]));
+  const total  = sorted.reduce((s, r) => s + (parseFloat(r[5]) || parseFloat(r[3]) || 0), 0);
+
+  const rows = sorted.map(r => {
+    const rate = parseFloat(r[2]) ? (parseFloat(r[2]) * 100).toFixed(2) + '%' : '—';
+    const converted = parseFloat(r[5]) || parseFloat(r[3]) || 0;
+    return `<tr>
+      <td>${fmtDate(r[0])}</td>
+      <td style="min-width:200px">${String(r[1]||'').trim()}</td>
+      <td>${rate}</td>
+      <td>${fmtAmt(r[3])}</td>
+      <td>${String(r[4]||'USD').trim()}</td>
+      <td>${fmtAmt(converted)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="report-section">
+      <div class="report-section-title">7. Coupon Payments</div>
+      <div style="overflow-x:auto">
+        <table class="report-table">
+          <thead><tr>
+            <th>Date</th><th>Bond</th><th>Coupon Rate</th>
+            <th>Amount</th><th>CCY</th><th>Converted (USD)</th>
+          </tr></thead>
+          <tbody>
+            ${rows}
+            <tr style="font-weight:600;background:var(--bg2)">
+              <td colspan="5">Total</td>
+              <td>${fmtAmt(total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ─── Section 8: Dividends ─────────────────────────────────────────────────────
+function buildDividendsSection(divRows) {
+  if (!divRows || divRows.length === 0) return '';
+
+  const fmtDate = v => {
+    if (!v) return '—';
+    const d = v instanceof Date ? v : new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const fmtAmt = v => {
+    const n = parseFloat(v) || 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+
+  // cols: Ex-div date[0] / Payment date[1] / Asset class[2] / Asset[3] / Pricing source[4] / Value[5] / Currency[6] / Value in portfolio currency[7]
+  const sorted = [...divRows].sort((a, b) => new Date(b[1] || b[0]) - new Date(a[1] || a[0]));
+  const total  = sorted.reduce((s, r) => s + (parseFloat(r[7]) || parseFloat(r[5]) || 0), 0);
+
+  const rows = sorted.map(r => {
+    const converted = parseFloat(r[7]) || parseFloat(r[5]) || 0;
+    return `<tr>
+      <td>${fmtDate(r[0])}</td>
+      <td>${fmtDate(r[1])}</td>
+      <td>${String(r[2]||'').trim()}</td>
+      <td style="min-width:200px">${String(r[3]||'').trim()}</td>
+      <td>${fmtAmt(r[5])}</td>
+      <td>${String(r[6]||'USD').trim()}</td>
+      <td>${fmtAmt(converted)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="report-section">
+      <div class="report-section-title">8. Dividends</div>
+      <div style="overflow-x:auto">
+        <table class="report-table">
+          <thead><tr>
+            <th>Ex-Div Date</th><th>Payment Date</th><th>Asset Class</th>
+            <th>Asset</th><th>Amount</th><th>CCY</th><th>Converted (USD)</th>
+          </tr></thead>
+          <tbody>
+            ${rows}
+            <tr style="font-weight:600;background:var(--bg2)">
+              <td colspan="6">Total</td>
+              <td>${fmtAmt(total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ─── Section 9: Trades ────────────────────────────────────────────────────────
+function buildTradesSection(tradeRows) {
+  if (!tradeRows || tradeRows.length === 0) return '';
+
+  const fmtDate = v => {
+    if (!v) return '—';
+    const d = v instanceof Date ? v : new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const fmtAmt = v => {
+    const n = parseFloat(v) || 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+  const fmtNum = v => {
+    const n = parseFloat(v);
+    return isNaN(n) ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  };
+
+  // cols: Trade date[0] / Settlement date[1] / Direction[2] / Asset class[3] / Asset[4] /
+  //       Pricing source[5] / Quantity[6] / Price[7] / Currency[8] / Accrued interest[9] /
+  //       Accrued Currency[10] / Outstanding face value[11] / Trade value[12] / Fees[13] /
+  //       Fee currency[14] / Converted trade value[15]
+  const sorted = [...tradeRows].sort((a, b) => new Date(b[0]) - new Date(a[0]));
+
+  const rows = sorted.map(r => {
+    const dir = String(r[2]||'').trim();
+    const dirColor = dir.toLowerCase() === 'buy' ? '#3b6d11' : '#a32d2d';
+    const fees = parseFloat(r[13]) || 0;
+    return `<tr>
+      <td>${fmtDate(r[0])}</td>
+      <td><span style="color:${dirColor};font-weight:600">${dir}</span></td>
+      <td>${String(r[3]||'').trim()}</td>
+      <td style="min-width:200px">${String(r[4]||'').trim()}</td>
+      <td style="text-align:right">${fmtNum(r[6])}</td>
+      <td style="text-align:right">${fmtNum(r[7])}</td>
+      <td>${String(r[8]||'').trim()}</td>
+      <td style="text-align:right">${fmtAmt(r[15] || r[12])}</td>
+      <td style="text-align:right">${fees ? fmtAmt(fees) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="report-section">
+      <div class="report-section-title">9. Trade History</div>
+      <div style="overflow-x:auto">
+        <table class="report-table">
+          <thead><tr>
+            <th>Trade Date</th><th>Direction</th><th>Asset Class</th><th>Asset</th>
+            <th>Qty</th><th>Price</th><th>CCY</th><th>Trade Value (USD)</th><th>Fees</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 // ─── Bond Analysis section HTML ───────────────────────────────────────────────
 function buildBondAnalysisSection(bonds, totalPortfolioValue) {
   if (!bonds || bonds.length === 0) return '';
@@ -588,6 +747,12 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       </div>
 
       ${buildBondAnalysisSection(portfolioData.bonds || [], totalValue)}
+
+      ${buildCouponsSection(portfolioData.couponRows || [])}
+
+      ${buildDividendsSection(portfolioData.divRows || [])}
+
+      ${buildTradesSection(portfolioData.tradeRows || [])}
 
       <div class="report-disclaimer">
         <strong>Important Disclaimer</strong><br>
