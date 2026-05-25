@@ -794,15 +794,21 @@ window.exportReportToWord = async function() {
 <head>
   <meta charset="utf-8">
   <title>Portfolio Report</title>
-  <!--[if gte mso 9]>
-  <xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom>
-    <w:DoNotOptimizeForBrowser/>
-  </w:WordDocument></xml>
-  <![endif]-->
+  <!--[if gte mso 9]><xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>90</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+    <w:DocumentProperties>
+      <w:Landscape/>
+    </w:DocumentProperties>
+  </xml><![endif]-->
   <style>
     /* Word page setup — A4 landscape */
-    @page { size: 29.7cm 21cm; margin: 1.5cm; }
-    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1f2937; }
+    @page { size: 29.7cm 21cm landscape; margin: 1.5cm; mso-page-orientation: landscape; }
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1f2937;
+           mso-page-orientation: landscape; }
     ${styles}
     /* Word overrides */
     .report-doc { max-width: 100%; }
