@@ -648,7 +648,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)}</strong></td></tr>
           ${(client.profile?.knowledge||[]).length > 0 ? `
           <tr><td class="profile-label" style="vertical-align:top">Knowledge &amp; Experience</td>
-              <td>${(client.profile.knowledge).map(k=>`<span style="display:inline-block;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 7px;margin:2px 3px 2px 0;font-size:11px">${k}</span>`).join('')}</td></tr>` : ''}
+              <td style="line-height:1.8">${(client.profile.knowledge).map((k,i,a) =>
+                `<span style="display:inline-block;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 8px;margin:2px 3px 2px 0;font-size:11px;white-space:nowrap">${k}</span>`
+              ).join('')}</td></tr>` : ''}
         </table>
       </div>
 
@@ -779,7 +781,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
 // ─── Export to Word ───────────────────────────────────────────────────────────
 window.exportReportToWord = async function() {
-  const previewEl = document.getElementById('r-reportContent');
+  const previewEl = window._savedReportViewEl || document.getElementById('r-reportContent');
+  window._savedReportViewEl = null; // reset after use
   if (!previewEl || !previewEl.innerHTML.trim()) {
     alert('Please generate the report first.'); return;
   }

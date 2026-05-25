@@ -626,13 +626,11 @@ function viewSavedReport(i) {
   const client = clients[currentClientId];
   const report = client.reports[i];
   if (!report) return;
-  // Open in modal or new tab
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Portfolio Report</title>
-    <link rel="stylesheet" href="${location.origin}${location.pathname.replace(/[^/]*$/,'')}style.css">
-    <style>body{padding:2rem;} @media print { @page{size:A4 landscape;margin:1.5cm} }</style>
-    </head><body>${report.html}</body></html>`);
-  w.document.close();
+  const modalContent = document.getElementById('reportModalContent');
+  modalContent.innerHTML = report.html;
+  // Make exportReportToWord use modal content
+  window._savedReportViewEl = modalContent;
+  document.getElementById('reportModal').classList.remove('hidden');
 }
 
 function deleteSavedReport(i) {

@@ -472,6 +472,21 @@
     </div>
   </div>
 
+  <!-- Saved Report Modal -->
+  <div id="reportModal" class="modal hidden">
+    <div class="modal-content" style="max-width:1100px">
+      <div class="modal-header no-print">
+        <h2>Portfolio Report</h2>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="window.print()">Print / PDF</button>
+          <button class="btn-secondary" onclick="exportReportToWord()">Export Word</button>
+          <button class="btn-secondary" onclick="document.getElementById('reportModal').classList.add('hidden')">Close</button>
+        </div>
+      </div>
+      <div id="reportModalContent" style="overflow-y:auto;max-height:80vh;padding:1rem"></div>
+    </div>
+  </div>
+
 </div>
 <script src="xlsx.full.min.js"></script>
 <script src="docx.min.js"></script>
