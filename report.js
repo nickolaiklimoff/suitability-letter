@@ -994,6 +994,38 @@ window.exportReportToWord = async function() {
   children.push(makeTable(['Bond','ISIN','Qty','Conv. Value USD','Unrealized PnL','Coupons Paid','Total PnL','Total PnL %'], bondPerfRows, [3500,1700,600,1700,1500,1500,1500,600]));
   children.push(spacer());
 
+  // Performance — Funds/ETFs
+  children.push(para('Funds / ETFs', { bold: true, size: 22, color: BRAND }));
+  const fundPerfRows = (pd.funds||[]).map(h => {
+    const cost = getCostBasis(h);
+    const divs = incomeMap[h.name]||0;
+    const pnl  = h.unrealizedPnL + divs;
+    const pct  = cost > 0 ? pnl/cost*100 : null;
+    return [
+      h.name, h.isin||'—', String(h.quantity||'—'),
+      fmtUSD(h.convertedHoldingValue),
+      { value: (h.unrealizedPnL>=0?'+':'')+fmtUSD(h.unrealizedPnL), color: h.unrealizedPnL>=0?GREEN:RED },
+      fmtUSD(divs),
+      { value: (pnl>=0?'+':'')+fmtUSD(pnl), color: pnl>=0?GREEN:RED },
+      { value: pct !== null ? (pnl>=0?'+':'')+pct.toFixed(1)+'%' : '—', color: pnl>=0?GREEN:RED },
+    ];
+  });
+  const fundTotUnreal = (pd.funds||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
+  const fundTotDivs   = (pd.funds||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
+  const fundTotPnL    = fundTotUnreal + fundTotDivs;
+  const fundTotCost   = (pd.funds||[]).reduce((s,h)=>s+getCostBasis(h),0);
+  const fundVal       = (pd.funds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
+  fundPerfRows.push([
+    { value: 'Funds Total', bold: true }, '', '',
+    { value: fmtUSD(fundVal), bold: true },
+    { value: (fundTotUnreal>=0?'+':'')+fmtUSD(fundTotUnreal), color: fundTotUnreal>=0?GREEN:RED, bold: true },
+    { value: fmtUSD(fundTotDivs), bold: true },
+    { value: (fundTotPnL>=0?'+':'')+fmtUSD(fundTotPnL), color: fundTotPnL>=0?GREEN:RED, bold: true },
+    { value: fundTotCost>0?(fundTotPnL>=0?'+':'')+( fundTotPnL/fundTotCost*100).toFixed(1)+'%':'—', color: fundTotPnL>=0?GREEN:RED, bold: true },
+  ]);
+  children.push(makeTable(['Name','ISIN','Qty','Conv. Value USD','Unrealized PnL','Dividends Paid','Total PnL','Total PnL %'], fundPerfRows, [3500,1700,600,1700,1500,1500,1500,600]));
+  children.push(spacer());
+
   // 6. Bond Analysis
   children.push(heading('6. Bond Analysis'));
   const bondAnalRows = (pd.bonds||[]).map(h => {
