@@ -636,6 +636,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <div>Currency: <strong>USD</strong></div>
         </div>
         <div class="report-confidential">CONFIDENTIAL</div>
+        <div class="report-fca">Orion Ridge Capital Limited &nbsp;|&nbsp; FCA Authorised &amp; Regulated (FRN 830294)</div>
       </div>
 
       <div class="report-section">
@@ -774,11 +775,16 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <strong>Important Disclaimer</strong><br>
         This report is indicative and has been compiled solely on the basis of information provided by or on behalf of the client.
         The holdings, valuations, performance figures, and allocations shown are approximate and aggregated for informational purposes only.
-        Accurate and authoritative data can only be found in official statements issued by the relevant broker.
+        Accurate and authoritative data can only be found in official statements issued by the relevant broker or custodian.
         This report does not constitute investment advice, a solicitation, or an offer to buy or sell any security or financial instrument.
         Past performance is not a reliable indicator of future results.<br><br>
-        Orion Ridge Capital Ltd | FCA Authorised &amp; Regulated (FRN 830294)<br>
-        Report generated: ${reportDate} | For internal advisor use only.
+        <strong>General Investment Risks</strong><br>
+        Market Risk: Asset prices are subject to significant short-term volatility driven by company-specific, sector, and macroeconomic factors.
+        Currency Exchange Risk: USD-listed positions create exchange rate risk relative to the client's base currency.
+        Regulatory Risk: Changes in regulations could adversely affect the value of holdings.
+        Fixed Income Risk: Bond prices are inversely related to interest rates; rising rates reduce the market value of existing bonds.<br><br>
+        Orion Ridge Capital Ltd is authorised and regulated by the Financial Conduct Authority (FRN 830294).<br>
+        Report generated: ${reportDate} &nbsp;|&nbsp; For internal advisor use only. Does not constitute investment advice.
       </div>
     </div>`;
 };
@@ -792,7 +798,8 @@ window.exportReportToWord = async function() {
   }
 
   const D = docx;
-  const BRAND = '1F4E79', GRAY = '595959', GREEN = '3B6D11', RED = 'A32D2D';
+  const BRAND = '5A7259', GRAY = '5C5148', GREEN = '3B6D11', RED = 'A32D2D';
+  const BRAND_HDR = 'EAF0EA'; // table header bg (light green from reference)
   const pt = n => n * 20;
   // A4 landscape usable width in DXA (twips): 16838 - 1400 margins = 15438
   const PAGE_W = 15438;
@@ -842,14 +849,14 @@ window.exportReportToWord = async function() {
               text, bold: isBold,
               size: isHdr ? 17 : 16,
               color: isHdr ? 'FFFFFF' : color,
-              font: 'Calibri',
+              font: 'Georgia',
             })],
             spacing: { before: 30, after: 30 },
           })],
           width: { size: colW * cs, type: 'dxa' },
           shading: isHdr
-            ? { fill: BRAND, type: 'clear', color: 'auto' }
-            : { fill: ri % 2 === 0 ? 'FFFFFF' : 'F5F7FA', type: 'clear', color: 'auto' },
+            ? { fill: BRAND, type: D.ShadingType ? D.ShadingType.CLEAR : 'clear', color: 'auto' }
+            : { fill: ri % 2 === 0 ? 'FFFFFF' : 'F5F0EB', type: 'clear', color: 'auto' },
           borders: {
             top: hairBorder, bottom: hairBorder,
             left: noBorder, right: noBorder,
@@ -884,7 +891,7 @@ window.exportReportToWord = async function() {
     if (el.classList.contains('report-header')) {
       const logo = el.querySelector('.report-logo');
       if (logo) children.push(new D.Paragraph({
-        children: [new D.TextRun({ text: logo.innerText.trim(), bold: true, size: 34, color: BRAND, font: 'Calibri' })],
+        children: [new D.TextRun({ text: logo.innerText.trim(), bold: true, size: 34, color: BRAND, font: 'Georgia' })],
         spacing: { after: pt(2) },
       }));
       el.querySelectorAll('.report-title,.report-subtitle,.report-meta div,.report-confidential').forEach(m => {
@@ -892,7 +899,7 @@ window.exportReportToWord = async function() {
         if (!txt) return;
         const isTitle = m.classList.contains('report-title');
         children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: txt, bold: isTitle, size: isTitle ? 24 : 17, color: GRAY, font: 'Calibri' })],
+          children: [new D.TextRun({ text: txt, bold: isTitle, size: isTitle ? 24 : 17, color: GRAY, font: 'Georgia' })],
           spacing: { after: pt(1) },
           alignment: D.AlignmentType ? D.AlignmentType.CENTER : 'center',
         }));
@@ -909,7 +916,7 @@ window.exportReportToWord = async function() {
       // Section title
       const titleEl = el.querySelector('.report-section-title');
       if (titleEl) children.push(new D.Paragraph({
-        children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Calibri' })],
+        children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Georgia' })],
         spacing: { before: pt(8), after: pt(4) },
         border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
       }));
@@ -938,7 +945,7 @@ window.exportReportToWord = async function() {
       const titleEl = el.querySelector('.report-section-title');
       if (titleEl) {
         children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Calibri' })],
+          children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Georgia' })],
           spacing: { before: pt(10), after: pt(4) },
           border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
         }));
@@ -952,7 +959,7 @@ window.exportReportToWord = async function() {
         const childText = (child.innerText || '').trim();
         if (!child.querySelector('table') && !child.querySelector('img') && !child.querySelector('canvas') && childText && childText.length < 80) {
           children.push(new D.Paragraph({
-            children: [new D.TextRun({ text: childText, bold: true, size: 19, color: BRAND, font: 'Calibri' })],
+            children: [new D.TextRun({ text: childText, bold: true, size: 19, color: BRAND, font: 'Georgia' })],
             spacing: { before: pt(5), after: pt(2) },
           }));
           continue;
@@ -973,7 +980,7 @@ window.exportReportToWord = async function() {
       // Disclaimer plain text
       if (el.classList.contains('report-disclaimer')) {
         children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: el.innerText.trim(), size: 14, color: '9CA3AF', italics: true, font: 'Calibri' })],
+          children: [new D.TextRun({ text: el.innerText.trim(), size: 14, color: '9CA3AF', italics: true, font: 'Georgia' })],
           spacing: { before: pt(12) },
           border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 6 } },
         }));
