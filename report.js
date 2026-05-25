@@ -781,6 +781,10 @@ window.exportReportToWord = async function() {
     alert('Please generate the report first.'); return;
   }
 
+  if (!window._lastPortfolioData) {
+    alert('Please re-generate the report once (click "Generate Report") — the new version of the app needs to save data for Word export.'); return;
+  }
+
   const D = docx;
 
   // ── helpers ──────────────────────────────────────────────────────────────
