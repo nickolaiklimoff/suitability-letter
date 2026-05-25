@@ -781,175 +781,44 @@ window.exportReportToWord = async function() {
     alert('Please generate the report first.'); return;
   }
 
-  const D = docx;
-  const BRAND = '1F4E79', GRAY = '595959', GREEN = '3B6D11', RED = 'A32D2D';
-  const pt = n => n * 20;
+  // Collect all stylesheets into one string
+  const styles = Array.from(document.styleSheets)
+    .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
+    .map(r => r.cssText).join('\n');
 
-  // ── Parse a DOM table into docx Table ──────────────────────────────────
-  function domTableToDocx(tbl) {
-    const rows = [];
-    tbl.querySelectorAll('tr').forEach((tr, ri) => {
-      const cells = [];
-      tr.querySelectorAll('th, td').forEach(td => {
-        const text = td.innerText.trim();
-        const isHdr = td.tagName === 'TH';
-        const style = window.getComputedStyle(td);
-        const colorRaw = style.color; // rgb(r,g,b)
-        let color = GRAY;
-        const m = colorRaw.match(/\d+/g);
-        if (m) {
-          const hex = m.slice(0,3).map(n=>parseInt(n).toString(16).padStart(2,'0')).join('');
-          color = hex === '000000' ? GRAY : hex;
-        }
-        const bold = isHdr || style.fontWeight >= 600;
-        cells.push(new D.TableCell({
-          children: [new D.Paragraph({
-            children: [new D.TextRun({ text, bold, size: isHdr ? 18 : 17, color: isHdr ? 'FFFFFF' : color, font: 'Calibri' })],
-          })],
-          shading: isHdr
-            ? { fill: BRAND, type: 'clear', color: 'auto' }
-            : { fill: ri % 2 === 0 ? 'FFFFFF' : 'F5F7FA', type: 'clear', color: 'auto' },
-          margins: { top: 50, bottom: 50, left: 80, right: 80 },
-        }));
-      });
-      if (cells.length) rows.push(new D.TableRow({ children: cells }));
-    });
-    if (!rows.length) return null;
-    return new D.Table({
-      rows,
-      width: { size: 100, type: D.WidthType ? D.WidthType.PERCENTAGE : 'pct' },
-      borders: {
-        top:     { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
-        bottom:  { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
-        left:    { style: D.BorderStyle.NONE },
-        right:   { style: D.BorderStyle.NONE },
-        insideH: { style: D.BorderStyle.SINGLE, size: 2, color: 'E5E7EB' },
-        insideV: { style: D.BorderStyle.NONE },
-      },
-    });
-  }
+  // sectPr forces Word into A4 landscape (twips: 16838w x 11906h)
+  const sectPr = `
+    <sectPr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      <pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
+      <pgMar w:top="850" w:right="1000" w:bottom="850" w:left="1000"/>
+    </sectPr>`;
 
-  // ── Walk the report DOM and build docx children ─────────────────────────
-  const children = [];
+  const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <title>Portfolio Report</title>
+  <xml>${sectPr}</xml>
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 10pt; color: #1f2937; margin: 0; }
+    ${styles}
+    .report-doc { max-width: 100% !important; width: 100% !important; }
+    .report-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    .report-table th, .report-table td { padding: 3pt 5pt; white-space: nowrap; }
+    .report-table td:first-child { white-space: normal; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>${previewEl.innerHTML}</body>
+</html>`;
 
-  function spacer() {
-    return new D.Paragraph({ children: [], spacing: { after: pt(4) } });
-  }
-
-  // Process each child node of the report
-  previewEl.querySelectorAll('.report-doc > *').forEach(el => {
-    // Header block
-    if (el.classList.contains('report-header')) {
-      const logo = el.querySelector('.report-logo');
-      if (logo) children.push(new D.Paragraph({
-        children: [new D.TextRun({ text: logo.innerText, bold: true, size: 36, color: BRAND, font: 'Calibri' })],
-        spacing: { after: pt(2) },
-      }));
-      const title = el.querySelector('.report-title');
-      if (title) children.push(new D.Paragraph({
-        children: [new D.TextRun({ text: title.innerText, bold: true, size: 26, color: BRAND, font: 'Calibri' })],
-        spacing: { after: pt(2) },
-      }));
-      el.querySelectorAll('.report-subtitle, .report-meta div, .report-confidential').forEach(m => {
-        const txt = m.innerText.trim();
-        if (txt) children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: txt, size: 18, color: GRAY, font: 'Calibri' })],
-          spacing: { after: pt(1) },
-        }));
-      });
-      children.push(spacer());
-      return;
-    }
-
-    // Chart image
-    if (el.tagName === 'DIV' && el.querySelector('img')) {
-      const img = el.querySelector('img');
-      if (img && img.src && img.src.startsWith('data:')) {
-        try {
-          const [meta, b64] = img.src.split(',');
-          const ext = meta.includes('png') ? 'png' : 'jpg';
-          children.push(new D.Paragraph({
-            children: [new D.ImageRun({
-              data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
-              transformation: { width: 620, height: 180 },
-              type: ext,
-            })],
-            spacing: { after: pt(6) },
-          }));
-        } catch(e) {}
-      }
-      return;
-    }
-
-    // Sections
-    if (el.classList.contains('report-section') || el.classList.contains('report-disclaimer')) {
-      // Section title
-      const titleEl = el.querySelector('.report-section-title');
-      if (titleEl) {
-        children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: titleEl.innerText, bold: true, size: 24, color: BRAND, font: 'Calibri' })],
-          spacing: { before: pt(10), after: pt(4) },
-          border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 4 } },
-        }));
-      }
-
-      // Sub-labels (e.g. "Bonds", "Funds / ETFs")
-      el.childNodes.forEach(node => {
-        if (node.nodeType === 1 && node.tagName === 'DIV' && !node.classList.contains('report-section-title')) {
-          // sub-heading text before tables
-          const txt = node.innerText?.trim();
-          if (txt && !node.querySelector('table') && !node.querySelector('img') && txt.length < 60) {
-            children.push(new D.Paragraph({
-              children: [new D.TextRun({ text: txt, bold: true, size: 20, color: BRAND, font: 'Calibri' })],
-              spacing: { before: pt(6), after: pt(3) },
-            }));
-          }
-          // Tables inside divs
-          node.querySelectorAll('table').forEach(tbl => {
-            const t = domTableToDocx(tbl);
-            if (t) { children.push(t); children.push(spacer()); }
-          });
-        }
-      });
-
-      // Direct tables
-      el.querySelectorAll(':scope > table, :scope > div > table').forEach(tbl => {
-        // avoid double-processing
-        if (!tbl.closest('.report-section-title')) {
-          const t = domTableToDocx(tbl);
-          if (t) { children.push(t); children.push(spacer()); }
-        }
-      });
-
-      // Disclaimer text
-      if (el.classList.contains('report-disclaimer')) {
-        children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: el.innerText.trim(), size: 15, color: '9CA3AF', italics: true, font: 'Calibri' })],
-          spacing: { before: pt(10) },
-          border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 6 } },
-        }));
-      }
-    }
-  });
-
-  // ── Build document — A4 landscape ─────────────────────────────────────
-  const doc = new D.Document({
-    sections: [{
-      properties: {
-        page: {
-          size: { width: 11906, height: 16838, orientation: D.PageOrientation.LANDSCAPE },
-          margin: { top: 600, right: 700, bottom: 600, left: 700 },
-        },
-      },
-      children: children.length ? children : [new D.Paragraph({ children: [new D.TextRun('No content')] })],
-    }],
-  });
-
-  const blob = await D.Packer.toBlob(doc);
+  const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `Portfolio_Report_${new Date().toISOString().slice(0,10)}.docx`;
+  a.href = url;
+  a.download = `Portfolio_Report_${new Date().toISOString().slice(0,10)}.doc`;
   a.click();
   URL.revokeObjectURL(url);
 };
