@@ -552,8 +552,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   // Bonds performance
   const bondPerfRows = (portfolioData.bonds||[]).map(h => {
     const cost = getCostBasis(h);
-    const income = h.interestIncome||0;
-    const totalPnL = h.unrealizedPnL + income;
+    const coupons = incomeMap[h.name]||0;
+    const totalPnL = h.unrealizedPnL + coupons;
     const pct = cost > 0 ? (totalPnL/cost*100).toFixed(1)+'%' : '—';
     const c = totalPnL>=0?'#3b6d11':'#a32d2d';
     return `<tr>
@@ -566,14 +566,14 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <td>${h.purchasePrice?h.purchasePrice.toFixed(2)+'%':'—'}</td>
       <td>${fmtUSD(h.convertedHoldingValue)}</td>
       <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${h.unrealizedPnL>=0?'+':''}${fmtUSD(h.unrealizedPnL)}</td>
-      <td>${fmtUSD(income)}</td>
+      <td>${fmtUSD(coupons)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
     </tr>`;
   }).join('');
 
   const bondTotUnreal = (portfolioData.bonds||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
-  const bondTotIncome = (portfolioData.bonds||[]).reduce((s,h)=>s+(h.interestIncome||0),0);
+  const bondTotIncome = (portfolioData.bonds||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
   const bondTotPnL = bondTotUnreal + bondTotIncome;
   const bondTotCost = (portfolioData.bonds||[]).reduce((s,h)=>s+getCostBasis(h),0);
   const bondTotPct = bondTotCost>0?(bondTotPnL/bondTotCost*100).toFixed(1)+'%':'—';
@@ -681,7 +681,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
             <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th>
-            <th>Unrealized PnL</th><th>Interest Income</th><th>Total PnL</th><th>Total PnL %</th>
+            <th>Unrealized PnL</th><th>Coupons Paid</th><th>Total PnL</th><th>Total PnL %</th>
           </tr></thead>
           <tbody>${bondPerfRows}
             <tr style="font-weight:600;background:var(--bg2)">
