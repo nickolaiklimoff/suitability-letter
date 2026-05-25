@@ -781,340 +781,52 @@ window.exportReportToWord = async function() {
     alert('Please generate the report first.'); return;
   }
 
-  if (!window._lastPortfolioData) {
-    alert('Please re-generate the report once (click "Generate Report") — the new version of the app needs to save data for Word export.'); return;
-  }
+  // Grab inline styles from the live stylesheet so Word renders correctly
+  const styles = Array.from(document.styleSheets)
+    .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
+    .map(r => r.cssText)
+    .join('\n');
 
-  const D = docx;
+  const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <title>Portfolio Report</title>
+  <!--[if gte mso 9]>
+  <xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom>
+    <w:DoNotOptimizeForBrowser/>
+  </w:WordDocument></xml>
+  <![endif]-->
+  <style>
+    /* Word page setup — A4 landscape */
+    @page { size: 29.7cm 21cm; margin: 1.5cm; }
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1f2937; }
+    ${styles}
+    /* Word overrides */
+    .report-doc { max-width: 100%; }
+    .report-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    .report-table th { background: #1f4e79; color: #fff; padding: 4pt 6pt; text-align: left; font-size: 9pt; }
+    .report-table td { padding: 3pt 6pt; border: 0.5pt solid #d1d5db; font-size: 9pt; }
+    .report-table tbody tr:nth-child(even) { background: #f5f7fa; }
+    .report-section-title { font-size: 14pt; font-weight: bold; color: #1f4e79;
+      border-bottom: 1.5pt solid #1f4e79; padding-bottom: 3pt; margin: 14pt 0 6pt; }
+    .report-header { margin-bottom: 12pt; }
+    .report-logo { font-size: 22pt; font-weight: bold; color: #1f4e79; }
+    .report-confidential { color: #9ca3af; font-size: 8pt; margin-top: 4pt; }
+  </style>
+</head>
+<body>
+  ${previewEl.innerHTML}
+</body>
+</html>`;
 
-  // ── helpers ──────────────────────────────────────────────────────────────
-  const pt = n => n * 20;          // points → half-points (twips)
-  const BRAND  = '1F4E79';         // dark navy
-  const GRAY   = '595959';
-  const GREEN  = '3B6D11';
-  const RED    = 'A32D2D';
-  const GOLD   = 'C9A84C';
-
-  function heading(text, lvl = 1) {
-    return new D.Paragraph({
-      children: [new D.TextRun({
-        text, bold: true, size: lvl === 1 ? 28 : 22,
-        color: lvl === 1 ? BRAND : '1F4E79',
-        font: 'Calibri',
-      })],
-      spacing: { before: lvl === 1 ? pt(12) : pt(8), after: pt(4) },
-      border: lvl === 1 ? { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 4 } } : {},
-    });
-  }
-
-  function para(text, opts = {}) {
-    return new D.Paragraph({
-      children: [new D.TextRun({ text, size: 20, font: 'Calibri', color: GRAY, ...opts })],
-      spacing: { after: pt(3) },
-    });
-  }
-
-  function spacer() {
-    return new D.Paragraph({ children: [], spacing: { after: pt(4) } });
-  }
-
-  // Table builder — headers[] + rows[][]
-  function makeTable(headers, rows, colWidths) {
-    const totalW = 13600; // twips, landscape ~24cm usable
-    const w = colWidths || headers.map(() => Math.floor(totalW / headers.length));
-
-    const hdrCells = headers.map((h, i) => new D.TableCell({
-      children: [new D.Paragraph({
-        children: [new D.TextRun({ text: String(h), bold: true, size: 18, color: 'FFFFFF', font: 'Calibri' })],
-      })],
-      shading: { fill: BRAND, type: D.ShadingType ? D.ShadingType.CLEAR : 'clear', color: 'auto' },
-      width: { size: w[i], type: D.WidthType ? D.WidthType.DXA : 'dxa' },
-      margins: { top: 60, bottom: 60, left: 80, right: 80 },
-    }));
-
-    const dataRows = rows.map((row, ri) => {
-      const cells = row.map((cell, ci) => {
-        const isNum = typeof cell === 'object' && cell !== null && cell.value !== undefined;
-        const text   = isNum ? cell.value : String(cell ?? '');
-        const color  = isNum ? (cell.color || GRAY) : GRAY;
-        const bold   = isNum ? (cell.bold || false) : false;
-        return new D.TableCell({
-          children: [new D.Paragraph({
-            children: [new D.TextRun({ text, size: 18, color, bold, font: 'Calibri' })],
-          })],
-          shading: { fill: ri % 2 === 0 ? 'F5F7FA' : 'FFFFFF', type: 'clear', color: 'auto' },
-          width: { size: w[ci], type: 'dxa' },
-          margins: { top: 50, bottom: 50, left: 80, right: 80 },
-        });
-      });
-      return new D.TableRow({ children: cells });
-    });
-
-    return new D.Table({
-      rows: [new D.TableRow({ children: hdrCells, tableHeader: true }), ...dataRows],
-      width: { size: totalW, type: 'dxa' },
-      borders: {
-        top:    { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
-        bottom: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
-        left:   { style: D.BorderStyle.NONE },
-        right:  { style: D.BorderStyle.NONE },
-        insideH:{ style: D.BorderStyle.SINGLE, size: 2, color: 'E5E7EB' },
-        insideV:{ style: D.BorderStyle.NONE },
-      },
-    });
-  }
-
-  // ── Pull data from the live portfolioData ────────────────────────────────
-  const pd  = window._lastPortfolioData;
-  const cfg = window._lastReportConfig || {};
-  if (!pd) { alert('No portfolio data loaded.'); return; }
-
-  const fmtUSD  = v => '$' + Math.round(v).toLocaleString('en-US');
-  const fmtPct  = v => (v * 100).toFixed(1) + '%';
-  const fmtDev  = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + 'pp';
-  const fmtDate = v => {
-    if (!v) return '—';
-    const d = v instanceof Date ? v : new Date(v);
-    return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-  const sgn = (v, fmt) => ({ value: (v >= 0 ? '+' : '') + fmt(v), color: v >= 0 ? GREEN : RED });
-
-  const totalValue = pd.totalValue || 0;
-  const client = cfg.client || {};
-  const clientIR = cfg.clientIR || 'IR3';
-  const bmAll = cfg.benchmark || {};
-  const bm = (bmAll[clientIR] || bmAll) ;
-  const reportDate = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
-
-  // incomeMap
-  const incomeMap = {};
-  (pd.divRows||[]).forEach(r => {
-    const name = String(r[3]||'').trim(); const amt = parseFloat(r[7])||parseFloat(r[5])||0;
-    if (name && amt) incomeMap[name] = (incomeMap[name]||0) + amt;
-  });
-  (pd.couponRows||[]).forEach(r => {
-    const name = String(r[1]||'').trim(); const amt = parseFloat(r[5])||parseFloat(r[3])||0;
-    if (name && amt) incomeMap[name] = (incomeMap[name]||0) + amt;
-  });
-
-  // asset allocation
-  const bondVal   = (pd.bonds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
-  const equityVal = [...(pd.stocks||[]),...(pd.funds||[]).filter(f=>f.type==='equity')].reduce((s,h)=>s+h.convertedHoldingValue,0);
-  const bondPct   = totalValue > 0 ? bondVal / totalValue : 0;
-  const equityPct = totalValue > 0 ? equityVal / totalValue : 0;
-  const cashPct   = totalValue > 0 ? (pd.cash||0) / totalValue : 0;
-
-  const getCostBasis = h => h.type === 'bond'
-    ? (h.purchasePrice/100) * (h.faceValueNum || 0)
-    : h.purchasePrice * (h.quantity||0);
-
-  // ── Build document children ───────────────────────────────────────────────
-  const children = [];
-
-  // Header block
-  children.push(new D.Paragraph({
-    children: [new D.TextRun({ text: 'ORION RIDGE CAPITAL', bold: true, size: 40, color: BRAND, font: 'Calibri' })],
-    spacing: { after: pt(2) },
-  }));
-  children.push(new D.Paragraph({
-    children: [new D.TextRun({ text: 'Portfolio Report — Investment Analysis & Advisory', size: 22, color: GRAY, font: 'Calibri' })],
-    spacing: { after: pt(2) },
-  }));
-  children.push(para(`Presented by: Nikolai Klimov — Partner   |   Report Date: ${reportDate}   |   Currency: USD`, { color: GRAY }));
-  children.push(para(`Portfolio Value: ${fmtUSD(totalValue)}   |   Data as at: ${cfg.dataDate || reportDate}`, { bold: true, color: BRAND }));
-  children.push(spacer());
-
-  // Chart image
-  if (cfg.chartSrc && cfg.chartSrc.startsWith('data:')) {
-    try {
-      const [meta, b64] = cfg.chartSrc.split(',');
-      const ext = meta.includes('png') ? 'png' : 'jpg';
-      children.push(new D.Paragraph({
-        children: [new D.ImageRun({
-          data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
-          transformation: { width: 700, height: 220 },
-          type: ext,
-        })],
-        spacing: { after: pt(6) },
-      }));
-    } catch(e) { /* skip if image fails */ }
-  }
-
-  // 1. Client Risk Profile
-  children.push(heading('1. Client Risk Profile'));
-  const profileRows = [
-    ['Client', client.name || '—'],
-    ['Risk Profile', clientIR],
-    ['Investment Horizon', cfg.horizon || '—'],
-    ['Primary Objective', cfg.objective || '—'],
-  ];
-  children.push(makeTable(['Field','Value'], profileRows, [4000, 9600]));
-  children.push(spacer());
-
-  // 2. Asset Allocation
-  children.push(heading('2. Asset Allocation vs ' + clientIR + ' Benchmark'));
-  const allocRows = [
-    ['Equities', fmtPct(bm.equities||0), fmtPct(equityPct), sgn(equityPct-(bm.equities||0), v=>(v*100).toFixed(1)+'pp')],
-    ['Bonds',    fmtPct(bm.bonds||0),    fmtPct(bondPct),   sgn(bondPct-(bm.bonds||0),    v=>(v*100).toFixed(1)+'pp')],
-    ['Cash',     fmtPct(bm.cash||0),     fmtPct(cashPct),   sgn(cashPct-(bm.cash||0),     v=>(v*100).toFixed(1)+'pp')],
-  ];
-  children.push(makeTable([`Asset Class`, `${clientIR} Rec.`, 'Client Portfolio', 'Deviation'], allocRows, [3400,3400,3400,3400]));
-  children.push(spacer());
-
-  // 5. Performance — Bonds
-  children.push(heading('5. Performance'));
-  children.push(para('Bonds', { bold: true, size: 22, color: BRAND }));
-
-  const bondPerfRows = (pd.bonds||[]).map(h => {
-    const cost = getCostBasis(h);
-    const coup = incomeMap[h.name]||0;
-    const pnl  = h.unrealizedPnL + coup;
-    const pct  = cost > 0 ? pnl/cost*100 : null;
-    return [
-      h.name, h.isin||'—', String(h.quantity||'—'),
-      fmtUSD(h.convertedHoldingValue),
-      { value: (h.unrealizedPnL>=0?'+':'')+fmtUSD(h.unrealizedPnL), color: h.unrealizedPnL>=0?GREEN:RED },
-      fmtUSD(coup),
-      { value: (pnl>=0?'+':'')+fmtUSD(pnl), color: pnl>=0?GREEN:RED },
-      { value: pct !== null ? (pnl>=0?'+':'')+pct.toFixed(1)+'%' : '—', color: pnl>=0?GREEN:RED },
-    ];
-  });
-  const bondTotUnreal = (pd.bonds||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
-  const bondTotCoup   = (pd.bonds||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
-  const bondTotPnL    = bondTotUnreal + bondTotCoup;
-  const bondTotCost   = (pd.bonds||[]).reduce((s,h)=>s+getCostBasis(h),0);
-  bondPerfRows.push([
-    { value: 'Bonds Total', bold: true }, '', '',
-    { value: fmtUSD(totalValue > 0 ? bondVal : 0), bold: true },
-    { value: (bondTotUnreal>=0?'+':'')+fmtUSD(bondTotUnreal), color: bondTotUnreal>=0?GREEN:RED, bold: true },
-    { value: fmtUSD(bondTotCoup), bold: true },
-    { value: (bondTotPnL>=0?'+':'')+fmtUSD(bondTotPnL), color: bondTotPnL>=0?GREEN:RED, bold: true },
-    { value: bondTotCost>0?(bondTotPnL>=0?'+':'')+( bondTotPnL/bondTotCost*100).toFixed(1)+'%':'—', color: bondTotPnL>=0?GREEN:RED, bold: true },
-  ]);
-  children.push(makeTable(['Bond','ISIN','Qty','Conv. Value USD','Unrealized PnL','Coupons Paid','Total PnL','Total PnL %'], bondPerfRows, [3500,1700,600,1700,1500,1500,1500,600]));
-  children.push(spacer());
-
-  // Performance — Funds/ETFs
-  children.push(para('Funds / ETFs', { bold: true, size: 22, color: BRAND }));
-  const fundPerfRows = (pd.funds||[]).map(h => {
-    const cost = getCostBasis(h);
-    const divs = incomeMap[h.name]||0;
-    const pnl  = h.unrealizedPnL + divs;
-    const pct  = cost > 0 ? pnl/cost*100 : null;
-    return [
-      h.name, h.isin||'—', String(h.quantity||'—'),
-      fmtUSD(h.convertedHoldingValue),
-      { value: (h.unrealizedPnL>=0?'+':'')+fmtUSD(h.unrealizedPnL), color: h.unrealizedPnL>=0?GREEN:RED },
-      fmtUSD(divs),
-      { value: (pnl>=0?'+':'')+fmtUSD(pnl), color: pnl>=0?GREEN:RED },
-      { value: pct !== null ? (pnl>=0?'+':'')+pct.toFixed(1)+'%' : '—', color: pnl>=0?GREEN:RED },
-    ];
-  });
-  const fundTotUnreal = (pd.funds||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
-  const fundTotDivs   = (pd.funds||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
-  const fundTotPnL    = fundTotUnreal + fundTotDivs;
-  const fundTotCost   = (pd.funds||[]).reduce((s,h)=>s+getCostBasis(h),0);
-  const fundVal       = (pd.funds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
-  fundPerfRows.push([
-    { value: 'Funds Total', bold: true }, '', '',
-    { value: fmtUSD(fundVal), bold: true },
-    { value: (fundTotUnreal>=0?'+':'')+fmtUSD(fundTotUnreal), color: fundTotUnreal>=0?GREEN:RED, bold: true },
-    { value: fmtUSD(fundTotDivs), bold: true },
-    { value: (fundTotPnL>=0?'+':'')+fmtUSD(fundTotPnL), color: fundTotPnL>=0?GREEN:RED, bold: true },
-    { value: fundTotCost>0?(fundTotPnL>=0?'+':'')+( fundTotPnL/fundTotCost*100).toFixed(1)+'%':'—', color: fundTotPnL>=0?GREEN:RED, bold: true },
-  ]);
-  children.push(makeTable(['Name','ISIN','Qty','Conv. Value USD','Unrealized PnL','Dividends Paid','Total PnL','Total PnL %'], fundPerfRows, [3500,1700,600,1700,1500,1500,1500,600]));
-  children.push(spacer());
-
-  // 6. Bond Analysis
-  children.push(heading('6. Bond Analysis'));
-  const bondAnalRows = (pd.bonds||[]).map(h => {
-    const durYrs = h.durationDays > 0 ? (h.durationDays/365.25).toFixed(2) : '—';
-    const wt = totalValue > 0 ? (h.convertedHoldingValue/totalValue*100).toFixed(1)+'%' : '—';
-    return [h.name, h.isin||'—', h.issuerRating||'—', h.maturityDate||'—', durYrs, wt];
-  });
-  // weighted avg duration
-  let wavgN=0,wavgD=0;
-  (pd.bonds||[]).forEach(h=>{const w=h.convertedHoldingValue||0;const d=h.durationDays>0?h.durationDays/365.25:0;wavgN+=w*d;wavgD+=w;});
-  bondAnalRows.push([{value:'Weighted-avg duration',bold:true},'','','','',{value:wavgD>0?(wavgN/wavgD).toFixed(2)+' yrs':'—',bold:true}]);
-  children.push(makeTable(['Bond','ISIN','Rating','Maturity','Duration (yrs)','Weight'], bondAnalRows, [4200,1900,1300,1700,2500,2000]));
-  children.push(spacer());
-
-  // 7. Coupon Payments
-  if ((pd.couponRows||[]).length > 0) {
-    children.push(heading('7. Coupon Payments'));
-    const couponDataRows = [...(pd.couponRows||[])].sort((a,b)=>new Date(b[0])-new Date(a[0])).map(r => [
-      fmtDate(r[0]), String(r[1]||'').trim(),
-      parseFloat(r[2]) ? (parseFloat(r[2])*100).toFixed(2)+'%' : '—',
-      fmtUSD(parseFloat(r[3])||0), String(r[4]||'USD').trim(),
-      fmtUSD(parseFloat(r[5])||parseFloat(r[3])||0),
-    ]);
-    const couponTotal = (pd.couponRows||[]).reduce((s,r)=>s+(parseFloat(r[5])||parseFloat(r[3])||0),0);
-    couponDataRows.push(['','',{value:'Total',bold:true},'','',{value:fmtUSD(couponTotal),bold:true}]);
-    children.push(makeTable(['Date','Bond','Coupon Rate','Amount','CCY','Converted (USD)'], couponDataRows, [1600,5000,1500,1500,900,1100]));
-    children.push(spacer());
-  }
-
-  // 8. Dividends
-  if ((pd.divRows||[]).length > 0) {
-    children.push(heading('8. Dividends'));
-    const divDataRows = [...(pd.divRows||[])].sort((a,b)=>new Date(b[1]||b[0])-new Date(a[1]||a[0])).map(r => [
-      fmtDate(r[0]), fmtDate(r[1]), String(r[2]||'').trim(), String(r[3]||'').trim(),
-      fmtUSD(parseFloat(r[5])||0), String(r[6]||'USD').trim(),
-      fmtUSD(parseFloat(r[7])||parseFloat(r[5])||0),
-    ]);
-    const divTotal = (pd.divRows||[]).reduce((s,r)=>s+(parseFloat(r[7])||parseFloat(r[5])||0),0);
-    divDataRows.push(['','','',{value:'Total',bold:true},'','',{value:fmtUSD(divTotal),bold:true}]);
-    children.push(makeTable(['Ex-Div Date','Payment Date','Asset Class','Asset','Amount','CCY','Converted (USD)'], divDataRows, [1500,1500,1400,4200,1200,900,900]));
-    children.push(spacer());
-  }
-
-  // 9. Trade History
-  if ((pd.tradeRows||[]).length > 0) {
-    children.push(heading('9. Trade History'));
-    const tradeDataRows = [...(pd.tradeRows||[])].sort((a,b)=>new Date(b[0])-new Date(a[0])).map(r => {
-      const dir = String(r[2]||'').trim();
-      return [
-        fmtDate(r[0]),
-        { value: dir, color: dir.toLowerCase()==='buy'?GREEN:RED, bold: true },
-        String(r[3]||'').trim(), String(r[4]||'').trim(),
-        String(r[6]||'—'), String(r[7]||'—'),
-        fmtUSD(parseFloat(r[15])||parseFloat(r[12])||0),
-        parseFloat(r[13]) ? fmtUSD(parseFloat(r[13])) : '—',
-      ];
-    });
-    children.push(makeTable(['Trade Date','Direction','Asset Class','Asset','Qty','Price','Trade Value (USD)','Fees'], tradeDataRows, [1500,1200,1300,4000,700,900,1800,1200]));
-    children.push(spacer());
-  }
-
-  // Disclaimer
-  children.push(new D.Paragraph({
-    children: [new D.TextRun({
-      text: 'Important Disclaimer: This report is indicative and has been compiled solely on the basis of information provided by or on behalf of the client. The holdings, valuations, performance figures, and allocations shown are approximate and aggregated for informational purposes only. Accurate and authoritative data can only be found in official statements issued by the relevant broker. This report does not constitute investment advice. Past performance is not a reliable indicator of future results. Orion Ridge Capital Ltd | FCA Authorised & Regulated (FRN 830294)',
-      size: 16, color: '9CA3AF', italics: true, font: 'Calibri',
-    })],
-    spacing: { before: pt(16) },
-    border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 6 } },
-  }));
-
-  // ── Pack and download ────────────────────────────────────────────────────
-  const doc = new D.Document({
-    sections: [{
-      properties: {
-        page: {
-          size: { width: 11906, height: 16838, orientation: 'landscape' },
-          margin: { top: 600, right: 700, bottom: 600, left: 700 },
-        },
-      },
-      children,
-    }],
-  });
-
-  const blob = await D.Packer.toBlob(doc);
+  const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `Portfolio_Report_${new Date().toISOString().slice(0,10)}.docx`;
+  a.download = `Portfolio_Report_${new Date().toISOString().slice(0,10)}.doc`;
   a.click();
   URL.revokeObjectURL(url);
 };
