@@ -759,7 +759,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       ${breakdownSrc ? `
       <div class="report-section">
         <div class="report-section-title">Holdings Breakdown</div>
-        <img src="${breakdownSrc}" style="max-width:100%;border-radius:6px;margin-top:0.5rem" />
+        <img src="${breakdownSrc}" style="max-width:100%;height:auto;display:block;border-radius:6px;margin-top:0.5rem" />
       </div>` : ''}
 
       ${buildBondAnalysisSection(portfolioData.bonds || [], totalValue)}
