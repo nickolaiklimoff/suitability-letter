@@ -785,9 +785,10 @@ window.runPortfolioReport = async function() {
       : reportDate;
 
     const chartSrc = document.getElementById('r-chartImg')?.src || '';
+    const breakdownSrc = document.getElementById('r-breakdownImg')?.src || '';
     window._lastPortfolioData = portfolioData;
-    window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc };
-    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc);
+    window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
+    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
     document.getElementById('r-reportContent').innerHTML = html;
     document.getElementById('r-reportOutput').classList.remove('hidden');
     document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
@@ -862,4 +863,25 @@ window.clearChart = function() {
   document.getElementById('r-chartFileName').textContent = '';
   document.getElementById('r-chartPreview').style.display = 'none';
   document.getElementById('r-clearChart').style.display = 'none';
+};
+
+window.previewBreakdown = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('r-breakdownImg').src = e.target.result;
+    document.getElementById('r-breakdownFileName').textContent = file.name;
+    document.getElementById('r-breakdownPreview').style.display = 'block';
+    document.getElementById('r-clearBreakdown').style.display = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.clearBreakdown = function() {
+  document.getElementById('r-breakdownFile').value = '';
+  document.getElementById('r-breakdownImg').src = '';
+  document.getElementById('r-breakdownFileName').textContent = '';
+  document.getElementById('r-breakdownPreview').style.display = 'none';
+  document.getElementById('r-clearBreakdown').style.display = 'none';
 };

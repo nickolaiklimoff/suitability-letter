@@ -424,6 +424,25 @@
           </div>
         </div>
 
+        <div class="form-card">
+          <h3>Holdings breakdown image <span style="font-weight:400;color:var(--text3)">(optional)</span></h3>
+          <div class="field">
+            <div class="field-hint">Upload a holdings/issuers breakdown chart from Cbonds — it will appear in the report after the Performance section.</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label class="btn-import" for="r-breakdownFile">
+                ↑ Upload breakdown image
+                <input type="file" id="r-breakdownFile" accept="image/*" style="display:none"
+                  onchange="previewBreakdown(this)"/>
+              </label>
+              <span id="r-breakdownFileName" class="file-name"></span>
+              <button class="btn-secondary" id="r-clearBreakdown" onclick="clearBreakdown()" style="display:none;font-size:13px">✕ Remove</button>
+            </div>
+            <div id="r-breakdownPreview" style="margin-top:10px;display:none">
+              <img id="r-breakdownImg" style="max-width:100%;max-height:300px;border-radius:var(--radius);border:0.5px solid var(--border)" />
+            </div>
+          </div>
+        </div>
+
         <div style="margin-top:1rem">
           <button class="btn-generate" onclick="runPortfolioReport()" style="display:inline-flex;align-items:center;gap:8px">
             Generate report ↗

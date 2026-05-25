@@ -509,7 +509,7 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
 }
 
 // ─── Generate HTML report ─────────────────────────────────────────────────────
-window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc) {
+window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc) {
   // Persist for Word export
   window._lastPortfolioData = portfolioData;
   window._lastReportConfig  = { clientIR, client, benchmark, reportDate, dataDate,
@@ -755,6 +755,12 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           </tbody>
         </table>
       </div>
+
+      ${breakdownSrc ? `
+      <div class="report-section">
+        <div class="report-section-title">Holdings Breakdown</div>
+        <img src="${breakdownSrc}" style="max-width:100%;border-radius:6px;margin-top:0.5rem" />
+      </div>` : ''}
 
       ${buildBondAnalysisSection(portfolioData.bonds || [], totalValue)}
 
