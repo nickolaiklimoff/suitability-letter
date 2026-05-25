@@ -648,9 +648,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)}</strong></td></tr>
           ${(client.profile?.knowledge||[]).length > 0 ? `
           <tr><td class="profile-label" style="vertical-align:top">Knowledge &amp; Experience</td>
-              <td style="line-height:2">${(client.profile.knowledge).map(k =>
-                `<span style="display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:1px 8px;margin:2px 3px 2px 0;font-size:11px;white-space:nowrap">${k}</span>`
-              ).join('')}</td></tr>` : ''}
+              <td style="font-size:12px">${(client.profile.knowledge).join(', ')}</td></tr>` : ''}
         </table>
       </div>
 
