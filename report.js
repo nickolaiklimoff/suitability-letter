@@ -1070,7 +1070,7 @@ window.exportReportToWord = async function() {
     sections: [{
       properties: {
         page: {
-          size: { width: 16838, height: 11906, orientation: D.PageOrientation ? D.PageOrientation.LANDSCAPE : 'landscape' },
+          size: { width: 11906, height: 16838, orientation: 'landscape' },
           margin: { top: 600, right: 700, bottom: 600, left: 700 },
         },
       },
