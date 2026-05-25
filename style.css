@@ -285,17 +285,32 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .report-table tbody tr:last-child td { border-bottom: 1px solid #5A7259; }
 .profile-table td { padding: 6px 10px; }
 .profile-label { font-weight: 600; width: 160px; color: #8B7A68; font-size: 11px; }
-.report-disclaimer {
-  font-size: 10px;
-  color: #8B7A68;
-  line-height: 1.6;
-  padding: 1rem;
-  background: #FAF7F4;
-  border-top: 1px solid #D4C9BE;
-  border-radius: 0;
-  margin-top: 2rem;
+.report-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  text-align: center;
 }
-.report-disclaimer strong { color: #5A7259; }
+.report-cover-inner { max-width: 480px; width: 100%; }
+.report-cover .report-logo { font-size: 11px; letter-spacing: 0.25em; color: #8B7A68; margin-bottom: 1.5rem; }
+.report-cover .report-title { font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 700; color: #5A7259; margin-bottom: 0.5rem; }
+.report-cover .report-subtitle { font-family: 'Playfair Display', Georgia, serif; font-size: 15px; color: #8B7A68; margin-bottom: 0; }
+.report-cover-divider { width: 60px; height: 2px; background: #5A7259; margin: 1.5rem auto; border-radius: 1px; }
+.report-cover-meta { text-align: left; margin: 0 auto; display: inline-block; min-width: 280px; }
+.report-cover-row { display: flex; justify-content: space-between; gap: 2rem; padding: 6px 0; border-bottom: 0.5px solid #E8E0D8; font-size: 13px; color: #5C5148; }
+.report-cover-row span { color: #8B7A68; }
+.report-cover-row strong { color: #2C2C2C; }
+.report-cover .report-confidential { margin-top: 1.5rem; font-size: 10px; letter-spacing: 0.2em; color: #8B7A68; }
+.report-cover .report-fca { font-size: 10px; color: #8B7A68; margin-top: 0.35rem; }
+.report-page-break { page-break-after: always; height: 0; }
+
+.report-disclaimer { font-size: 10.5px; color: #5C5148; line-height: 1.65; padding: 1.25rem 1.5rem; background: #FAF7F4; border-top: 2px solid #5A7259; margin-top: 2rem; }
+.report-disclaimer p { margin: 0 0 0.6rem; }
+.report-disclaimer-title { font-family: 'Playfair Display', Georgia, serif; font-size: 13px; font-weight: 700; color: #5A7259; margin: 0.75rem 0 0.4rem; }
+.report-disclaimer-title:first-child { margin-top: 0; }
+.report-disclaimer-footer { margin-top: 1rem; padding-top: 0.75rem; border-top: 0.5px solid #D4C9BE; font-size: 9.5px; color: #8B7A68; line-height: 1.5; }
+
 
 @media print {
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap');
@@ -312,6 +327,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   #r-reportOutput { display: block !important; }
   .no-print { display: none !important; }
 
+  .report-cover { min-height: 100vh; page-break-after: always; }
+  .report-cover .report-title { font-size: 42px; }
+  .report-page-break { page-break-after: always; }
   .report-doc { max-width: 100%; }
   .report-table { font-size: 8px; }
   .report-table th { font-size: 8px; padding: 2px 4px; }

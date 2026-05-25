@@ -624,20 +624,27 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
   return `
     <div class="report-doc">
-      <div class="report-header">
-        <div class="report-logo">ORION RIDGE CAPITAL</div>
-        <div class="report-title">Portfolio Report</div>
-        <div class="report-subtitle">Investment Analysis &amp; Advisory</div>
-        <div class="report-meta">
-          <div>Presented by <strong>Nikolai Klimov — Partner</strong></div>
-          <div>Portfolio Value: <strong>${fmtUSD(totalValue)}</strong></div>
-          <div>Report Date: <strong>${reportDate}</strong></div>
-          <div>Data as at: <strong>${dataDate}</strong></div>
-          <div>Currency: <strong>USD</strong></div>
+      <div class="report-cover">
+        <div class="report-cover-inner">
+          <div class="report-logo">ORION RIDGE CAPITAL</div>
+          <div class="report-title">Portfolio Report</div>
+          <div class="report-subtitle">Investment Analysis &amp; Advisory</div>
+          <div class="report-cover-divider"></div>
+          <div class="report-cover-meta">
+            <div class="report-cover-row"><span>Client</span><strong>${client.name}</strong></div>
+            <div class="report-cover-row"><span>Risk Profile</span><strong>${clientIR}</strong></div>
+            <div class="report-cover-row"><span>Portfolio Value</span><strong>${fmtUSD(totalValue)}</strong></div>
+            <div class="report-cover-row"><span>Report Date</span><strong>${reportDate}</strong></div>
+            <div class="report-cover-row"><span>Data as at</span><strong>${dataDate}</strong></div>
+            <div class="report-cover-row"><span>Currency</span><strong>USD</strong></div>
+            <div class="report-cover-row"><span>Prepared by</span><strong>Nikolai Klimov — Partner</strong></div>
+          </div>
+          <div class="report-cover-divider"></div>
+          <div class="report-confidential">CONFIDENTIAL</div>
+          <div class="report-fca">Orion Ridge Capital Limited &nbsp;|&nbsp; FCA Authorised &amp; Regulated (FRN 830294)</div>
         </div>
-        <div class="report-confidential">CONFIDENTIAL</div>
-        <div class="report-fca">Orion Ridge Capital Limited &nbsp;|&nbsp; FCA Authorised &amp; Regulated (FRN 830294)</div>
       </div>
+      <div class="report-page-break"></div>
 
       <div class="report-section">
         <div class="report-section-title">1. Client Risk Profile</div>
@@ -772,19 +779,20 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       ${buildTradesSection(portfolioData.tradeRows || [])}
 
       <div class="report-disclaimer">
-        <strong>Important Disclaimer</strong><br>
-        This report is indicative and has been compiled solely on the basis of information provided by or on behalf of the client.
-        The holdings, valuations, performance figures, and allocations shown are approximate and aggregated for informational purposes only.
-        Accurate and authoritative data can only be found in official statements issued by the relevant broker or custodian.
-        This report does not constitute investment advice, a solicitation, or an offer to buy or sell any security or financial instrument.
-        Past performance is not a reliable indicator of future results.<br><br>
-        <strong>General Investment Risks</strong><br>
-        Market Risk: Asset prices are subject to significant short-term volatility driven by company-specific, sector, and macroeconomic factors.
-        Currency Exchange Risk: USD-listed positions create exchange rate risk relative to the client's base currency.
-        Regulatory Risk: Changes in regulations could adversely affect the value of holdings.
-        Fixed Income Risk: Bond prices are inversely related to interest rates; rising rates reduce the market value of existing bonds.<br><br>
-        Orion Ridge Capital Ltd is authorised and regulated by the Financial Conduct Authority (FRN 830294).<br>
-        Report generated: ${reportDate} &nbsp;|&nbsp; For internal advisor use only. Does not constitute investment advice.
+        <div class="report-disclaimer-title">Important Disclaimer</div>
+        <p>This report is indicative and has been compiled solely on the basis of information provided by or on behalf of the client. The holdings, valuations, performance figures, and allocations shown are approximate and aggregated for informational purposes only. Accurate and authoritative data can only be found in official statements issued by the relevant broker (Interactive Brokers). This report does not replace or supersede any official custodian reporting.</p>
+        <p>This report does not constitute investment advice, a solicitation, or an offer to buy or sell any security or financial instrument. Orion Ridge Capital Ltd makes no representation or warranty, express or implied, as to the accuracy, completeness, or timeliness of the information contained herein. Past performance is not a reliable indicator of future results.</p>
+        <div class="report-disclaimer-title">General Investment Risks</div>
+        <p><strong>Market Risk:</strong> Equity prices are subject to significant short-term volatility driven by company-specific, sector, and macroeconomic factors.</p>
+        <p><strong>Concentration Risk:</strong> This portfolio is concentrated in a limited number of positions. A decline in any single position may have a material impact on overall portfolio value.</p>
+        <p><strong>Currency Exchange Risk:</strong> USD-listed positions create exchange rate risk relative to the client's base currency.</p>
+        <p><strong>Fixed Income Risk:</strong> Bond prices are inversely related to interest rates. Rising rates reduce the market value of existing bonds. Credit risk arises from the possibility of issuer default.</p>
+        <p><strong>Regulatory Risk:</strong> Changes in regulations could adversely affect specific holdings or the portfolio as a whole.</p>
+        <p><strong>Liquidity Risk:</strong> Some holdings may be difficult to sell at fair value in adverse or illiquid market conditions.</p>
+        <div class="report-disclaimer-footer">
+          Orion Ridge Capital Ltd | FCA Authorised &amp; Regulated (FRN 830294)<br>
+          Report generated: ${reportDate} &nbsp;|&nbsp; For internal advisor use only. Does not constitute investment advice. Investment products are not insured by any government entity, are not deposits, and are not obligations of or guaranteed by Orion Ridge Capital or its affiliates. Investments carry the risk of partial or complete loss of principal.
+        </div>
       </div>
     </div>`;
 };
