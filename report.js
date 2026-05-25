@@ -820,7 +820,7 @@ window.exportReportToWord = async function() {
 
   // Table builder — headers[] + rows[][]
   function makeTable(headers, rows, colWidths) {
-    const totalW = 9200; // twips, ~16.2cm
+    const totalW = 13600; // twips, landscape ~24cm usable
     const w = colWidths || headers.map(() => Math.floor(totalW / headers.length));
 
     const hdrCells = headers.map((h, i) => new D.TableCell({
@@ -882,7 +882,8 @@ window.exportReportToWord = async function() {
   const totalValue = pd.totalValue || 0;
   const client = cfg.client || {};
   const clientIR = cfg.clientIR || 'IR3';
-  const bm = cfg.benchmark || {};
+  const bmAll = cfg.benchmark || {};
+  const bm = (bmAll[clientIR] || bmAll) ;
   const reportDate = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
   // incomeMap
@@ -923,6 +924,22 @@ window.exportReportToWord = async function() {
   children.push(para(`Portfolio Value: ${fmtUSD(totalValue)}   |   Data as at: ${cfg.dataDate || reportDate}`, { bold: true, color: BRAND }));
   children.push(spacer());
 
+  // Chart image
+  if (cfg.chartSrc && cfg.chartSrc.startsWith('data:')) {
+    try {
+      const [meta, b64] = cfg.chartSrc.split(',');
+      const ext = meta.includes('png') ? 'png' : 'jpg';
+      children.push(new D.Paragraph({
+        children: [new D.ImageRun({
+          data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
+          transformation: { width: 700, height: 220 },
+          type: ext,
+        })],
+        spacing: { after: pt(6) },
+      }));
+    } catch(e) { /* skip if image fails */ }
+  }
+
   // 1. Client Risk Profile
   children.push(heading('1. Client Risk Profile'));
   const profileRows = [
@@ -931,7 +948,7 @@ window.exportReportToWord = async function() {
     ['Investment Horizon', cfg.horizon || '—'],
     ['Primary Objective', cfg.objective || '—'],
   ];
-  children.push(makeTable(['Field','Value'], profileRows, [3000, 6200]));
+  children.push(makeTable(['Field','Value'], profileRows, [4000, 9600]));
   children.push(spacer());
 
   // 2. Asset Allocation
@@ -941,7 +958,7 @@ window.exportReportToWord = async function() {
     ['Bonds',    fmtPct(bm.bonds||0),    fmtPct(bondPct),   sgn(bondPct-(bm.bonds||0),    v=>(v*100).toFixed(1)+'pp')],
     ['Cash',     fmtPct(bm.cash||0),     fmtPct(cashPct),   sgn(cashPct-(bm.cash||0),     v=>(v*100).toFixed(1)+'pp')],
   ];
-  children.push(makeTable([`Asset Class`, `${clientIR} Rec.`, 'Client Portfolio', 'Deviation'], allocRows, [2300,2300,2300,2300]));
+  children.push(makeTable([`Asset Class`, `${clientIR} Rec.`, 'Client Portfolio', 'Deviation'], allocRows, [3400,3400,3400,3400]));
   children.push(spacer());
 
   // 5. Performance — Bonds
@@ -974,7 +991,7 @@ window.exportReportToWord = async function() {
     { value: (bondTotPnL>=0?'+':'')+fmtUSD(bondTotPnL), color: bondTotPnL>=0?GREEN:RED, bold: true },
     { value: bondTotCost>0?(bondTotPnL>=0?'+':'')+( bondTotPnL/bondTotCost*100).toFixed(1)+'%':'—', color: bondTotPnL>=0?GREEN:RED, bold: true },
   ]);
-  children.push(makeTable(['Bond','ISIN','Qty','Conv. Value USD','Unrealized PnL','Coupons Paid','Total PnL','Total PnL %'], bondPerfRows, [2400,1200,500,1200,1100,1100,1100,600]));
+  children.push(makeTable(['Bond','ISIN','Qty','Conv. Value USD','Unrealized PnL','Coupons Paid','Total PnL','Total PnL %'], bondPerfRows, [3500,1700,600,1700,1500,1500,1500,600]));
   children.push(spacer());
 
   // 6. Bond Analysis
@@ -988,7 +1005,7 @@ window.exportReportToWord = async function() {
   let wavgN=0,wavgD=0;
   (pd.bonds||[]).forEach(h=>{const w=h.convertedHoldingValue||0;const d=h.durationDays>0?h.durationDays/365.25:0;wavgN+=w*d;wavgD+=w;});
   bondAnalRows.push([{value:'Weighted-avg duration',bold:true},'','','','',{value:wavgD>0?(wavgN/wavgD).toFixed(2)+' yrs':'—',bold:true}]);
-  children.push(makeTable(['Bond','ISIN','Rating','Maturity','Duration (yrs)','Weight'], bondAnalRows, [2800,1300,900,1100,1200,900]));
+  children.push(makeTable(['Bond','ISIN','Rating','Maturity','Duration (yrs)','Weight'], bondAnalRows, [4200,1900,1300,1700,2500,2000]));
   children.push(spacer());
 
   // 7. Coupon Payments
@@ -1002,7 +1019,7 @@ window.exportReportToWord = async function() {
     ]);
     const couponTotal = (pd.couponRows||[]).reduce((s,r)=>s+(parseFloat(r[5])||parseFloat(r[3])||0),0);
     couponDataRows.push(['','',{value:'Total',bold:true},'','',{value:fmtUSD(couponTotal),bold:true}]);
-    children.push(makeTable(['Date','Bond','Coupon Rate','Amount','CCY','Converted (USD)'], couponDataRows, [1200,3200,1000,1000,700,1100]));
+    children.push(makeTable(['Date','Bond','Coupon Rate','Amount','CCY','Converted (USD)'], couponDataRows, [1600,5000,1500,1500,900,1100]));
     children.push(spacer());
   }
 
@@ -1016,7 +1033,7 @@ window.exportReportToWord = async function() {
     ]);
     const divTotal = (pd.divRows||[]).reduce((s,r)=>s+(parseFloat(r[7])||parseFloat(r[5])||0),0);
     divDataRows.push(['','','',{value:'Total',bold:true},'','',{value:fmtUSD(divTotal),bold:true}]);
-    children.push(makeTable(['Ex-Div Date','Payment Date','Asset Class','Asset','Amount','CCY','Converted (USD)'], divDataRows, [1100,1100,1000,2500,900,700,900]));
+    children.push(makeTable(['Ex-Div Date','Payment Date','Asset Class','Asset','Amount','CCY','Converted (USD)'], divDataRows, [1500,1500,1400,4200,1200,900,900]));
     children.push(spacer());
   }
 
@@ -1034,7 +1051,7 @@ window.exportReportToWord = async function() {
         parseFloat(r[13]) ? fmtUSD(parseFloat(r[13])) : '—',
       ];
     });
-    children.push(makeTable(['Trade Date','Direction','Asset Class','Asset','Qty','Price','Trade Value (USD)','Fees'], tradeDataRows, [1100,900,900,2400,600,700,1300,700]));
+    children.push(makeTable(['Trade Date','Direction','Asset Class','Asset','Qty','Price','Trade Value (USD)','Fees'], tradeDataRows, [1500,1200,1300,4000,700,900,1800,1200]));
     children.push(spacer());
   }
 
@@ -1053,7 +1070,8 @@ window.exportReportToWord = async function() {
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 },
+          size: { width: 16838, height: 11906, orientation: D.PageOrientation ? D.PageOrientation.LANDSCAPE : 'landscape' },
+          margin: { top: 600, right: 700, bottom: 600, left: 700 },
         },
       },
       children,

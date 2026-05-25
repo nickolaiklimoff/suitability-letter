@@ -707,7 +707,7 @@ window.runPortfolioReport = async function() {
 
     const chartSrc = document.getElementById('r-chartImg')?.src || '';
     window._lastPortfolioData = portfolioData;
-    window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate };
+    window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc };
     const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc);
     document.getElementById('r-reportContent').innerHTML = html;
     document.getElementById('r-reportOutput').classList.remove('hidden');
