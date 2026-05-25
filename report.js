@@ -797,39 +797,36 @@ window.exportReportToWord = async function() {
     const domRows = Array.from(tbl.querySelectorAll('tr'));
     if (!domRows.length) return null;
 
-    // Measure column count
-    const colCount = Math.max(...domRows.map(r => r.querySelectorAll('th,td').length));
+    // Measure column count respecting colspan
+    const colCount = Math.max(...domRows.map(r =>
+      Array.from(r.querySelectorAll('th,td')).reduce((s, td) => s + (parseInt(td.getAttribute('colspan')) || 1), 0)
+    ));
     if (!colCount) return null;
     const colW = Math.floor(PAGE_W / colCount);
 
     const docxRows = domRows.map((tr, ri) => {
       const cells = Array.from(tr.querySelectorAll('th, td')).map(td => {
-        const isHdr = td.tagName === 'TH';
-        const text  = (td.innerText || td.textContent || '').trim();
+        const isHdr  = td.tagName === 'TH';
+        const cs     = parseInt(td.getAttribute('colspan')) || 1;
+        const text   = (td.innerText || td.textContent || '').trim();
         const isBold = isHdr || getComputedStyle(td).fontWeight >= 600;
 
-        // Extract colour from inline style
+        // Extract colour from inline style or child span
         let color = GRAY;
-        const inlineColor = td.style?.color || '';
-        if (inlineColor) {
-          const m = inlineColor.match(/\d+/g);
-          if (m && m.length >= 3) {
-            const hex = m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
-            if (hex !== '000000') color = hex.toUpperCase();
+        const tryColor = s => {
+          if (!s) return;
+          const m = s.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+          if (m) {
+            const hex = [m[1],m[2],m[3]].map(n=>parseInt(n).toString(16).padStart(2,'0')).join('').toUpperCase();
+            if (hex !== '000000') color = hex;
           }
-        }
-        // Check span colour too
-        const span = td.querySelector('span');
-        if (!inlineColor && span) {
-          const sc = span.style?.color || '';
-          const m = sc.match(/\d+/g);
-          if (m && m.length >= 3) {
-            const hex = m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
-            if (hex !== '000000') color = hex.toUpperCase();
-          }
-        }
+        };
+        tryColor(td.style?.color);
+        const childSpan = td.querySelector('span');
+        if (childSpan) tryColor(childSpan.style?.color);
 
         return new D.TableCell({
+          columnSpan: cs,
           children: [new D.Paragraph({
             children: [new D.TextRun({
               text, bold: isBold,
@@ -839,7 +836,7 @@ window.exportReportToWord = async function() {
             })],
             spacing: { before: 30, after: 30 },
           })],
-          width: { size: colW, type: 'dxa' },
+          width: { size: colW * cs, type: 'dxa' },
           shading: isHdr
             ? { fill: BRAND, type: 'clear', color: 'auto' }
             : { fill: ri % 2 === 0 ? 'FFFFFF' : 'F5F7FA', type: 'clear', color: 'auto' },
@@ -850,15 +847,6 @@ window.exportReportToWord = async function() {
           margins: { top: 50, bottom: 50, left: 90, right: 90 },
         });
       });
-
-      // Pad if fewer cells than colCount
-      while (cells.length < colCount) {
-        cells.push(new D.TableCell({
-          children: [new D.Paragraph({ children: [] })],
-          width: { size: colW, type: 'dxa' },
-          borders: { top: hairBorder, bottom: hairBorder, left: noBorder, right: noBorder },
-        }));
-      }
 
       return new D.TableRow({ children: cells, tableHeader: tr.querySelector('th') !== null });
     });
