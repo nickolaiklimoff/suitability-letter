@@ -885,3 +885,83 @@ window.clearBreakdown = function() {
   document.getElementById('r-breakdownPreview').style.display = 'none';
   document.getElementById('r-clearBreakdown').style.display = 'none';
 };
+
+// ─── Print Report (new window with cover + content) ───────────────────────────
+window.printReport = function() {
+  const content = document.getElementById('r-reportContent');
+  if (!content || !content.innerHTML.trim()) {
+    alert('Please generate the report first.'); return;
+  }
+
+  // Grab all stylesheets
+  const styles = Array.from(document.styleSheets)
+    .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
+    .map(r => r.cssText).join('\n');
+
+  // Get cover HTML
+  const cover = document.querySelector('.report-cover');
+  const coverHtml = cover ? cover.outerHTML : '';
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Portfolio Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    ${styles}
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { margin: 0; padding: 0; background: white; }
+    @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
+    @page :first { margin: 0; }
+
+    /* Cover — full page, content bottom-right */
+    .report-cover {
+      width: 100vw;
+      height: 100vh;
+      display: flex !important;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: flex-end;
+      text-align: right;
+      padding: 0 2cm 1.5cm 0;
+      box-sizing: border-box;
+      page-break-after: always;
+      break-after: page;
+      border-bottom: none;
+      background: white;
+    }
+    .report-cover-logo {
+      position: absolute;
+      top: 1.5cm;
+      right: 2cm;
+    }
+    .report-section-numbered { page-break-before: always; break-before: page; }
+    .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
+    .report-table { font-size: 8px; }
+    .report-table th { font-size: 8px; padding: 2px 4px; }
+    .report-table th, .report-table td { padding: 2px 4px; white-space: nowrap; }
+    .report-table td:first-child { white-space: normal; max-width: 200px; }
+    .report-section-title { font-size: 13px; }
+    .report-doc { max-width: 100%; }
+    .no-print { display: none !important; }
+  </style>
+</head>
+<body>
+  ${coverHtml}
+  <div class="report-doc">
+    ${content.innerHTML}
+  </div>
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); window.close(); }, 800);
+    };
+  <\/script>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank', 'width=1200,height=800');
+  w.document.write(html);
+  w.document.close();
+};

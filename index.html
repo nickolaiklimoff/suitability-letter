@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1779898715">
+<link rel="stylesheet" href="style.css?v=1779899965">
 </head>
 <body>
 <div class="app">
@@ -454,7 +454,7 @@
 
         <div id="r-reportOutput" class="hidden" style="margin-top:1.5rem">
           <div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">
-            <button class="btn-secondary" onclick="window.print()">Print / PDF</button>
+            <button class="btn-secondary" onclick="printReport()">Print / PDF</button>
             <button class="btn-secondary" onclick="exportReportToWord()">Export Word</button>
             <button class="btn-primary" onclick="saveCurrentReport()">💾 Save Report</button>
             <button class="btn-secondary" onclick="document.getElementById('r-reportOutput').classList.add('hidden')">Close</button>
@@ -516,7 +516,7 @@
 <script src="waar.js"></script>
 <script src="portfolio-import.js"></script>
 <script src="report.js?v=1779898715"></script>
-<script src="app.js?v=1779898715"></script>
+<script src="app.js?v=1779899965"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
