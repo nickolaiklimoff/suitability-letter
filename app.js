@@ -918,26 +918,26 @@ window.printReport = function() {
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
     @page :first { margin: 0; }
 
-    /* Cover — full page via padding trick */
+    /* Cover — fixed A4 landscape height */
     .report-cover {
       display: flex !important;
       flex-direction: column;
       justify-content: flex-end;
       align-items: flex-end;
       text-align: right;
-      min-height: 100vh;
-      padding: 0 2cm 1.5cm 0;
+      height: 19.6cm;
+      padding: 0 0 1.2cm 0;
       box-sizing: border-box;
       page-break-after: always;
       break-after: page;
       border-bottom: none;
       background: white;
-      position: relative;
+      overflow: hidden;
     }
     .report-cover-logo {
       position: absolute;
       top: 1cm;
-      right: 2cm;
+      right: 0;
     }
     .report-section-numbered { page-break-before: always; break-before: page; }
     .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
