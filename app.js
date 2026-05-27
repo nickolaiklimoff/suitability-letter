@@ -945,12 +945,12 @@ window.printReport = function() {
     .report-cover {
       display: flex !important;
       flex-direction: column !important;
-      justify-content: flex-end !important;
-      align-items: flex-end !important;
+      justify-content: space-between !important;
+      align-items: stretch !important;
       text-align: right !important;
       width: 100% !important;
       height: 19.6cm !important;
-      padding: 0 0 1.2cm 0 !important;
+      padding: 1.2cm 1.5cm 1.2cm 1.5cm !important;
       box-sizing: border-box !important;
       page-break-after: always !important;
       break-after: page !important;
@@ -958,12 +958,23 @@ window.printReport = function() {
       background: white !important;
       overflow: hidden !important;
       position: relative !important;
+      min-height: unset !important;
+      margin-bottom: 0 !important;
     }
     .report-cover-logo {
-      position: absolute !important;
-      top: 1cm !important;
-      right: 0 !important;
+      align-self: flex-end !important;
+      position: static !important;
     }
+    .report-cover-body {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-end !important;
+      text-align: right !important;
+    }
+    .report-cover .report-title { font-size: 48px !important; }
+    .report-cover-meta { width: 300px !important; }
+    .report-cover .report-confidential,
+    .report-cover .report-fca { text-align: right !important; }
 
     /* ── Report body ── */
     .report-doc {
