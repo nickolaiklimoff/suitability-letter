@@ -956,8 +956,9 @@ window.printReport = function() {
     ${reportHtml}
   </div>
   <script>
+    // DEBUG: не печатаем автоматически, смотрим что загрузилось
     window.onload = function() {
-      setTimeout(function() { window.print(); }, 1500);
+      document.title = 'ГОТОВО - ' + document.querySelectorAll('.report-section').length + ' секций';
     };
   <\/script>
 </body>
