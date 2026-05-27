@@ -331,7 +331,7 @@ function buildCouponsSection(couponRows) {
   }).join('');
 
   return `
-    <div class="report-section">
+    <div class="report-section report-section-numbered">
       <div class="report-section-title">7. Coupon Payments</div>
       <div style="overflow-x:auto">
         <table class="report-table">
@@ -383,7 +383,7 @@ function buildDividendsSection(divRows) {
   }).join('');
 
   return `
-    <div class="report-section">
+    <div class="report-section report-section-numbered">
       <div class="report-section-title">8. Dividends</div>
       <div style="overflow-x:auto">
         <table class="report-table">
@@ -445,7 +445,7 @@ function buildTradesSection(tradeRows) {
   }).join('');
 
   return `
-    <div class="report-section">
+    <div class="report-section report-section-numbered">
       <div class="report-section-title">9. Trade History</div>
       <div style="overflow-x:auto">
         <table class="report-table">
@@ -488,7 +488,7 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
   const wavgDur = wavgDen > 0 ? (wavgNum / wavgDen).toFixed(2) : '—';
 
   return `
-    <div class="report-section">
+    <div class="report-section report-section-numbered">
       <div class="report-section-title">6. Bond Analysis</div>
       <div style="overflow-x:auto">
         <table class="report-table">
@@ -623,30 +623,29 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
 
   return `
-    <div class="report-doc">
-      <div class="report-cover">
-        <div class="report-cover-inner">
-          <div class="report-logo">ORION RIDGE CAPITAL</div>
-          <div class="report-title">Portfolio Report</div>
-          <div class="report-subtitle">Investment Analysis &amp; Advisory</div>
-          <div class="report-cover-divider"></div>
-          <div class="report-cover-meta">
-            <div class="report-cover-row"><span>Client</span><strong>${client.name}</strong></div>
-            <div class="report-cover-row"><span>Risk Profile</span><strong>${clientIR}</strong></div>
-            <div class="report-cover-row"><span>Portfolio Value</span><strong>${fmtUSD(totalValue)}</strong></div>
-            <div class="report-cover-row"><span>Report Date</span><strong>${reportDate}</strong></div>
-            <div class="report-cover-row"><span>Data as at</span><strong>${dataDate}</strong></div>
-            <div class="report-cover-row"><span>Currency</span><strong>USD</strong></div>
-            <div class="report-cover-row"><span>Prepared by</span><strong>Nikolai Klimov — Partner</strong></div>
-          </div>
-          <div class="report-cover-divider"></div>
-          <div class="report-confidential">CONFIDENTIAL</div>
-          <div class="report-fca">Orion Ridge Capital Limited &nbsp;|&nbsp; FCA Authorised &amp; Regulated (FRN 830294)</div>
+    <div class="report-cover">
+      <div class="report-cover-logo">ORION RIDGE CAPITAL</div>
+      <div class="report-cover-body">
+        <div class="report-title">Portfolio Report</div>
+        <div class="report-subtitle">Investment Analysis &amp; Advisory</div>
+        <div class="report-cover-divider"></div>
+        <div class="report-cover-meta">
+          <div class="cover-row"><span class="label">Client</span><strong>${client.name}</strong></div>
+          <div class="cover-row"><span class="label">Risk Profile</span><strong>${clientIR}</strong></div>
+          <div class="cover-row"><span class="label">Portfolio Value</span><strong class="portfolio-value">${fmtUSD(totalValue)}</strong></div>
+          <div class="cover-row"><span class="label">Report Date</span><strong>${reportDate}</strong></div>
+          <div class="cover-row"><span class="label">Data as at</span><strong>${dataDate}</strong></div>
+          <div class="cover-row"><span class="label">Currency</span><strong>USD</strong></div>
+          <div class="cover-row"><span class="label">Prepared by</span><strong>Nikolai Klimov — Partner</strong></div>
         </div>
+        <div class="report-cover-divider"></div>
+        <div class="report-confidential">CONFIDENTIAL</div>
+        <div class="report-fca">Orion Ridge Capital Limited &nbsp;|&nbsp; FCA Authorised &amp; Regulated (FRN 830294)</div>
       </div>
-      <div class="report-page-break"></div>
+    </div>
+    <div class="report-doc">
 
-      <div class="report-section">
+      <div class="report-section report-section-numbered">
         <div class="report-section-title">1. Client Risk Profile</div>
         <table class="report-table profile-table">
           <tr><td class="profile-label">Client</td><td>${client.name}</td></tr>
@@ -666,7 +665,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <img src="${chartSrc}" style="width:100%;max-height:260px;object-fit:contain;object-position:left center;border-radius:6px;display:block" />
       </div>` : ''}
 
-      <div class="report-section">
+      <div class="report-section report-section-numbered">
         <div class="report-section-title">2. Asset Allocation vs ${clientIR} Benchmark</div>
         <table class="report-table">
           <thead><tr><th>Asset Class</th><th>${clientIR} Rec.</th><th>Client Portfolio</th><th>Deviation</th></tr></thead>
@@ -674,7 +673,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </table>
       </div>
 
-      <div class="report-section">
+      <div class="report-section report-section-numbered">
         <div class="report-section-title">3. Equity Sleeve — Sector Allocation vs ${clientIR}</div>
         <table class="report-table">
           <thead><tr><th>Equity Sector</th><th>${clientIR} Rec.</th><th>Client (% of port.)</th><th>Deviation</th></tr></thead>
@@ -682,7 +681,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </table>
       </div>
 
-      <div class="report-section">
+      <div class="report-section report-section-numbered">
         <div class="report-section-title">4. Bond Sleeve — Segment Allocation vs ${clientIR}</div>
         <table class="report-table">
           <thead><tr><th>Bond Segment</th><th>${clientIR} Rec.</th><th>Client (% of port.)</th><th>Deviation</th></tr></thead>
@@ -690,7 +689,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </table>
       </div>
 
-      <div class="report-section">
+      <div class="report-section report-section-numbered">
         <div class="report-section-title">5. Performance</div>
 
         <div style="font-size:13px;font-weight:600;margin:0.75rem 0 0.4rem">Bonds</div>

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=1779898715">
 </head>
 <body>
 <div class="app">
@@ -515,7 +515,37 @@
 <script src="data.js"></script>
 <script src="waar.js"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js"></script>
-<script src="app.js"></script>
+<script src="report.js?v=1779898715"></script>
+<script src="app.js?v=1779898715"></script>
+<script>
+// Force cover page to fill exactly one landscape page before printing
+window.addEventListener('beforeprint', function() {
+  const cover = document.querySelector('.report-cover');
+  if (!cover) return;
+  // A4 landscape at 96dpi ≈ 1123px × 794px
+  // Use offsetParent dimensions or fall back to A4 landscape pixel dimensions
+  const pw = 1123, ph = 794; // A4 landscape px at 96dpi
+  cover.style.width  = pw + 'px';
+  cover.style.height = ph + 'px';
+  cover.style.minHeight = 'unset';
+  cover.style.maxHeight = ph + 'px';
+  cover.style.overflow = 'hidden';
+  cover.style.pageBreakAfter = 'always';
+  cover.style.breakAfter = 'page';
+  cover.style.display = 'flex';
+  cover.style.flexDirection = 'column';
+  cover.style.justifyContent = 'flex-end';
+  cover.style.alignItems = 'flex-end';
+  cover.style.textAlign = 'right';
+  cover.style.boxSizing = 'border-box';
+  cover.style.padding = '0 48px 48px 0';
+  cover.style.borderBottom = 'none';
+});
+window.addEventListener('afterprint', function() {
+  const cover = document.querySelector('.report-cover');
+  if (!cover) return;
+  cover.style.cssText = '';
+});
+</script>
 </body>
 </html>

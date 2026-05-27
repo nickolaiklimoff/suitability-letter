@@ -287,24 +287,82 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .profile-label { font-weight: 600; width: 160px; color: #8B7A68; font-size: 11px; }
 .report-cover {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 80vh;
-  text-align: center;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 85vh;
+  padding: 2rem 0 2rem;
+  border-bottom: 2px solid #5A7259;
+  margin-bottom: 2rem;
+  text-align: right;
+  align-items: flex-end;
 }
-.report-cover-inner { max-width: 480px; width: 100%; }
-.report-cover .report-logo { font-size: 11px; letter-spacing: 0.25em; color: #8B7A68; margin-bottom: 1.5rem; }
-.report-cover .report-title { font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 700; color: #5A7259; margin-bottom: 0.5rem; }
-.report-cover .report-subtitle { font-family: 'Playfair Display', Georgia, serif; font-size: 15px; color: #8B7A68; margin-bottom: 0; }
-.report-cover-divider { width: 60px; height: 2px; background: #5A7259; margin: 1.5rem auto; border-radius: 1px; }
-.report-cover-meta { text-align: left; margin: 0 auto; display: inline-block; min-width: 280px; }
-.report-cover-row { display: flex; justify-content: space-between; gap: 2rem; padding: 6px 0; border-bottom: 0.5px solid #E8E0D8; font-size: 13px; color: #5C5148; }
-.report-cover-row span { color: #8B7A68; }
-.report-cover-row strong { color: #2C2C2C; }
-.report-cover .report-confidential { margin-top: 1.5rem; font-size: 10px; letter-spacing: 0.2em; color: #8B7A68; }
-.report-cover .report-fca { font-size: 10px; color: #8B7A68; margin-top: 0.35rem; }
-.report-page-break { page-break-after: always; height: 0; }
-
+.report-cover-logo {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  font-weight: 700;
+  color: #8B7A68;
+  text-transform: uppercase;
+  align-self: flex-end;
+}
+.report-cover-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.report-cover .report-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 52px;
+  font-weight: 700;
+  color: #5A7259;
+  line-height: 1.1;
+  margin-bottom: 0.3rem;
+}
+.report-cover .report-subtitle {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 14px;
+  color: #8B7A68;
+  margin-bottom: 1.5rem;
+}
+.report-cover-divider {
+  width: 48px;
+  height: 2px;
+  background: #5A7259;
+  margin: 0 0 1.5rem auto;
+}
+.report-cover-meta {
+  width: 280px;
+  margin-bottom: 1.5rem;
+}
+.report-cover-meta .cover-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 0.5px solid #E8E0D8;
+  font-size: 12px;
+}
+.report-cover-meta .cover-row .label { color: #8B7A68; }
+.report-cover-meta .cover-row strong { color: #2C2C2C; }
+.portfolio-value {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+.report-cover .report-confidential {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  color: #8B7A68;
+  margin-top: 1.5rem;
+}
+.report-cover .report-fca {
+  font-size: 10px;
+  color: #8B7A68;
+  margin-top: 0.2rem;
+}
+.report-page-break { display: none; }
+.report-section { margin-bottom: 1.75rem; }
+.report-section-numbered { page-break-before: always; }
 .report-disclaimer { font-size: 10.5px; color: #5C5148; line-height: 1.65; padding: 1.25rem 1.5rem; background: #FAF7F4; border-top: 2px solid #5A7259; margin-top: 2rem; }
 .report-disclaimer p { margin: 0 0 0.6rem; }
 .report-disclaimer-title { font-family: 'Playfair Display', Georgia, serif; font-size: 13px; font-weight: 700; color: #5A7259; margin: 0.75rem 0 0.4rem; }
@@ -313,8 +371,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 
 @media print {
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap');
   @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
+  @page :first { margin: 0; }
 
   body > * { display: none !important; }
   .app { display: block !important; }
@@ -326,34 +384,24 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   #tab-report > *:not(#r-reportOutput) { display: none !important; }
   #r-reportOutput { display: block !important; }
   .no-print { display: none !important; }
+  .report-cover { display: none !important; }
+  .report-section-numbered { page-break-before: always; }
+  /* sections with new page */
+  .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
+  .report-section-numbered { page-break-before: always; break-before: page; }
 
-  .report-cover { min-height: 100vh; page-break-after: always; }
-  .report-cover .report-title { font-size: 42px; }
-  .report-page-break { page-break-after: always; }
+  .report-cover { display: none !important; }
+  .report-section-numbered { page-break-before: auto; }
+  .report-section-numbered:first-child { page-break-before: auto; }
+
+  .report-page-break { display: none; }
+  .report-section-numbered { page-break-before: always; }
+  .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
   .report-doc { max-width: 100%; }
   .report-table { font-size: 8px; }
   .report-table th { font-size: 8px; padding: 2px 4px; }
   .report-table th, .report-table td { padding: 2px 4px; white-space: nowrap; }
   .report-table td:first-child { white-space: normal; max-width: 200px; }
-  .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
   .report-section-title { font-size: 13px; }
-  .report-header { padding: 0.5rem 0 0.75rem; }
-  .report-title { font-size: 22px; }
   .report-meta { font-size: 10px; }
-
-  /* Running header: ORION RIDGE CAPITAL right-aligned */
-  .report-doc::before {
-    content: 'ORION RIDGE CAPITAL';
-    display: block;
-    text-align: right;
-    font-size: 8px;
-    letter-spacing: 0.15em;
-    color: #8B7A68;
-    font-weight: 700;
-    border-bottom: 0.5px solid #D4C9BE;
-    padding-bottom: 4px;
-    margin-bottom: 0.5rem;
-  }
 }
-
-
