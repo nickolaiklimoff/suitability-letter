@@ -886,23 +886,34 @@ window.clearBreakdown = function() {
   document.getElementById('r-clearBreakdown').style.display = 'none';
 };
 
-// ─── Print Report (new window with cover + content) ───────────────────────────
+// ─── Print Report (new window with cover + all sections) ──────────────────────
 window.printReport = function() {
   const content = document.getElementById('r-reportContent');
   if (!content || !content.innerHTML.trim()) {
     alert('Please generate the report first.'); return;
   }
 
-  // Grab all stylesheets
+  // Extract only report-relevant CSS rules — skip @media print blocks and
+  // layout rules that clip the body (overflow:hidden, height:100vh, etc.)
   const styles = Array.from(document.styleSheets)
     .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
-    .map(r => r.cssText).join('\n');
+    .filter(r => {
+      // Drop @media print entirely — the print window IS the print target,
+      // so those rules would hide the cover and break layout.
+      if (r.type === CSSRule.MEDIA_RULE) {
+        const mq = r.conditionText || (r.media && r.media.mediaText) || '';
+        if (mq.includes('print')) return false;
+      }
+      return true;
+    })
+    .map(r => r.cssText)
+    .join('\n');
 
   // Get cover and report-doc from inside r-reportContent
   const coverEl = content.querySelector('.report-cover');
   const reportDocEl = content.querySelector('.report-doc');
   const coverHtml = coverEl ? coverEl.outerHTML : '';
-  const reportHtml = reportDocEl ? reportDocEl.innerHTML : content.innerHTML;
+  const reportHtml = reportDocEl ? reportDocEl.outerHTML : content.innerHTML;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -913,57 +924,82 @@ window.printReport = function() {
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     ${styles}
-    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { margin: 0; padding: 0; background: white; overflow: auto; height: auto; }
+
+    /* ── Hard resets: undo the SPA layout that clips content to one screen ── */
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+      overflow: visible !important;
+      height: auto !important;
+      min-height: unset !important;
+    }
+    .app, .main, .sidebar, .tabs, #appContent { all: unset; }
+
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
     @page :first { margin: 0; }
 
-    /* Cover — fixed A4 landscape height */
+    /* ── Cover page ── */
     .report-cover {
       display: flex !important;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: flex-end;
-      text-align: right;
-      height: 19.6cm;
-      padding: 0 0 1.2cm 0;
-      box-sizing: border-box;
-      page-break-after: always;
-      break-after: page;
-      border-bottom: none;
-      background: white;
-      overflow: hidden;
+      flex-direction: column !important;
+      justify-content: flex-end !important;
+      align-items: flex-end !important;
+      text-align: right !important;
+      width: 100% !important;
+      height: 19.6cm !important;
+      padding: 0 0 1.2cm 0 !important;
+      box-sizing: border-box !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      border-bottom: none !important;
+      background: white !important;
+      overflow: hidden !important;
+      position: relative !important;
     }
     .report-cover-logo {
-      position: absolute;
-      top: 1cm;
-      right: 0;
+      position: absolute !important;
+      top: 1cm !important;
+      right: 0 !important;
     }
-    .report-section-numbered { page-break-before: always; break-before: page; }
+
+    /* ── Report body ── */
+    .report-doc {
+      max-width: 100% !important;
+      display: block !important;
+      overflow: visible !important;
+      height: auto !important;
+    }
+    .report-section-numbered {
+      page-break-before: always !important;
+      break-before: page !important;
+    }
     .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
     .report-table { font-size: 8px; }
     .report-table th { font-size: 8px; padding: 2px 4px; }
     .report-table th, .report-table td { padding: 2px 4px; white-space: nowrap; }
     .report-table td:first-child { white-space: normal; max-width: 200px; }
     .report-section-title { font-size: 13px; }
-    .report-doc { max-width: 100%; }
     .no-print { display: none !important; }
   </style>
 </head>
 <body>
   ${coverHtml}
-  <div class="report-doc">
-    ${reportHtml}
-  </div>
+  ${reportHtml}
   <script>
-    window.onload = function() {
-      setTimeout(function() { window.print(); }, 1200);
-    };
+    // Wait for fonts + any lazy images to settle before printing
+    window.addEventListener('load', function() {
+      setTimeout(function() { window.print(); }, 1500);
+    });
   <\/script>
 </body>
 </html>`;
 
-  const w = window.open('', '_blank', 'width=1200,height=800');
+  const w = window.open('', '_blank', 'width=1200,height=900');
+  if (!w) { alert('Pop-up blocked — please allow pop-ups for this page and try again.'); return; }
+  w.document.open();
   w.document.write(html);
   w.document.close();
 };
