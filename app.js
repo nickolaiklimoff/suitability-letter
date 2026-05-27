@@ -918,25 +918,25 @@ window.printReport = function() {
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
     @page :first { margin: 0; }
 
-    /* Cover — full page, content bottom-right */
+    /* Cover — full page via padding trick */
     .report-cover {
-      width: 100vw;
-      height: 100vh;
       display: flex !important;
       flex-direction: column;
       justify-content: flex-end;
       align-items: flex-end;
       text-align: right;
+      min-height: 100vh;
       padding: 0 2cm 1.5cm 0;
       box-sizing: border-box;
       page-break-after: always;
       break-after: page;
       border-bottom: none;
       background: white;
+      position: relative;
     }
     .report-cover-logo {
       position: absolute;
-      top: 1.5cm;
+      top: 1cm;
       right: 2cm;
     }
     .report-section-numbered { page-break-before: always; break-before: page; }
@@ -957,7 +957,7 @@ window.printReport = function() {
   </div>
   <script>
     window.onload = function() {
-      setTimeout(function() { window.print(); window.close(); }, 800);
+      setTimeout(function() { window.print(); }, 1500);
     };
   <\/script>
 </body>
