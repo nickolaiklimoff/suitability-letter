@@ -893,21 +893,11 @@ window.printReport = function() {
     alert('Please generate the report first.'); return;
   }
 
-  // Extract only report-relevant CSS rules — skip @media print blocks and
-  // layout rules that clip the body (overflow:hidden, height:100vh, etc.)
-  const styles = Array.from(document.styleSheets)
-    .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
-    .filter(r => {
-      // Drop @media print entirely — the print window IS the print target,
-      // so those rules would hide the cover and break layout.
-      if (r.type === CSSRule.MEDIA_RULE) {
-        const mq = r.conditionText || (r.media && r.media.mediaText) || '';
-        if (mq.includes('print')) return false;
-      }
-      return true;
-    })
-    .map(r => r.cssText)
-    .join('\n');
+  // We do NOT copy stylesheets from the main page — they contain
+  // @media print rules (font-size:8px, display:none on cover, etc.)
+  // that would override everything when the print dialog fires.
+  // Instead we write all required report styles explicitly below.
+  const styles = '';
 
   // Get cover and report-doc from inside r-reportContent
   const coverEl = content.querySelector('.report-cover');
@@ -923,78 +913,143 @@ window.printReport = function() {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    ${styles}
+    /* ═══════════════════════════════════════════════════════════════
+       Self-contained print styles — no main-page CSS is imported.
+       This prevents @media print rules (font-size:8px, display:none)
+       from firing when the print dialog opens.
+    ═══════════════════════════════════════════════════════════════ */
 
-    /* ── Hard resets: undo the SPA layout that clips content to one screen ── */
-    html, body {
-      margin: 0 !important;
-      padding: 0 !important;
-      background: white !important;
-      overflow: visible !important;
-      height: auto !important;
-      min-height: unset !important;
-    }
-    .app, .main, .sidebar, .tabs, #appContent { all: unset; }
-
-    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; margin: 0; padding: 0; }
 
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
     @page :first { margin: 0; }
 
-    /* ── Cover page ── */
+    html, body {
+      background: white;
+      font-family: 'Georgia', 'Times New Roman', serif;
+      font-size: 12px;
+      color: #2C2C2C;
+      overflow: visible;
+      height: auto;
+    }
+
+    /* ── Cover ── */
     .report-cover {
-      display: flex !important;
-      flex-direction: column !important;
-      justify-content: space-between !important;
-      align-items: stretch !important;
-      text-align: right !important;
-      width: 100% !important;
-      height: 19.6cm !important;
-      padding: 1.2cm 1.5cm 1.2cm 1.5cm !important;
-      box-sizing: border-box !important;
-      page-break-after: always !important;
-      break-after: page !important;
-      border-bottom: none !important;
-      background: white !important;
-      overflow: hidden !important;
-      position: relative !important;
-      min-height: unset !important;
-      margin-bottom: 0 !important;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: stretch;
+      text-align: right;
+      width: 100%;
+      height: 19.6cm;
+      padding: 1.2cm 1.5cm;
+      box-sizing: border-box;
+      page-break-after: always;
+      break-after: page;
+      background: white;
+      overflow: hidden;
     }
     .report-cover-logo {
-      align-self: flex-end !important;
-      position: static !important;
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      font-weight: 700;
+      color: #8B7A68;
+      text-transform: uppercase;
+      text-align: right;
     }
     .report-cover-body {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: flex-end !important;
-      text-align: right !important;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      text-align: right;
     }
-    .report-cover .report-title { font-size: 48px !important; }
-    .report-cover-meta { width: 300px !important; }
-    .report-cover .report-confidential,
-    .report-cover .report-fca { text-align: right !important; }
+    .report-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 52px;
+      font-weight: 700;
+      color: #5A7259;
+      line-height: 1.1;
+      margin-bottom: 0.3rem;
+    }
+    .report-subtitle {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 15px;
+      color: #8B7A68;
+      margin-bottom: 1.5rem;
+    }
+    .report-cover-divider {
+      width: 48px;
+      height: 2px;
+      background: #5A7259;
+      margin: 0 0 1.5rem auto;
+    }
+    .report-cover-meta { width: 280px; margin-bottom: 1.5rem; }
+    .report-cover-meta .cover-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 0.5px solid #E8E0D8;
+      font-size: 12px;
+    }
+    .report-cover-meta .cover-row .label { color: #8B7A68; }
+    .report-cover-meta .cover-row strong { color: #2C2C2C; }
+    .portfolio-value { font-family: 'Playfair Display', Georgia, serif; font-size: 16px; font-weight: 700; }
+    .report-confidential { font-size: 11px; letter-spacing: 0.2em; font-weight: 700; color: #8B7A68; margin-top: 1.5rem; text-align: right; }
+    .report-fca { font-size: 10px; color: #8B7A68; margin-top: 0.2rem; text-align: right; }
 
     /* ── Report body ── */
-    .report-doc {
-      max-width: 100% !important;
-      display: block !important;
-      overflow: visible !important;
-      height: auto !important;
+    .report-doc { max-width: 100%; display: block; overflow: visible; }
+
+    .report-section { margin-bottom: 1.5rem; }
+    .report-section-numbered { page-break-before: always; break-before: page; }
+
+    .report-section-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #5A7259;
+      margin-bottom: 0.6rem;
+      padding-bottom: 4px;
+      border-bottom: 1.5px solid #5A7259;
     }
-    .report-section-numbered {
-      page-break-before: always !important;
-      break-before: page !important;
+
+    /* ── Tables ── */
+    .report-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 0.5rem; }
+    .report-table th {
+      background: #5A7259;
+      color: #fff;
+      padding: 5px 8px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      border: none;
     }
-    .report-section { margin-bottom: 1rem; page-break-inside: avoid; }
-    .report-table { font-size: 10px; }
-    .report-table th { font-size: 10px; padding: 3px 6px; }
-    .report-table th, .report-table td { padding: 3px 6px; white-space: nowrap; }
-    .report-table td:first-child { white-space: normal; max-width: 240px; }
-    .report-section-title { font-size: 15px; font-weight: bold; }
-    .profile-table td { font-size: 11px; padding: 4px 8px; }
-    .report-doc { font-size: 11px; line-height: 1.5; }
+    .report-table td { padding: 4px 8px; border-bottom: 0.5px solid #E8E0D8; font-size: 11px; }
+    .report-table tbody tr:nth-child(even) { background: #F5F0EB; }
+    .report-table tbody tr:last-child td { border-bottom: 1px solid #5A7259; }
+    .report-table th, .report-table td { white-space: nowrap; }
+    .report-table td:first-child { white-space: normal; max-width: 220px; }
+
+    /* ── Profile table ── */
+    .profile-table { width: 100%; border-collapse: collapse; }
+    .profile-table td { padding: 5px 10px; font-size: 12px; border-bottom: 0.5px solid #E8E0D8; }
+    .profile-table tbody tr:nth-child(even) { background: #F5F0EB; }
+    .profile-label { font-weight: 600; width: 160px; color: #8B7A68; font-size: 12px; }
+
+    /* ── Disclaimer ── */
+    .report-disclaimer {
+      font-size: 10px;
+      color: #5C5148;
+      line-height: 1.6;
+      padding: 1rem 1.2rem;
+      background: #FAF7F4;
+      border-top: 2px solid #5A7259;
+      margin-top: 2rem;
+    }
+    .report-disclaimer p { margin: 0 0 0.5rem; }
+    .report-disclaimer-title { font-size: 12px; font-weight: 700; color: #5A7259; margin: 0.6rem 0 0.3rem; }
+    .report-disclaimer-footer { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 0.5px solid #D4C9BE; font-size: 9px; color: #8B7A68; }
+
     .no-print { display: none !important; }
   </style>
 </head>

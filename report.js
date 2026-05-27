@@ -911,11 +911,14 @@ window.exportReportToWord = async function() {
     }));
 
     // ── Large blank space to push content to bottom ──
-    // A4 landscape body ~16838 twips; we want ~9500 twips of white space
-    children.push(new D.Paragraph({
-      children: [new D.TextRun({ text: '' })],
-      spacing: { before: 0, after: 0, line: 9500, lineRule: 'exact' },
-    }));
+    // A4 landscape usable height ≈ 10706 twips; cover content ≈ 4500 twips
+    // Need ~6000 twips of blank → 13 paragraphs × after:460 ≈ 5980 twips
+    for (let _i = 0; _i < 13; _i++) {
+      children.push(new D.Paragraph({
+        children: [new D.TextRun({ text: '' })],
+        spacing: { before: 0, after: 460 },
+      }));
+    }
 
     // ── Title ──
     if (title) children.push(new D.Paragraph({
