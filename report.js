@@ -890,6 +890,62 @@ window.exportReportToWord = async function() {
   const children = [];
   const spacer = () => new D.Paragraph({ children: [], spacing: { after: pt(3) } });
 
+  // ── Cover page from DOM ──────────────────────────────────────────────────
+  const coverEl = previewEl.querySelector('.report-cover');
+  if (coverEl) {
+    const logo = coverEl.querySelector('.report-cover-logo');
+    const title = coverEl.querySelector('.report-title');
+    const subtitle = coverEl.querySelector('.report-subtitle');
+    const rows = coverEl.querySelectorAll('.cover-row');
+    const conf = coverEl.querySelector('.report-confidential');
+    const fca  = coverEl.querySelector('.report-fca');
+
+    if (logo) children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: logo.innerText.trim(), size: 16, color: '8B7A68', font: 'Georgia' })],
+      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(40) },
+    }));
+    if (title) children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: title.innerText.trim(), bold: true, size: 64, color: BRAND, font: 'Georgia' })],
+      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(4) },
+    }));
+    if (subtitle) children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: subtitle.innerText.trim(), size: 22, color: '8B7A68', font: 'Georgia' })],
+      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(16) },
+    }));
+    // Divider
+    children.push(new D.Paragraph({
+      children: [], alignment: D.AlignmentType.RIGHT,
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 1 } },
+      spacing: { after: pt(12) },
+    }));
+    rows.forEach(row => {
+      const label = row.querySelector('.label')?.innerText?.trim() || '';
+      const val   = row.querySelector('strong')?.innerText?.trim() || '';
+      children.push(new D.Paragraph({
+        children: [
+          new D.TextRun({ text: label + '    ', size: 18, color: '8B7A68', font: 'Georgia' }),
+          new D.TextRun({ text: val, size: 18, bold: true, color: '2C2C2C', font: 'Georgia' }),
+        ],
+        alignment: D.AlignmentType.RIGHT,
+        spacing: { after: pt(4) },
+      }));
+    });
+    children.push(new D.Paragraph({
+      children: [], spacing: { after: pt(16) },
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 1 } },
+    }));
+    if (conf) children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: conf.innerText.trim(), size: 14, color: '8B7A68', font: 'Georgia' })],
+      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(2) },
+    }));
+    if (fca) children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: fca.innerText.trim(), size: 14, color: '8B7A68', font: 'Georgia' })],
+      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(2) },
+    }));
+    // Page break after cover
+    children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+  }
+
   const reportDoc = previewEl.querySelector('.report-doc') || previewEl;
 
   for (const el of reportDoc.children) {

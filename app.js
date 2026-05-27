@@ -898,9 +898,11 @@ window.printReport = function() {
     .flatMap(ss => { try { return Array.from(ss.cssRules); } catch(e) { return []; } })
     .map(r => r.cssText).join('\n');
 
-  // Get cover HTML
-  const cover = document.querySelector('.report-cover');
-  const coverHtml = cover ? cover.outerHTML : '';
+  // Get cover and report-doc from inside r-reportContent
+  const coverEl = content.querySelector('.report-cover');
+  const reportDocEl = content.querySelector('.report-doc');
+  const coverHtml = coverEl ? coverEl.outerHTML : '';
+  const reportHtml = reportDocEl ? reportDocEl.innerHTML : content.innerHTML;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -951,7 +953,7 @@ window.printReport = function() {
 <body>
   ${coverHtml}
   <div class="report-doc">
-    ${content.innerHTML}
+    ${reportHtml}
   </div>
   <script>
     window.onload = function() {
