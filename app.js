@@ -987,12 +987,14 @@ window.printReport = function() {
       page-break-before: always !important;
       break-before: page !important;
     }
-    .report-section { margin-bottom: 0.75rem; page-break-inside: avoid; }
-    .report-table { font-size: 8px; }
-    .report-table th { font-size: 8px; padding: 2px 4px; }
-    .report-table th, .report-table td { padding: 2px 4px; white-space: nowrap; }
-    .report-table td:first-child { white-space: normal; max-width: 200px; }
-    .report-section-title { font-size: 13px; }
+    .report-section { margin-bottom: 1rem; page-break-inside: avoid; }
+    .report-table { font-size: 10px; }
+    .report-table th { font-size: 10px; padding: 3px 6px; }
+    .report-table th, .report-table td { padding: 3px 6px; white-space: nowrap; }
+    .report-table td:first-child { white-space: normal; max-width: 240px; }
+    .report-section-title { font-size: 15px; font-weight: bold; }
+    .profile-table td { font-size: 11px; padding: 4px 8px; }
+    .report-doc { font-size: 11px; line-height: 1.5; }
     .no-print { display: none !important; }
   </style>
 </head>

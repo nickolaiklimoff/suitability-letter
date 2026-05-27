@@ -890,59 +890,94 @@ window.exportReportToWord = async function() {
   const children = [];
   const spacer = () => new D.Paragraph({ children: [], spacing: { after: pt(3) } });
 
-  // ── Cover page from DOM ──────────────────────────────────────────────────
+  // ── Cover page — mirrors PDF layout: logo top-right, blank space, content bottom-right ──
   const coverEl = previewEl.querySelector('.report-cover');
   if (coverEl) {
-    const logo = coverEl.querySelector('.report-cover-logo');
-    const title = coverEl.querySelector('.report-title');
+    const logo     = coverEl.querySelector('.report-cover-logo');
+    const title    = coverEl.querySelector('.report-title');
     const subtitle = coverEl.querySelector('.report-subtitle');
-    const rows = coverEl.querySelectorAll('.cover-row');
-    const conf = coverEl.querySelector('.report-confidential');
-    const fca  = coverEl.querySelector('.report-fca');
+    const rows     = coverEl.querySelectorAll('.cover-row');
+    const conf     = coverEl.querySelector('.report-confidential');
+    const fca      = coverEl.querySelector('.report-fca');
 
+    // ── Logo — top right ──
     if (logo) children.push(new D.Paragraph({
-      children: [new D.TextRun({ text: logo.innerText.trim(), size: 16, color: '8B7A68', font: 'Georgia' })],
-      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(40) },
+      children: [new D.TextRun({
+        text: logo.innerText.trim(),
+        size: 16, color: '8B7A68', font: 'Georgia', characterSpacing: 120,
+      })],
+      alignment: D.AlignmentType.RIGHT,
+      spacing: { after: 0 },
     }));
+
+    // ── Large blank space to push content to bottom ──
+    // A4 landscape body ~16838 twips; we want ~9500 twips of white space
+    children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: '' })],
+      spacing: { before: 0, after: 0, line: 9500, lineRule: 'exact' },
+    }));
+
+    // ── Title ──
     if (title) children.push(new D.Paragraph({
-      children: [new D.TextRun({ text: title.innerText.trim(), bold: true, size: 64, color: BRAND, font: 'Georgia' })],
-      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(4) },
+      children: [new D.TextRun({ text: title.innerText.trim(), bold: true, size: 72, color: BRAND, font: 'Georgia' })],
+      alignment: D.AlignmentType.RIGHT,
+      spacing: { after: pt(3) },
     }));
+
+    // ── Subtitle ──
     if (subtitle) children.push(new D.Paragraph({
       children: [new D.TextRun({ text: subtitle.innerText.trim(), size: 22, color: '8B7A68', font: 'Georgia' })],
-      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(16) },
+      alignment: D.AlignmentType.RIGHT,
+      spacing: { after: pt(10) },
     }));
-    // Divider
+
+    // ── Divider ──
     children.push(new D.Paragraph({
-      children: [], alignment: D.AlignmentType.RIGHT,
-      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 1 } },
-      spacing: { after: pt(12) },
+      children: [],
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 8, color: BRAND, space: 1 } },
+      spacing: { after: pt(8) },
     }));
+
+    // ── Meta rows — label left, value right via tab ──
     rows.forEach(row => {
       const label = row.querySelector('.label')?.innerText?.trim() || '';
       const val   = row.querySelector('strong')?.innerText?.trim() || '';
       children.push(new D.Paragraph({
         children: [
-          new D.TextRun({ text: label + '    ', size: 18, color: '8B7A68', font: 'Georgia' }),
-          new D.TextRun({ text: val, size: 18, bold: true, color: '2C2C2C', font: 'Georgia' }),
+          new D.TextRun({ text: label, size: 20, color: '8B7A68', font: 'Georgia' }),
+          new D.TextRun({ text: '	' + val, size: 20, bold: true, color: '2C2C2C', font: 'Georgia' }),
         ],
         alignment: D.AlignmentType.RIGHT,
-        spacing: { after: pt(4) },
+        spacing: { after: pt(3) },
+        border: { bottom: { style: D.BorderStyle.SINGLE, size: 2, color: 'E8E0D8', space: 1 } },
       }));
     });
+
+    // ── Second divider ──
     children.push(new D.Paragraph({
-      children: [], spacing: { after: pt(16) },
-      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 1 } },
+      children: [],
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 8, color: BRAND, space: 1 } },
+      spacing: { after: pt(8) },
     }));
+
+    // ── CONFIDENTIAL ──
     if (conf) children.push(new D.Paragraph({
-      children: [new D.TextRun({ text: conf.innerText.trim(), size: 14, color: '8B7A68', font: 'Georgia' })],
-      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(2) },
+      children: [new D.TextRun({
+        text: conf.innerText.trim(),
+        size: 16, color: '8B7A68', font: 'Georgia', characterSpacing: 100,
+      })],
+      alignment: D.AlignmentType.RIGHT,
+      spacing: { after: pt(2) },
     }));
+
+    // ── FCA line ──
     if (fca) children.push(new D.Paragraph({
       children: [new D.TextRun({ text: fca.innerText.trim(), size: 14, color: '8B7A68', font: 'Georgia' })],
-      alignment: D.AlignmentType.RIGHT, spacing: { after: pt(2) },
+      alignment: D.AlignmentType.RIGHT,
+      spacing: { after: pt(2) },
     }));
-    // Page break after cover
+
+    // ── Page break after cover ──
     children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
   }
 
@@ -1005,11 +1040,16 @@ window.exportReportToWord = async function() {
 
     // ── Report sections ──
     if (el.classList.contains('report-section') || el.classList.contains('report-disclaimer')) {
+      const isNumbered = el.classList.contains('report-section-numbered');
+      // Each numbered section starts on a new page (mirrors PDF @page-break-before)
+      if (isNumbered) {
+        children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+      }
       const titleEl = el.querySelector('.report-section-title');
       if (titleEl) {
         children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Georgia' })],
-          spacing: { before: pt(10), after: pt(4) },
+          children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 26, color: BRAND, font: 'Georgia' })],
+          spacing: { before: pt(6), after: pt(5) },
           border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
         }));
       }
