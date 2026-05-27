@@ -911,14 +911,13 @@ window.exportReportToWord = async function() {
     }));
 
     // ── Large blank space to push content to bottom ──
-    // A4 landscape usable height ≈ 10706 twips; cover content ≈ 4500 twips
-    // Need ~6000 twips of blank → 13 paragraphs × after:460 ≈ 5980 twips
-    for (let _i = 0; _i < 13; _i++) {
-      children.push(new D.Paragraph({
-        children: [new D.TextRun({ text: '' })],
-        spacing: { before: 0, after: 460 },
-      }));
-    }
+    // A4 landscape: usable height = 10706 twips (11906 - 1200 margins)
+    // Cover content below spacer ≈ 2920 twips → spacer needs ≈ 7786 twips
+    // lineRule:'exact' sets the paragraph height directly (confirmed working)
+    children.push(new D.Paragraph({
+      children: [new D.TextRun({ text: '' })],
+      spacing: { before: 0, after: 0, line: 7600, lineRule: 'exact' },
+    }));
 
     // ── Title ──
     if (title) children.push(new D.Paragraph({
