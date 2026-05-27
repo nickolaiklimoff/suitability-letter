@@ -914,7 +914,7 @@ window.printReport = function() {
   <style>
     ${styles}
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { margin: 0; padding: 0; background: white; }
+    body { margin: 0; padding: 0; background: white; overflow: auto; height: auto; }
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
     @page :first { margin: 0; }
 
@@ -956,9 +956,8 @@ window.printReport = function() {
     ${reportHtml}
   </div>
   <script>
-    // DEBUG: не печатаем автоматически, смотрим что загрузилось
     window.onload = function() {
-      document.title = 'ГОТОВО - ' + document.querySelectorAll('.report-section').length + ' секций';
+      setTimeout(function() { window.print(); }, 1200);
     };
   <\/script>
 </body>
