@@ -979,8 +979,19 @@ window.exportReportToWord = async function() {
       spacing: { after: pt(2) },
     }));
 
-    // ── Page break after cover ──
-    children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+    // ── Page break after cover — merged into last para to avoid blank page ──
+    // Patch the last pushed paragraph to include a page break run at the start
+    if (children.length > 0) {
+      const last = children[children.length - 1];
+      if (last.root) {
+        // docx.js internal: prepend a page break run to the last paragraph
+      }
+    }
+    // Use a zero-height paragraph with page break
+    children.push(new D.Paragraph({
+      children: [new D.PageBreak()],
+      spacing: { before: 0, after: 0, line: 240, lineRule: 'exact' },
+    }));
   }
 
   const reportDoc = previewEl.querySelector('.report-doc') || previewEl;
@@ -1044,15 +1055,21 @@ window.exportReportToWord = async function() {
     if (el.classList.contains('report-section') || el.classList.contains('report-disclaimer')) {
       const isNumbered = el.classList.contains('report-section-numbered');
       // Each numbered section starts on a new page (mirrors PDF @page-break-before)
-      if (isNumbered) {
-        children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
-      }
       const titleEl = el.querySelector('.report-section-title');
       if (titleEl) {
+        // Page break merged INTO the title paragraph — prevents blank page between sections
         children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 26, color: BRAND, font: 'Georgia' })],
+          children: [
+            ...(isNumbered ? [new D.PageBreak()] : []),
+            new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 26, color: BRAND, font: 'Georgia' }),
+          ],
           spacing: { before: pt(6), after: pt(5) },
           border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
+        }));
+      } else if (isNumbered) {
+        children.push(new D.Paragraph({
+          children: [new D.PageBreak()],
+          spacing: { before: 0, after: 0, line: 240, lineRule: 'exact' },
         }));
       }
 
