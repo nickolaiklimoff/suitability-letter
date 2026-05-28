@@ -22,7 +22,7 @@
     <div class="sidebar-section-label">Settings</div>
     <div class="sidebar-setting">
       <label>Anthropic API Key</label>
-      <input type="password" id="apiKey" placeholder="sk-ant-api03-..." />
+      <input type="password" id="apiKey" placeholder="sk-ant-api03-..." oninput="localStorage.setItem('suitability-api-key', this.value)" />
     </div>
     <div class="sidebar-setting">
       <label>IR Benchmark <span id="benchmarkLoadedLabel" style="color:#3b6d11;font-weight:500"></span></label>

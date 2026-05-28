@@ -14,6 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
   buildProfileForm();
   initLetterForm();
   renderSteps();
+  // Restore API key from localStorage
+  try {
+    const savedKey = localStorage.getItem('suitability-api-key');
+    if (savedKey) {
+      const el = document.getElementById('apiKey');
+      if (el) el.value = savedKey;
+    }
+  } catch(e) {}
   // Restore benchmark from localStorage
   try {
     const stored = localStorage.getItem('suitability-benchmark');
