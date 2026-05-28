@@ -18,6 +18,10 @@
     <div class="sidebar-section-label">Clients</div>
     <div id="clientList" class="client-list"></div>
     <button class="btn-new-client" onclick="newClient()">+ New client</button>
+    <div id="clientNameEditor" class="client-name-editor hidden">
+      <input type="text" id="clientNameInput" placeholder="Client name"
+        onblur="saveClientName()" onkeydown="if(event.key==='Enter')this.blur()" />
+    </div>
     <div class="sidebar-divider"></div>
     <div class="sidebar-section-label">Settings</div>
     <div class="sidebar-setting">
@@ -59,13 +63,6 @@
         </div>
 
         <div class="form-card">
-          <div class="form-row">
-            <div class="field">
-              <label>Client full name</label>
-              <input type="text" id="p-name" placeholder="e.g. Ivan Petrov" oninput="markDirty()" />
-            </div>
-          </div>
-
           <div class="field">
             <label>Risk tolerance</label>
             <div class="radio-group" id="p-riskTolerance"></div>

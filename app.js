@@ -54,10 +54,64 @@ function renderClientList() {
   Object.entries(clients).forEach(([id, c]) => {
     const div = document.createElement('div');
     div.className = 'client-item' + (id === currentClientId ? ' active' : '');
-    div.textContent = c.name || 'Unnamed client';
-    div.onclick = () => selectClient(id);
+    // Name span (click to select client)
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = c.name || 'Unnamed client';
+    nameSpan.onclick = (e) => { e.stopPropagation(); selectClient(id); };
+    // Edit pencil (click to rename inline)
+    const editBtn = document.createElement('span');
+    editBtn.textContent = ' ✎';
+    editBtn.className = 'client-edit-btn';
+    editBtn.title = 'Rename';
+    editBtn.onclick = (e) => { e.stopPropagation(); startRenameClient(id); };
+    div.appendChild(nameSpan);
+    div.appendChild(editBtn);
     el.appendChild(div);
   });
+}
+
+function startRenameClient(id) {
+  selectClient(id);
+  const editor = document.getElementById('clientNameEditor');
+  const input = document.getElementById('clientNameInput');
+  editor.classList.remove('hidden');
+  input.value = clients[id].name || '';
+  input.focus();
+  input.select();
+}
+
+function saveClientName() {
+  if (!currentClientId) return;
+  const input = document.getElementById('clientNameInput');
+  const name = input.value.trim();
+  if (name) {
+    clients[currentClientId].name = name;
+    saveToStorage();
+    renderClientList();
+  }
+  document.getElementById('clientNameEditor').classList.add('hidden');
+}
+
+function startRenameClient(id) {
+  selectClient(id);
+  const editor = document.getElementById('clientNameEditor');
+  const input = document.getElementById('clientNameInput');
+  editor.classList.remove('hidden');
+  input.value = clients[id].name || '';
+  input.focus();
+  input.select();
+}
+
+function saveClientName() {
+  if (!currentClientId) return;
+  const input = document.getElementById('clientNameInput');
+  const name = input.value.trim();
+  if (name) {
+    clients[currentClientId].name = name;
+    saveToStorage();
+    renderClientList();
+  }
+  document.getElementById('clientNameEditor').classList.add('hidden');
 }
 
 function newClient() {
@@ -189,7 +243,7 @@ function loadProfileForm() {
   if (!client) return;
   const p = client.profile || {};
 
-  document.getElementById('p-name').value = client.name || '';
+  // name is edited via sidebar rename, not in profiling form
 
   setRadio('p-riskTolerance', p.riskTolerance);
   setRadio('p-investmentObjective', p.investmentObjective);
@@ -228,8 +282,7 @@ function markDirty() { isDirty = true; }
 function saveProfile() {
   const client = clients[currentClientId];
   if (!client) return;
-  const name = document.getElementById('p-name').value.trim() || 'Unnamed client';
-  client.name = name;
+  // name is managed via sidebar rename
   client.profile = {
     riskTolerance:      getRadio('p-riskTolerance'),
     investmentObjective:getRadio('p-investmentObjective'),

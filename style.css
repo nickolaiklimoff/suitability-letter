@@ -34,6 +34,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .client-item.active { background: var(--blue-bg); color: var(--blue); font-weight: 500; }
 .btn-new-client { margin: 0.5rem 1rem; padding: 8px 12px; border: 1px dashed var(--border2); border-radius: var(--radius); background: none; font-size: 13px; color: var(--text2); cursor: pointer; text-align: left; }
 .btn-new-client:hover { background: var(--bg2); }
+.client-item { display: flex; align-items: center; justify-content: space-between; }
+.client-item span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.client-edit-btn { opacity: 0; font-size: 13px; color: var(--text2); cursor: pointer; padding: 0 4px; transition: opacity 0.15s; flex-shrink: 0; }
+.client-item:hover .client-edit-btn { opacity: 1; }
+.client-name-editor { padding: 4px 1rem 8px; }
+.client-name-editor input { width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid var(--blue); border-radius: var(--radius); outline: none; box-sizing: border-box; }
+.client-item { display: flex; align-items: center; justify-content: space-between; }
+.client-item span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.client-edit-btn { opacity: 0; font-size: 13px; color: var(--text2); cursor: pointer; padding: 0 4px; transition: opacity 0.15s; flex-shrink: 0; }
+.client-item:hover .client-edit-btn { opacity: 1; }
+.client-name-editor { padding: 4px 1rem 8px; }
+.client-name-editor input { width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid var(--blue); border-radius: var(--radius); outline: none; box-sizing: border-box; }
 .sidebar-divider { height: 0.5px; background: var(--border); margin: 0.75rem 0; }
 .sidebar-setting { padding: 0.75rem 1rem; border-top: 0.5px solid var(--border); margin-top: auto; }
 .sidebar-setting label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
