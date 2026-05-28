@@ -376,8 +376,15 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
 // ─── Format helpers ───────────────────────────────────────────────────────────
 function fmtPct(v) { return (v*100).toFixed(1)+'%'; }
 function fmtDev(v) { return (v>=0?'+':'')+((v*100).toFixed(1))+'pp'; }
-function fmtUSD(v) { return '$'+Math.abs(v).toLocaleString('en-US',{maximumFractionDigits:0}); }
-function fmtUSDSigned(v) { return (v>=0?'+':'−')+'$'+Math.abs(v).toLocaleString('en-US',{maximumFractionDigits:0}); }
+function fmtUSD(v) {
+  const abs = Math.abs(v);
+  return '<span data-usd="'+v+'" data-prefix="">$'+Math.round(abs).toLocaleString('en-US')+'</span>';
+}
+function fmtUSDSigned(v) {
+  const prefix = v>=0?'+':'−';
+  const abs = Math.abs(v);
+  return '<span data-usd="'+v+'" data-prefix="'+prefix+'">'+prefix+'$'+Math.round(abs).toLocaleString('en-US')+'</span>';
+}
 function devColor(v) { return Math.abs(v)<0.02?'#3b6d11':Math.abs(v)<0.05?'#854f0b':'#a32d2d'; }
 function ratingColor(r) { return r<=2?'#185fa5':r<=3?'#3b6d11':r<=4?'#854f0b':'#a32d2d'; }
 
@@ -767,7 +774,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <div class="cover-row"><span class="label">Portfolio Value</span><strong class="portfolio-value">${fmtUSD(totalValue)}</strong></div>
           <div class="cover-row"><span class="label">Report Date</span><strong>${reportDate}</strong></div>
           <div class="cover-row"><span class="label">Data as at</span><strong>${dataDate}</strong></div>
-          <div class="cover-row"><span class="label">Currency</span><strong>USD${portfolioData.portCcy && portfolioData.portCcy !== "USD" ? ` <span style="font-size:11px;font-weight:400;color:#8B7A68">(conv. from ${portfolioData.portCcy}${portfolioData.fxRate ? " @ "+portfolioData.fxRate.toFixed(4) : ""})</span>` : ""}</strong></div>
+          <div class="cover-row"><span class="label">Currency</span><strong><span class="cover-ccy-label">USD</span>${portfolioData.portCcy && portfolioData.portCcy !== "USD" ? ` <span style="font-size:11px;font-weight:400;color:#8B7A68">(conv. from ${portfolioData.portCcy}${portfolioData.fxRate ? " @ "+portfolioData.fxRate.toFixed(4) : ""})</span>` : ""}</strong></div>
           <div class="cover-row"><span class="label">Prepared by</span><strong>Nikolai Klimov — Partner</strong></div>
         </div>
         <div class="report-cover-divider"></div>

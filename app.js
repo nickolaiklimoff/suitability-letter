@@ -916,6 +916,9 @@ window.runPortfolioReport = async function() {
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
     document.getElementById('r-reportContent').innerHTML = html;
+    // Reset display currency to USD (the base after FX conversion)
+    _displayCcy = 'USD';
+    document.querySelectorAll('.ccy-btn').forEach(b => b.classList.toggle('active', b.dataset.ccy === 'USD'));
     document.getElementById('r-reportOutput').classList.remove('hidden');
     document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
 
@@ -926,6 +929,62 @@ window.runPortfolioReport = async function() {
   btn.textContent = 'Generate report ↗';
   btn.disabled = false;
 };
+
+// ─── Display currency switcher ───────────────────────────────────────────────
+let _displayCcy = 'USD';
+let _displayFxRates = { USD: 1 };
+
+async function switchDisplayCcy(toCcy, btn) {
+  // Update active button
+  document.querySelectorAll('.ccy-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (toCcy === _displayCcy) return;
+
+  // Get FX rates: from USD to target, and from current to target
+  if (!_displayFxRates[toCcy]) {
+    btn.textContent = '…';
+    try {
+      const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+      const data = await resp.json();
+      if (data && data.rates) _displayFxRates = { USD: 1, ...data.rates };
+    } catch(e) {
+      // Fallback hardcoded
+      _displayFxRates = { USD: 1, EUR: 0.925, GBP: 0.787, CHF: 0.893 };
+    }
+    btn.textContent = toCcy;
+  }
+
+  // Rate from current display ccy to new ccy
+  const fromRate = _displayFxRates[_displayCcy] || 1; // USD→current
+  const toRate   = _displayFxRates[toCcy]   || 1;     // USD→target
+  const factor   = toRate / fromRate;                  // current→target
+
+  const symbols = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr ' };
+  const sym = symbols[toCcy] || toCcy + ' ';
+
+  // Re-render all money values in the report
+  const content = document.getElementById('r-reportContent');
+  if (!content) return;
+
+  // Walk all elements with data-usd attribute (we'll tag them on generation)
+  content.querySelectorAll('[data-usd]').forEach(el => {
+    const usd = parseFloat(el.getAttribute('data-usd'));
+    const converted = usd * toRate;
+    const abs = Math.abs(converted);
+    const formatted = sym + Math.round(abs).toLocaleString('en-US');
+    // Preserve sign prefix if element had one
+    const prefix = el.getAttribute('data-prefix') || '';
+    el.textContent = prefix + formatted;
+  });
+
+  // Update currency label on cover
+  content.querySelectorAll('.cover-ccy-label').forEach(el => {
+    el.textContent = toCcy;
+  });
+
+  _displayCcy = toCcy;
+}
 
 // ─── FX rate fetcher ─────────────────────────────────────────────────────────
 async function fetchFxToUSD(fromCcy) {

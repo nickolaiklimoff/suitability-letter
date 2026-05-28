@@ -115,6 +115,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-primary:hover { opacity: 0.88; }
 .btn-secondary { padding: 8px 16px; background: var(--bg); color: var(--text2); border: 0.5px solid var(--border2); border-radius: var(--radius); font-size: 14px; cursor: pointer; font-family: inherit; }
 .btn-secondary:hover { background: var(--bg2); }
+.ccy-btn { padding: 5px 10px; font-size: 12px; font-weight: 500; border: 1px solid var(--border2); border-radius: 4px; background: var(--bg); color: var(--text2); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.ccy-btn:hover { background: var(--bg2); }
+.ccy-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
 .btn-generate { padding: 10px 24px; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; }
 .btn-generate:hover { opacity: 0.88; }
 .btn-add-row { margin-top: 8px; font-size: 13px; color: var(--blue); background: none; border: none; cursor: pointer; padding: 4px 0; font-family: inherit; }
