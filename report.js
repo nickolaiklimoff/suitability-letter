@@ -71,10 +71,39 @@ window.parseCbondsExport = function(file) {
           convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
           unrealizedPnL:         parseFloat(r[7]) || 0,
           realizedPnL:           parseFloat(r[8]) || 0,
-          currency:              String(r[12]||'USD').trim(),
+          interestIncome:        parseFloat(r[9]) || 0,  // Interest/dividend income from col J
+          currency:              (() => {
+            const ccy = String(r[12]||'').trim();
+            if (ccy) return ccy;
+            // Infer from exchange: European exchanges → EUR, US exchanges → USD
+            const exch = String(r[1]||'').toLowerCase();
+            if (exch.includes('frankfurt') || exch.includes('xetra') || exch.includes('berlin') ||
+                exch.includes('munich') || exch.includes('stuttgart') || exch.includes('hamburg')) return 'EUR';
+            return 'USD';
+          })(),
           ticker:                String(r[16]||'').trim(),
           pctOfPortfolio:        parseFloat(r[18]) || 0,
         }));
+
+        // Auto-detect portfolio base currency from currencies sheet
+        // The base currency is the one where conv/qty ratio is closest to 1.0
+        // (cbonds doesn't convert the base currency — its conv = qty)
+        const ccySheet = getSheet('currencies').slice(1).filter(r => r[0]);
+        let detectedPortCcy = 'USD';
+        let bestRatio = Infinity;
+        for (const r of ccySheet) {
+          const ccy = String(r[0]||'').trim();
+          const qty  = parseFloat(r[1]) || 0;
+          const conv = parseFloat(r[2]) || 0;
+          if (!ccy || qty <= 0) continue;
+          const ratio = Math.abs(conv / qty - 1); // 0 = perfect match = base currency
+          if (ratio < bestRatio) {
+            bestRatio = ratio;
+            detectedPortCcy = ccy;
+          }
+        }
+        portfolioData._detectedPortCcy = detectedPortCcy;
+        console.log('[cbonds] detected portfolio base currency:', detectedPortCcy, '(ratio:', bestRatio.toFixed(6)+')');
 
         // Parse income — dividends per asset for column matching
         const divRows  = getSheet('dividends').slice(1).filter(r => r[0]);
@@ -678,33 +707,44 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fc = fundTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Stocks performance
+  // NOTE: price/purchasePrice/holdingValue are in the position's ORIGINAL currency (EUR or USD).
+  // convertedHoldingValue and unrealizedPnL are already converted to portfolio currency (USD) by cbonds.
+  // We show original-currency price with ccy label, but use converted values for USD totals.
   const stockPerfRows = (portfolioData.stocks||[]).map(h => {
-    const cost = h.purchasePrice * (h.quantity||0);
-    const divs = incomeMap[h.name]||0;
-    const totalPnL = h.unrealizedPnL + (h.realizedPnL||0) + divs;
-    const pct = cost>0?(totalPnL/cost*100).toFixed(1)+'%':'—';
+    const ccy = h.currency || 'USD';
+    const incomeParsed = (h.interestIncome||0); // from col J — in original currency, needs FX
+    const divs = Math.max(incomeMap[h.name]||0, incomeParsed); // use whichever is bigger/available
+    // Cost basis: purchasePrice * qty in original ccy — for % calc we use converted holding value ratio
+    const unrealConv = h.unrealizedPnL; // already USD from cbonds
+    const totalPnL = unrealConv + (h.realizedPnL||0) + divs;
+    // For % we need cost in USD: use convertedHoldingValue / (1 + unrealizedPnL/holdingValue) approx
+    const costUSD = h.convertedHoldingValue - unrealConv;
+    const pct = costUSD > 0 ? (totalPnL/costUSD*100).toFixed(1)+'%' : '—';
     const c = totalPnL>=0?'#3b6d11':'#a32d2d';
+    const fmtCcy = (v, ccy) => ccy==='USD' ? fmtUSD(v) : (ccy+'\u00a0'+(Math.abs(v)).toLocaleString('en-US',{maximumFractionDigits:0}));
     return `<tr>
       <td style="min-width:150px">${h.name}</td>
       <td>${h.ticker||'—'}</td>
-      <td>${h.exchange||'—'}</td>
+      <td>${ccy}</td>
       <td>${h.quantity||'—'}</td>
-      <td>${h.price?h.price.toFixed(2):'—'}</td>
+      <td>${h.price?h.price.toFixed(2)+' '+ccy:'—'}</td>
       <td>${fmtUSD(h.convertedHoldingValue)}</td>
-      <td>${h.purchasePrice?h.purchasePrice.toFixed(2):'—'}</td>
-      <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${h.unrealizedPnL>=0?'+':''}${fmtUSD(h.unrealizedPnL)}</td>
+      <td>${h.purchasePrice?h.purchasePrice.toFixed(2)+' '+ccy:'—'}</td>
+      <td style="color:${unrealConv>=0?'#3b6d11':'#a32d2d'}">${unrealConv>=0?'+':''}${fmtUSD(unrealConv)}</td>
       <td>${fmtUSD(divs)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
     </tr>`;
   }).join('');
 
+  // All monetary totals in USD (convertedHoldingValue already USD from cbonds)
   const stockTotUnreal = (portfolioData.stocks||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
   const stockTotIncome = (portfolioData.stocks||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
   const stockTotReal   = (portfolioData.stocks||[]).reduce((s,h)=>s+(h.realizedPnL||0),0);
   const stockTotPnL    = stockTotUnreal + stockTotReal + stockTotIncome;
-  const stockTotCost   = (portfolioData.stocks||[]).reduce((s,h)=>s+(h.purchasePrice*(h.quantity||0)),0);
-  const stockTotPct    = stockTotCost>0?(stockTotPnL/stockTotCost*100).toFixed(1)+'%':'—';
+  const stockTotHoldUSD = (portfolioData.stocks||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
+  const stockTotCostUSD = stockTotHoldUSD - stockTotUnreal; // approx cost = converted value minus unrealized
+  const stockTotPct    = stockTotCostUSD>0?(stockTotPnL/stockTotCostUSD*100).toFixed(1)+'%':'—';
   const sc = stockTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Portfolio summary
@@ -727,7 +767,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <div class="cover-row"><span class="label">Portfolio Value</span><strong class="portfolio-value">${fmtUSD(totalValue)}</strong></div>
           <div class="cover-row"><span class="label">Report Date</span><strong>${reportDate}</strong></div>
           <div class="cover-row"><span class="label">Data as at</span><strong>${dataDate}</strong></div>
-          <div class="cover-row"><span class="label">Currency</span><strong>USD</strong></div>
+          <div class="cover-row"><span class="label">Currency</span><strong>USD${portfolioData.portCcy && portfolioData.portCcy !== "USD" ? ` <span style="font-size:11px;font-weight:400;color:#8B7A68">(conv. from ${portfolioData.portCcy}${portfolioData.fxRate ? " @ "+portfolioData.fxRate.toFixed(4) : ""})</span>` : ""}</strong></div>
           <div class="cover-row"><span class="label">Prepared by</span><strong>Nikolai Klimov — Partner</strong></div>
         </div>
         <div class="report-cover-divider"></div>
@@ -809,9 +849,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
-            <th>Name</th><th>Ticker</th><th>Exchange</th><th>Qty</th><th>Price</th>
-            <th>Holding Value</th><th>Purch. Price</th>
-            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&L</th><th>Total P&L %</th>
+            <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price (orig.)</th>
+            <th>Value (USD)</th><th>Purch. Price (orig.)</th>
+            <th>Unrealized PnL (USD)</th><th>Dividends Paid (USD)</th><th>Total P&L (USD)</th><th>Total P&L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}
             <tr style="font-weight:600;background:var(--bg2)">

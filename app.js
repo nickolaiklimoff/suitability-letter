@@ -849,15 +849,16 @@ window.runPortfolioReport = async function() {
   try {
     const portfolioData = await parseCbondsExport(portfolioInput.files[0]);
 
-    // Portfolio base currency: auto-detected from xlsx currencies sheet, UI dropdown as override
+    // Portfolio base currency: auto-detected from xlsx, UI dropdown as manual override
     const uiCcy = document.getElementById('r-portfolioCcy')?.value || 'USD';
-    const portCcy = (portfolioData._detectedPortCcy && portfolioData._detectedPortCcy !== 'USD')
-      ? portfolioData._detectedPortCcy   // trust auto-detection
-      : uiCcy;
+    const autoCcy = portfolioData._detectedPortCcy || 'USD';
+    // If user manually changed dropdown away from USD, respect that; otherwise use autodetect
+    const portCcy = (uiCcy !== 'USD') ? uiCcy : autoCcy;
     portfolioData.portCcy = portCcy;
-    // Update dropdown to reflect detected currency
+    // Always update dropdown to show detected/active currency
     const ccyEl = document.getElementById('r-portfolioCcy');
-    if (ccyEl && portfolioData._detectedPortCcy) ccyEl.value = portfolioData._detectedPortCcy;
+    if (ccyEl) ccyEl.value = portCcy;
+    console.log('[report] portCcy=', portCcy, 'autoCcy=', autoCcy, 'uiCcy=', uiCcy);
 
     // If not USD, fetch exchange rate and convert all converted values to USD
     if (portCcy !== 'USD') {
