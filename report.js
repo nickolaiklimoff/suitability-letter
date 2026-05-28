@@ -49,9 +49,11 @@ window.parseCbondsExport = function(file) {
           exchange:              String(r[1]||'').trim(),
           quantity:              parseFloat(r[2]) || 0,
           price:                 parseFloat(r[3]) || 0,
+          holdingValueOrig:      parseFloat(r[4]) || 0,  // in original ccy (EUR/USD)
           holdingValue:          parseFloat(r[4]) || 0,
           purchasePrice:         parseFloat(r[5]) || 0,
           convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
+          unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
           unrealizedPnL:         parseFloat(r[7]) || 0,
           ticker:                String(r[10]||'').trim(),
           isin:                  String(r[14]||'').trim(),
@@ -66,12 +68,16 @@ window.parseCbondsExport = function(file) {
           exchange:              String(r[1]||'').trim(),
           quantity:              parseFloat(r[2]) || 0,
           price:                 parseFloat(r[3]) || 0,
+          holdingValueOrig:      parseFloat(r[4]) || 0,  // in original ccy (EUR/USD)
           holdingValue:          parseFloat(r[4]) || 0,
           purchasePrice:         parseFloat(r[5]) || 0,
           convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
+          unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
           unrealizedPnL:         parseFloat(r[7]) || 0,
+          realizedPnLOrig:       parseFloat(r[8]) || 0,  // in original ccy
           realizedPnL:           parseFloat(r[8]) || 0,
-          interestIncome:        parseFloat(r[9]) || 0,  // Interest/dividend income from col J
+          interestIncomeOrig:    parseFloat(r[9]) || 0,  // in original ccy
+          interestIncome:        parseFloat(r[9]) || 0,
           currency:              (() => {
             const ccy = String(r[12]||'').trim();
             if (ccy) return ccy;
@@ -714,33 +720,40 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fc = fundTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Stocks performance
-  // NOTE: price/purchasePrice/holdingValue are in the position's ORIGINAL currency (EUR or USD).
-  // convertedHoldingValue and unrealizedPnL are already converted to portfolio currency (USD) by cbonds.
-  // We show original-currency price with ccy label, but use converted values for USD totals.
+  // Per-position: show values in ORIGINAL currency of the position (EUR/USD)
+  // Totals: use convertedHoldingValue (already in report base currency, then FX-converted to USD)
+  const fmtOrig = (v, ccy, signed=false) => {
+    const sym = ccy==='EUR'?'€':ccy==='GBP'?'£':ccy==='CHF'?'Fr ':ccy==='USD'?'$':(ccy+' ');
+    const prefix = signed ? (v>=0?'+':'−') : '';
+    const abs = Math.abs(v);
+    return prefix + sym + Math.round(abs).toLocaleString('en-US');
+  };
+
   const stockPerfRows = (portfolioData.stocks||[]).map(h => {
     const ccy = h.currency || 'USD';
-    const incomeParsed = (h.interestIncome||0); // from col J — in original currency, needs FX
-    const divs = Math.max(incomeMap[h.name]||0, incomeParsed); // use whichever is bigger/available
-    // Cost basis: purchasePrice * qty in original ccy — for % calc we use converted holding value ratio
-    const unrealConv = h.unrealizedPnL; // already USD from cbonds
-    const totalPnL = unrealConv + (h.realizedPnL||0) + divs;
-    // For % we need cost in USD: use convertedHoldingValue / (1 + unrealizedPnL/holdingValue) approx
-    const costUSD = h.convertedHoldingValue - unrealConv;
-    const pct = costUSD > 0 ? (totalPnL/costUSD*100).toFixed(1)+'%' : '—';
-    const c = totalPnL>=0?'#3b6d11':'#a32d2d';
-    const fmtCcy = (v, ccy) => ccy==='USD' ? fmtUSD(v) : (ccy+'\u00a0'+(Math.abs(v)).toLocaleString('en-US',{maximumFractionDigits:0}));
+    // Original-currency values (from xlsx, before any FX)
+    const holdOrig   = h.holdingValueOrig   || 0;
+    const unrealOrig = h.unrealizedPnLOrig  || 0;
+    const realOrig   = h.realizedPnLOrig    || 0;
+    const divsOrig   = Math.max(h.interestIncomeOrig||0, 0);
+    const totalOrig  = unrealOrig + realOrig + divsOrig;
+    // Cost in orig ccy for % calc
+    const costOrig   = holdOrig - unrealOrig;
+    const pct        = costOrig > 0 ? (totalOrig/costOrig*100).toFixed(1)+'%' : '—';
+    const c = totalOrig>=0?'#3b6d11':'#a32d2d';
+    const uc = unrealOrig>=0?'#3b6d11':'#a32d2d';
     return `<tr>
       <td style="min-width:150px">${h.name}</td>
       <td>${h.ticker||'—'}</td>
       <td>${ccy}</td>
       <td>${h.quantity||'—'}</td>
-      <td>${h.price?h.price.toFixed(2)+' '+ccy:'—'}</td>
-      <td>${fmtUSD(h.convertedHoldingValue)}</td>
-      <td>${h.purchasePrice?h.purchasePrice.toFixed(2)+' '+ccy:'—'}</td>
-      <td style="color:${unrealConv>=0?'#3b6d11':'#a32d2d'}">${unrealConv>=0?'+':''}${fmtUSD(unrealConv)}</td>
-      <td>${fmtUSD(divs)}</td>
-      <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
-      <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
+      <td>${h.price ? h.price.toFixed(2)+' '+ccy : '—'}</td>
+      <td>${fmtOrig(holdOrig, ccy)}</td>
+      <td>${h.purchasePrice ? h.purchasePrice.toFixed(2)+' '+ccy : '—'}</td>
+      <td style="color:${uc}">${fmtOrig(unrealOrig, ccy, true)}</td>
+      <td>${fmtOrig(divsOrig, ccy)}</td>
+      <td style="color:${c}">${fmtOrig(totalOrig, ccy, true)}</td>
+      <td style="color:${c}">${totalOrig>=0?'+':''}${pct}</td>
     </tr>`;
   }).join('');
 
@@ -856,16 +869,16 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
-            <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price (orig.)</th>
-            <th>Value (<span class="ccy-label">USD</span>)</th><th>Purch. Price (orig.)</th>
-            <th>Unrealized PnL (<span class="ccy-label">USD</span>)</th><th>Dividends Paid (<span class="ccy-label">USD</span>)</th><th>Total P&amp;L (<span class="ccy-label">USD</span>)</th><th>Total P&L %</th>
+            <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price</th>
+            <th>Value</th><th>Purch. Price</th>
+            <th>Unrealized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}
             <tr style="font-weight:600;background:var(--bg2)">
               <td colspan="7">Stocks total</td>
-              <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':''}${fmtUSD(stockTotUnreal)}</td>
+              <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':'−'}${fmtUSD(stockTotUnreal)}</td>
               <td>${fmtUSD(stockTotIncome)}</td>
-              <td style="color:${sc}">${stockTotPnL>=0?'+':''}${fmtUSD(stockTotPnL)}</td>
+              <td style="color:${sc}">${stockTotPnL>=0?'+':'−'}${fmtUSD(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
             </tr>
           </tbody>
