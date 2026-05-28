@@ -145,6 +145,50 @@ function selectClient(id) {
   loadProfileForm();
   loadClientTab();
   resetLetterForm();
+  resetReportForm();
+}
+
+function resetReportForm() {
+  // Clear portfolio file
+  const pf = document.getElementById('r-portfolioFile');
+  if (pf) pf.value = '';
+  const pfName = document.getElementById('r-portfolioFileName');
+  if (pfName) pfName.textContent = '';
+
+  // Clear chart image
+  const chartImg = document.getElementById('r-chartImg');
+  if (chartImg) chartImg.src = '';
+  const chartFile = document.getElementById('r-chartFile');
+  if (chartFile) chartFile.value = '';
+  const chartName = document.getElementById('r-chartFileName');
+  if (chartName) chartName.textContent = '';
+
+  // Clear breakdown image
+  const brkImg = document.getElementById('r-breakdownImg');
+  if (brkImg) brkImg.src = '';
+  const brkFile = document.getElementById('r-breakdownFile');
+  if (brkFile) brkFile.value = '';
+  const brkName = document.getElementById('r-breakdownFileName');
+  if (brkName) brkName.textContent = '';
+
+  // Hide chart/breakdown previews (they use inline style not class)
+  const chartPreview = document.getElementById('r-chartPreview');
+  if (chartPreview) chartPreview.style.display = 'none';
+  const brkPreview = document.getElementById('r-breakdownPreview');
+  if (brkPreview) brkPreview.style.display = 'none';
+
+  // Reset dates
+  const rd = document.getElementById('r-reportDate');
+  if (rd) rd.value = '';
+  const dd = document.getElementById('r-dataDate');
+  if (dd) dd.value = '';
+
+  // Reset currency dropdown to USD (will be auto-detected on next file upload)
+  const ccy = document.getElementById('r-portfolioCcy');
+  if (ccy) ccy.value = 'USD';
+
+  // Hide report output
+  document.getElementById('r-reportOutput')?.classList.add('hidden');
 }
 
 function loadClientTab() {
