@@ -52,7 +52,23 @@
         <button class="tab active" onclick="switchTab('report', this)">Portfolio Report</button>
         <button class="tab" onclick="switchTab('letter', this)">Suitability Letter</button>
         <button class="tab" onclick="switchTab('profile', this)">Profiling</button>
+        <button class="tab" onclick="switchTab('client', this)">Client</button>
         <button class="tab" onclick="switchTab('history', this)">History</button>
+      </div>
+
+      <!-- Client Tab -->
+      <div id="tab-client" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Client</h2>
+          <div class="section-sub">Basic client information.</div>
+        </div>
+        <div class="form-card" style="max-width:480px">
+          <div class="field">
+            <label>Client full name</label>
+            <input type="text" id="c-name" placeholder="e.g. Ivan Petrov"
+              oninput="updateClientName(this.value)" />
+          </div>
+        </div>
       </div>
 
       <!-- Profile Tab -->

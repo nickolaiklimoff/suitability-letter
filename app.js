@@ -80,6 +80,13 @@ function startRenameClient(id) {
   input.select();
 }
 
+function updateClientName(val) {
+  if (!currentClientId) return;
+  clients[currentClientId].name = val.trim() || 'Unnamed client';
+  saveToStorage();
+  renderClientList();
+}
+
 function saveClientName() {
   if (!currentClientId) return;
   const input = document.getElementById('clientNameInput');
@@ -100,6 +107,13 @@ function startRenameClient(id) {
   input.value = clients[id].name || '';
   input.focus();
   input.select();
+}
+
+function updateClientName(val) {
+  if (!currentClientId) return;
+  clients[currentClientId].name = val.trim() || 'Unnamed client';
+  saveToStorage();
+  renderClientList();
 }
 
 function saveClientName() {
@@ -129,7 +143,14 @@ function selectClient(id) {
   document.getElementById('appContent').classList.remove('hidden');
   switchTab('report', document.querySelector('.tab'));
   loadProfileForm();
+  loadClientTab();
   resetLetterForm();
+}
+
+function loadClientTab() {
+  if (!currentClientId) return;
+  const el = document.getElementById('c-name');
+  if (el) el.value = clients[currentClientId].name || '';
 }
 
 function resetLetterForm() {
@@ -199,12 +220,13 @@ function switchTab(name, btn) {
   if (btn) btn.classList.add('active');
   else {
     const tabs = document.querySelectorAll('.tab');
-    const idx = ['report','letter','profile','history'].indexOf(name);
+    const idx = ['report','letter','profile','client','history'].indexOf(name);
     if (tabs[idx]) tabs[idx].classList.add('active');
   }
   document.getElementById('tab-' + name).classList.remove('hidden');
   if (name === 'history') renderHistory();
   if (name === 'report') initReportTab();
+  if (name === 'client') loadClientTab();
 }
 
 // ─── Profile form ─────────────────────────────────────────────────────────────
