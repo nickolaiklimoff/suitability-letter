@@ -916,7 +916,7 @@ window.exportReportToWord = async function() {
     // lineRule:'exact' sets the paragraph height directly (confirmed working)
     children.push(new D.Paragraph({
       children: [new D.TextRun({ text: '' })],
-      spacing: { before: 0, after: 0, line: 7600, lineRule: 'exact' },
+      spacing: { before: 0, after: 0, line: 5600, lineRule: 'exact' },
     }));
 
     // ── Title ──
