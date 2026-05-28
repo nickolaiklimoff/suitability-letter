@@ -58,24 +58,48 @@ window.parseCbondsExport = function(file) {
           pctOfPortfolio:        parseFloat(r[18]) || 0,
         }));
 
-        // Parse stocks
+        // Parse stocks — col: 0=Name,1=Exchange,2=Qty,3=Price,4=HoldingVal,5=PurchPrice,6=ConvHoldingVal,7=UnrealPnL,8=RealPnL,12=TradingCcy,16=Ticker,18=%Port
         const stockRows = getSheet('stocks').slice(1).filter(r => r[0]);
         const stocks = stockRows.map(r => ({
           name:                  String(r[0]).trim(),
           type:                  'equity',
-          quantity:              parseFloat(r[1]) || 0,
-          price:                 parseFloat(r[2]) || 0,
-          holdingValue:          parseFloat(r[3]) || 0,
-          purchasePrice:         parseFloat(r[4]) || 0,
-          convertedHoldingValue: parseFloat(r[5]) || parseFloat(r[3]) || 0,
-          unrealizedPnL:         parseFloat(r[6]) || 0,
-          ticker:                String(r[8]||'').trim(),
-          isin:                  String(r[14]||'').trim(),
+          exchange:              String(r[1]||'').trim(),
+          quantity:              parseFloat(r[2]) || 0,
+          price:                 parseFloat(r[3]) || 0,
+          holdingValue:          parseFloat(r[4]) || 0,
+          purchasePrice:         parseFloat(r[5]) || 0,
+          convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
+          unrealizedPnL:         parseFloat(r[7]) || 0,
+          realizedPnL:           parseFloat(r[8]) || 0,
+          currency:              String(r[12]||'USD').trim(),
+          ticker:                String(r[16]||'').trim(),
+          pctOfPortfolio:        parseFloat(r[18]) || 0,
         }));
 
-        // Parse income
+        // Parse income — dividends per asset for column matching
         const divRows  = getSheet('dividends').slice(1).filter(r => r[0]);
         const couponRows = getSheet('coupons').slice(1).filter(r => r[0]);
+
+        // Build per-asset dividend map (asset name → total converted amount)
+        const divByAsset = {};
+        divRows.forEach(r => {
+          const assetName = String(r[3]||'').trim();
+          const amount = parseFloat(r[7]) || parseFloat(r[5]) || 0;
+          if (!assetName) return;
+          // Strip exchange suffix like " (USD)" for matching
+          const key = assetName.replace(/\s*\([^)]+\)\s*$/, '').trim();
+          divByAsset[key] = (divByAsset[key] || 0) + amount;
+        });
+
+        // Attach dividends to each holding
+        stocks.forEach(h => {
+          h.dividendsPaid = divByAsset[h.name] || 0;
+          h.totalPnL = h.unrealizedPnL + h.realizedPnL + h.dividendsPaid;
+        });
+        funds.forEach(h => {
+          h.dividendsPaid = divByAsset[h.name] || 0;
+          h.totalPnL = h.unrealizedPnL + (h.realizedPnL||0) + h.dividendsPaid;
+        });
 
         const dividends = divRows.reduce((s, r) => s + (parseFloat(r[7]) || parseFloat(r[5]) || 0), 0);
         const coupons   = couponRows.reduce((s, r) => s + (parseFloat(r[5]) || parseFloat(r[3]) || 0), 0);
@@ -615,10 +639,40 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const fundTotPct = fundTotCost>0?(fundTotPnL/fundTotCost*100).toFixed(1)+'%':'—';
   const fc = fundTotPnL>=0?'#3b6d11':'#a32d2d';
 
+  // Stocks performance
+  const stockPerfRows = (portfolioData.stocks||[]).map(h => {
+    const cost = h.purchasePrice * (h.quantity||0);
+    const divs = incomeMap[h.name]||0;
+    const totalPnL = h.unrealizedPnL + (h.realizedPnL||0) + divs;
+    const pct = cost>0?(totalPnL/cost*100).toFixed(1)+'%':'—';
+    const c = totalPnL>=0?'#3b6d11':'#a32d2d';
+    return `<tr>
+      <td style="min-width:150px">${h.name}</td>
+      <td>${h.ticker||'—'}</td>
+      <td>${h.exchange||'—'}</td>
+      <td>${h.quantity||'—'}</td>
+      <td>${h.price?h.price.toFixed(2):'—'}</td>
+      <td>${fmtUSD(h.convertedHoldingValue)}</td>
+      <td>${h.purchasePrice?h.purchasePrice.toFixed(2):'—'}</td>
+      <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${h.unrealizedPnL>=0?'+':''}${fmtUSD(h.unrealizedPnL)}</td>
+      <td>${fmtUSD(divs)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
+      <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
+    </tr>`;
+  }).join('');
+
+  const stockTotUnreal = (portfolioData.stocks||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
+  const stockTotIncome = (portfolioData.stocks||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
+  const stockTotReal   = (portfolioData.stocks||[]).reduce((s,h)=>s+(h.realizedPnL||0),0);
+  const stockTotPnL    = stockTotUnreal + stockTotReal + stockTotIncome;
+  const stockTotCost   = (portfolioData.stocks||[]).reduce((s,h)=>s+(h.purchasePrice*(h.quantity||0)),0);
+  const stockTotPct    = stockTotCost>0?(stockTotPnL/stockTotCost*100).toFixed(1)+'%':'—';
+  const sc = stockTotPnL>=0?'#3b6d11':'#a32d2d';
+
   // Portfolio summary
-  const totalCostBasis = bondTotCost + fundTotCost;
-  const totalIncome = bondTotIncome + fundTotIncome;
-  const totalPnL = totalUnrealizedPnL + totalIncome;
+  const totalCostBasis = bondTotCost + fundTotCost + stockTotCost;
+  const totalIncome = bondTotIncome + fundTotIncome + stockTotIncome;
+  const totalPnL = totalUnrealizedPnL + stockTotReal + totalIncome;
   const totalPnLPct = totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—';
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
 
@@ -712,6 +766,27 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         </table>
         </div>
 
+        ${(portfolioData.stocks||[]).length > 0 ? `
+        <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Stocks</div>
+        <div style="overflow-x:auto">
+        <table class="report-table">
+          <thead><tr>
+            <th>Name</th><th>Ticker</th><th>Exchange</th><th>Qty</th><th>Price</th>
+            <th>Holding Value</th><th>Purch. Price</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&L</th><th>Total P&L %</th>
+          </tr></thead>
+          <tbody>${stockPerfRows}
+            <tr style="font-weight:600;background:var(--bg2)">
+              <td colspan="7">Stocks total</td>
+              <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':''}${fmtUSD(stockTotUnreal)}</td>
+              <td>${fmtUSD(stockTotIncome)}</td>
+              <td style="color:${sc}">${stockTotPnL>=0?'+':''}${fmtUSD(stockTotPnL)}</td>
+              <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>` : ''}
+
         <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Funds / ETFs</div>
         <div style="overflow-x:auto">
         <table class="report-table">
@@ -750,6 +825,12 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
               <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fmtUSD(fundTotPnL)}</td>
               <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPct}</td>
             </tr>
+            ${(portfolioData.stocks||[]).length > 0 ? `<tr>
+              <td>Stocks</td><td>—</td><td>${fmtUSD(stockTotCost)}</td><td>${fmtUSD(stockTotIncome)}</td>
+              <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':''}${fmtUSD(stockTotUnreal)}</td>
+              <td style="color:${sc}">${stockTotPnL>=0?'+':''}${fmtUSD(stockTotPnL)}</td>
+              <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
+            </tr>` : ''}
             <tr style="font-weight:600;background:var(--bg2)">
               <td>PORTFOLIO TOTAL</td>
               <td>${fmtUSD(totalValue)}</td>
