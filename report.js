@@ -86,24 +86,23 @@ window.parseCbondsExport = function(file) {
         }));
 
         // Auto-detect portfolio base currency from currencies sheet
-        // The base currency is the one where conv/qty ratio is closest to 1.0
-        // (cbonds doesn't convert the base currency — its conv = qty)
-        const ccySheet = getSheet('currencies').slice(1).filter(r => r[0]);
         let detectedPortCcy = 'USD';
-        let bestRatio = Infinity;
-        for (const r of ccySheet) {
-          const ccy = String(r[0]||'').trim();
-          const qty  = parseFloat(r[1]) || 0;
-          const conv = parseFloat(r[2]) || 0;
-          if (!ccy || qty <= 0) continue;
-          const ratio = Math.abs(conv / qty - 1); // 0 = perfect match = base currency
-          if (ratio < bestRatio) {
-            bestRatio = ratio;
-            detectedPortCcy = ccy;
+        try {
+          const ccySheet = getSheet('currencies').slice(1).filter(r => r && r[0]);
+          let bestRatio = Infinity;
+          for (const r of ccySheet) {
+            const ccy = String(r[0]||'').trim();
+            const qty  = parseFloat(r[1]) || 0;
+            const conv = parseFloat(r[2]) || 0;
+            if (!ccy || qty <= 0) continue;
+            const ratio = Math.abs(conv / qty - 1);
+            if (ratio < bestRatio) { bestRatio = ratio; detectedPortCcy = ccy; }
           }
+          console.log('[cbonds] detected base ccy:', detectedPortCcy);
+        } catch(ccyErr) {
+          console.warn('[cbonds] currency detection failed:', ccyErr.message);
         }
-        portfolioData._detectedPortCcy = detectedPortCcy;
-        console.log('[cbonds] detected portfolio base currency:', detectedPortCcy, '(ratio:', bestRatio.toFixed(6)+')');
+        // _detectedPortCcy is passed via resolve() below
 
         // Parse income — dividends per asset for column matching
         const divRows  = getSheet('dividends').slice(1).filter(r => r[0]);
@@ -152,7 +151,8 @@ window.parseCbondsExport = function(file) {
           dividends, coupons,
           totalIncome: dividends + coupons,
           divRows, couponRows,
-          tradeRows, firstPurchaseMap
+          tradeRows, firstPurchaseMap,
+          _detectedPortCcy: detectedPortCcy,
         });
       } catch(err) { reject(err); }
     };
