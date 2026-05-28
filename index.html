@@ -418,17 +418,14 @@
               </label>
               <span id="r-portfolioFileName" class="file-name"></span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-              <label style="font-size:13px;color:var(--text2);white-space:nowrap">Portfolio currency in cbonds:</label>
-              <select id="r-portfolioCcy" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text1);cursor:pointer">
-                <option value="USD">USD — US Dollar</option>
-                <option value="EUR">EUR — Euro</option>
-                <option value="GBP">GBP — British Pound</option>
-                <option value="CHF">CHF — Swiss Franc</option>
-                <option value="RUB">RUB — Russian Ruble</option>
-              </select>
-              <span style="font-size:12px;color:var(--text3)">Converted values in the export are in this currency</span>
-            </div>
+            <!-- hidden currency selector — value set by autodetect, used internally -->
+            <select id="r-portfolioCcy" style="display:none">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="CHF">CHF</option>
+              <option value="RUB">RUB</option>
+            </select>
           </div>
         </div>
 
@@ -548,8 +545,8 @@
 <script src="data.js"></script>
 <script src="waar.js"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1779984068"></script>
-<script src="app.js?v=1779984341"></script>
+<script src="report.js?v=1779984676"></script>
+<script src="app.js?v=1779984676"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
