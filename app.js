@@ -136,7 +136,102 @@ function newClient() {
   renderClientList();
 }
 
+function saveReportState() {
+  if (!currentClientId) return;
+  const c = clients[currentClientId];
+  if (!c) return;
+  c.reportState = {
+    reportDate:    document.getElementById('r-reportDate')?.value || '',
+    dataDate:      document.getElementById('r-dataDate')?.value || '',
+    ir:            document.querySelector('input[name="r-ir"]:checked')?.value || 'IR3',
+    portCcy:       document.getElementById('r-portfolioCcy')?.value || 'USD',
+    portfolioFileName: document.getElementById('r-portfolioFileName')?.textContent || '',
+    chartSrc:      document.getElementById('r-chartImg')?.src || '',
+    chartFileName: document.getElementById('r-chartFileName')?.textContent || '',
+    breakdownSrc:  document.getElementById('r-breakdownImg')?.src || '',
+    breakdownFileName: document.getElementById('r-breakdownFileName')?.textContent || '',
+    reportHtml:    document.getElementById('r-reportContent')?.innerHTML || '',
+    reportVisible: !document.getElementById('r-reportOutput')?.classList.contains('hidden'),
+  };
+  saveToStorage();
+}
+
+function loadReportState() {
+  if (!currentClientId) return;
+  const s = clients[currentClientId]?.reportState;
+
+  if (!s) { resetReportForm(); return; }
+
+  // Dates
+  const rd = document.getElementById('r-reportDate');
+  if (rd) rd.value = s.reportDate || '';
+  const dd = document.getElementById('r-dataDate');
+  if (dd) dd.value = s.dataDate || '';
+
+  // IR rating
+  if (s.ir) {
+    const irEl = document.querySelector('input[name="r-ir"][value="'+s.ir+'"]');
+    if (irEl) irEl.checked = true;
+  }
+
+  // Currency
+  const ccy = document.getElementById('r-portfolioCcy');
+  if (ccy && s.portCcy) ccy.value = s.portCcy;
+
+  // Portfolio file name (can't restore actual File object, just show name)
+  const pfName = document.getElementById('r-portfolioFileName');
+  if (pfName) pfName.textContent = s.portfolioFileName || '';
+
+  // Chart image
+  const chartImg = document.getElementById('r-chartImg');
+  const chartPreview = document.getElementById('r-chartPreview');
+  const chartName = document.getElementById('r-chartFileName');
+  if (chartImg && s.chartSrc && s.chartSrc.startsWith('data:')) {
+    chartImg.src = s.chartSrc;
+    if (chartPreview) chartPreview.style.display = 'block';
+    if (chartName) chartName.textContent = s.chartFileName || '';
+  } else {
+    if (chartImg) chartImg.src = '';
+    if (chartPreview) chartPreview.style.display = 'none';
+    if (chartName) chartName.textContent = '';
+  }
+
+  // Breakdown image
+  const brkImg = document.getElementById('r-breakdownImg');
+  const brkPreview = document.getElementById('r-breakdownPreview');
+  const brkName = document.getElementById('r-breakdownFileName');
+  if (brkImg && s.breakdownSrc && s.breakdownSrc.startsWith('data:')) {
+    brkImg.src = s.breakdownSrc;
+    if (brkPreview) brkPreview.style.display = 'block';
+    if (brkName) brkName.textContent = s.breakdownFileName || '';
+  } else {
+    if (brkImg) brkImg.src = '';
+    if (brkPreview) brkPreview.style.display = 'none';
+    if (brkName) brkName.textContent = '';
+  }
+
+  // Restore generated report HTML
+  const reportContent = document.getElementById('r-reportContent');
+  const reportOutput = document.getElementById('r-reportOutput');
+  if (reportContent && s.reportHtml) {
+    reportContent.innerHTML = s.reportHtml;
+    if (reportOutput && s.reportVisible) reportOutput.classList.remove('hidden');
+    else if (reportOutput) reportOutput.classList.add('hidden');
+    // Restore display currency buttons state
+    if (s.portCcy) {
+      _displayCcy = s.portCcy;
+      _displayFxRates = { [s.portCcy]: 1, _base: s.portCcy };
+      document.querySelectorAll('.ccy-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.ccy === s.portCcy));
+    }
+  } else {
+    if (reportContent) reportContent.innerHTML = '';
+    if (reportOutput) reportOutput.classList.add('hidden');
+  }
+}
+
 function selectClient(id) {
+  saveReportState();  // save current client state before switching
   currentClientId = id;
   renderClientList();
   document.getElementById('emptyState').classList.add('hidden');
@@ -145,7 +240,7 @@ function selectClient(id) {
   loadProfileForm();
   loadClientTab();
   resetLetterForm();
-  resetReportForm();
+  loadReportState();  // restore new client state
 }
 
 function resetReportForm() {
@@ -941,6 +1036,7 @@ window.runPortfolioReport = async function() {
     _displayCcy = portCcy;
     _displayFxRates = { [portCcy]: 1, _base: portCcy };
     document.querySelectorAll('.ccy-btn').forEach(b => b.classList.toggle('active', b.dataset.ccy === portCcy));
+    saveReportState();  // persist generated report for this client
     document.getElementById('r-reportOutput').classList.remove('hidden');
     document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
 
@@ -1072,6 +1168,7 @@ window.previewChart = function(input) {
   reader.onload = (e) => {
     document.getElementById('r-chartImg').src = e.target.result;
     document.getElementById('r-chartFileName').textContent = file.name;
+    saveReportState();
     document.getElementById('r-chartPreview').style.display = 'block';
     document.getElementById('r-clearChart').style.display = '';
   };
@@ -1082,6 +1179,7 @@ window.clearChart = function() {
   document.getElementById('r-chartFile').value = '';
   document.getElementById('r-chartImg').src = '';
   document.getElementById('r-chartFileName').textContent = '';
+  saveReportState();
   document.getElementById('r-chartPreview').style.display = 'none';
   document.getElementById('r-clearChart').style.display = 'none';
 };
@@ -1093,6 +1191,7 @@ window.previewBreakdown = function(input) {
   reader.onload = (e) => {
     document.getElementById('r-breakdownImg').src = e.target.result;
     document.getElementById('r-breakdownFileName').textContent = file.name;
+    saveReportState();
     document.getElementById('r-breakdownPreview').style.display = 'block';
     document.getElementById('r-clearBreakdown').style.display = '';
   };
@@ -1103,6 +1202,7 @@ window.clearBreakdown = function() {
   document.getElementById('r-breakdownFile').value = '';
   document.getElementById('r-breakdownImg').src = '';
   document.getElementById('r-breakdownFileName').textContent = '';
+  saveReportState();
   document.getElementById('r-breakdownPreview').style.display = 'none';
   document.getElementById('r-clearBreakdown').style.display = 'none';
 };
