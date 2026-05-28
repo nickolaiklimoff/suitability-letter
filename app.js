@@ -849,9 +849,15 @@ window.runPortfolioReport = async function() {
   try {
     const portfolioData = await parseCbondsExport(portfolioInput.files[0]);
 
-    // Portfolio base currency selected by user — converted values in the export are in this ccy
-    const portCcy = document.getElementById('r-portfolioCcy')?.value || 'USD';
+    // Portfolio base currency: auto-detected from xlsx currencies sheet, UI dropdown as override
+    const uiCcy = document.getElementById('r-portfolioCcy')?.value || 'USD';
+    const portCcy = (portfolioData._detectedPortCcy && portfolioData._detectedPortCcy !== 'USD')
+      ? portfolioData._detectedPortCcy   // trust auto-detection
+      : uiCcy;
     portfolioData.portCcy = portCcy;
+    // Update dropdown to reflect detected currency
+    const ccyEl = document.getElementById('r-portfolioCcy');
+    if (ccyEl && portfolioData._detectedPortCcy) ccyEl.value = portfolioData._detectedPortCcy;
 
     // If not USD, fetch exchange rate and convert all converted values to USD
     if (portCcy !== 'USD') {
@@ -862,6 +868,7 @@ window.runPortfolioReport = async function() {
         h.convertedHoldingValue = (h.convertedHoldingValue || 0) * fxRate;
         h.unrealizedPnL         = (h.unrealizedPnL || 0) * fxRate;
         h.realizedPnL           = (h.realizedPnL || 0) * fxRate;
+        if (h.interestIncome)   h.interestIncome = (h.interestIncome || 0) * fxRate;
       });
       applyFx(portfolioData.bonds);
       applyFx(portfolioData.funds);
