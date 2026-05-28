@@ -860,36 +860,13 @@ window.runPortfolioReport = async function() {
     if (ccyEl) ccyEl.value = portCcy;
     console.log('[report] portCcy=', portCcy, 'autoCcy=', autoCcy, 'uiCcy=', uiCcy);
 
-    // If not USD, fetch exchange rate and convert all converted values to USD
-    if (portCcy !== 'USD') {
-      const fxRate = await fetchFxToUSD(portCcy);
-      portfolioData.fxRate = fxRate;
-      // Convert all convertedHoldingValue, unrealizedPnL, dividends to USD
-      const applyFx = (arr) => (arr||[]).forEach(h => {
-        h.convertedHoldingValue = (h.convertedHoldingValue || 0) * fxRate;
-        h.unrealizedPnL         = (h.unrealizedPnL || 0) * fxRate;
-        h.realizedPnL           = (h.realizedPnL || 0) * fxRate;
-        if (h.interestIncome)   h.interestIncome = (h.interestIncome || 0) * fxRate;
-      });
-      applyFx(portfolioData.bonds);
-      applyFx(portfolioData.funds);
-      applyFx(portfolioData.stocks);
-      portfolioData.cash     = (portfolioData.cash || 0) * fxRate;
-      portfolioData.totalValue = portfolioData.holdings.reduce((s,h) => s + h.convertedHoldingValue, 0) + portfolioData.cash;
-      // Convert dividend and coupon income rows
-      portfolioData.divRows = (portfolioData.divRows||[]).map(r => {
-        const row = [...r];
-        if (row[7] != null) row[7] = (parseFloat(row[7])||0) * fxRate;
-        if (row[5] != null) row[5] = (parseFloat(row[5])||0) * fxRate;
-        return row;
-      });
-      portfolioData.couponRows = (portfolioData.couponRows||[]).map(r => {
-        const row = [...r];
-        if (row[5] != null) row[5] = (parseFloat(row[5])||0) * fxRate;
-        if (row[3] != null) row[3] = (parseFloat(row[3])||0) * fxRate;
-        return row;
-      });
-    }
+    // The converted values from cbonds are already in portCcy (the portfolio base currency).
+    // We keep them as-is — no conversion needed. reportCcy is what shows on the report.
+    // The display-currency switcher (USD/EUR/GBP buttons) handles live conversion.
+    portfolioData.reportCcy = portCcy;
+    // Store the symbol for this currency for use in the report
+    const ccySymbols = { USD:'$', EUR:'€', GBP:'£', CHF:'Fr ', RUB:'₽' };
+    portfolioData.reportCcySym = ccySymbols[portCcy] || portCcy+' ';
 
     const clientIR = document.querySelector('input[name="r-ir"]:checked')?.value || 'IR3';
     const client = clients[currentClientId] || { name: 'Client', profile: {} };
@@ -916,9 +893,10 @@ window.runPortfolioReport = async function() {
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
     document.getElementById('r-reportContent').innerHTML = html;
-    // Reset display currency to USD (the base after FX conversion)
-    _displayCcy = 'USD';
-    document.querySelectorAll('.ccy-btn').forEach(b => b.classList.toggle('active', b.dataset.ccy === 'USD'));
+    // Reset display currency to report base currency
+    _displayCcy = portCcy;
+    _displayFxRates = { [portCcy]: 1, _base: portCcy };
+    document.querySelectorAll('.ccy-btn').forEach(b => b.classList.toggle('active', b.dataset.ccy === portCcy));
     document.getElementById('r-reportOutput').classList.remove('hidden');
     document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
 
@@ -935,50 +913,50 @@ let _displayCcy = 'USD';
 let _displayFxRates = { USD: 1 };
 
 async function switchDisplayCcy(toCcy, btn) {
-  // Update active button
   document.querySelectorAll('.ccy-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-
   if (toCcy === _displayCcy) return;
 
-  // Get FX rates: from USD to target, and from current to target
-  if (!_displayFxRates[toCcy]) {
+  // Fetch rates based on report base currency (not always USD)
+  const baseCcy = _displayFxRates._base || 'USD';
+  if (!_displayFxRates[toCcy] || !_displayFxRates[_displayCcy]) {
     btn.textContent = '…';
     try {
-      const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+      const resp = await fetch('https://open.er-api.com/v6/latest/' + baseCcy);
       const data = await resp.json();
-      if (data && data.rates) _displayFxRates = { USD: 1, ...data.rates };
+      if (data && data.rates) {
+        _displayFxRates = { ...data.rates, [baseCcy]: 1, _base: baseCcy };
+      }
     } catch(e) {
-      // Fallback hardcoded
-      _displayFxRates = { USD: 1, EUR: 0.925, GBP: 0.787, CHF: 0.893 };
+      // Fallback approximate rates vs EUR
+      const vs = { USD:1.163, EUR:1, GBP:0.851, CHF:0.965, RUB:107.5 };
+      _displayFxRates = { ...vs, _base: baseCcy };
     }
     btn.textContent = toCcy;
   }
 
-  // Rate from current display ccy to new ccy
-  const fromRate = _displayFxRates[_displayCcy] || 1; // USD→current
-  const toRate   = _displayFxRates[toCcy]   || 1;     // USD→target
-  const factor   = toRate / fromRate;                  // current→target
+  // Factor: from current display ccy to target
+  // data-usd stores the value in report base currency
+  // _displayCcy tracks what currency is currently shown
+  const fromRate = _displayFxRates[_displayCcy] || 1;
+  const toRate   = _displayFxRates[toCcy]       || 1;
+  const factor   = toRate / fromRate;
 
-  const symbols = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr ' };
-  const sym = symbols[toCcy] || toCcy + ' ';
+  const symbols = { USD:'$', EUR:'€', GBP:'£', CHF:'Fr ', RUB:'₽' };
+  const sym = symbols[toCcy] || toCcy+' ';
 
-  // Re-render all money values in the report
   const content = document.getElementById('r-reportContent');
   if (!content) return;
 
-  // Walk all elements with data-usd attribute (we'll tag them on generation)
   content.querySelectorAll('[data-usd]').forEach(el => {
-    const usd = parseFloat(el.getAttribute('data-usd'));
-    const converted = usd * toRate;
+    // data-usd holds value in REPORT base currency
+    const base = parseFloat(el.getAttribute('data-usd'));
+    const converted = base * toRate;
     const abs = Math.abs(converted);
-    const formatted = sym + Math.round(abs).toLocaleString('en-US');
-    // Preserve sign prefix if element had one
     const prefix = el.getAttribute('data-prefix') || '';
-    el.textContent = prefix + formatted;
+    el.textContent = prefix + sym + Math.round(abs).toLocaleString('en-US');
   });
 
-  // Update all currency labels (cover + column headers)
   content.querySelectorAll('.cover-ccy-label, .ccy-label').forEach(el => {
     el.textContent = toCcy;
   });
