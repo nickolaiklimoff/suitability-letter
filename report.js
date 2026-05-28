@@ -755,7 +755,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <td>${fmtOrig(holdOrig, ccy)}</td>
       <td>${h.purchasePrice ? h.purchasePrice.toFixed(2)+' '+ccy : '—'}</td>
       <td style="color:${uc}">${fmtOrig(unrealOrig, ccy, true)}</td>
-      <td>${fmtOrig(divsOrig, ccy)}</td>
+      <td style="color:${realOrig>=0?'#3b6d11':'#a32d2d'}">${realOrig!==0?fmtOrig(realOrig,ccy,true):'—'}</td>
+      <td>${divsOrig!==0?fmtOrig(divsOrig, ccy):'—'}</td>
       <td style="color:${c}">${fmtOrig(totalOrig, ccy, true)}</td>
       <td style="color:${c}">${totalOrig>=0?'+':''}${pct}</td>
     </tr>`;
@@ -875,12 +876,13 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <thead><tr>
             <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price</th>
             <th>Value</th><th>Purch. Price</th>
-            <th>Unrealized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th>
+            <th>Unrealized PnL</th><th>Realized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}
             <tr style="font-weight:600;background:var(--bg2)">
               <td colspan="7">Stocks total</td>
               <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':'−'}${fmtUSD(stockTotUnreal)}</td>
+              <td style="color:${stockTotReal>=0?'#3b6d11':'#a32d2d'}">${stockTotReal!==0?(stockTotReal>=0?'+':'−')+fmtUSD(stockTotReal):'—'}</td>
               <td>${fmtUSD(stockTotIncome)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':'−'}${fmtUSD(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
