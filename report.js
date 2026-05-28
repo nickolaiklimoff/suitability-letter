@@ -222,14 +222,52 @@ const BOND_SEGMENT_MAP = {
 };
 
 function classifyHolding(h) {
+  // ETF/Fund sector map (name-based)
   for (const [key, sector] of Object.entries(SECTOR_MAP)) {
     if (h.name.includes(key)) return { assetClass: 'equity', sector };
   }
+  // Bond segment map (name-based)
   for (const [key, seg] of Object.entries(BOND_SEGMENT_MAP)) {
     if (h.name.includes(key)) return { assetClass: 'bond', bondSegment: seg };
   }
+  // Individual stock sector classification by ticker or name keywords
+  if (h.type === 'equity') {
+    const ticker = (h.ticker || '').toUpperCase();
+    const name   = (h.name  || '').toLowerCase();
+    // Info Tech
+    if (['INTC','INL','AMD','NVDA','AAPL','MSFT','GOOGL','GOOG','META','FB2A','AMZN','TSLA','ORCL','CRM','ADBE','AVGO','QCOM','TXN','AMAT','MU','MRVL','UPST'].includes(ticker)) return { assetClass: 'equity', sector: 'Info Tech' };
+    if (['BBAI','28K1'].includes(ticker) || name.includes('bigbear') || name.includes('ai holdings')) return { assetClass: 'equity', sector: 'Info Tech' };
+    // Communication Services
+    if (['META','FB2A','GOOGL','GOOG','NFLX','DIS','CMCSA','T','VZ','TMUS'].includes(ticker)) return { assetClass: 'equity', sector: 'Communication Services' };
+    if (name.includes('meta platforms') || name.includes('alphabet') || name.includes('google')) return { assetClass: 'equity', sector: 'Communication Services' };
+    // Financials
+    if (['V','MA','JPM','BAC','GS','MS','WFC','BLK','SCHW'].includes(ticker)) return { assetClass: 'equity', sector: 'Financials' };
+    if (name.includes('visa') || name.includes('mastercard')) return { assetClass: 'equity', sector: 'Financials' };
+    // Health Care
+    if (['JNJ','UNH','PFE','ABBV','MRK','TMO','ABT','DHR','BMY','AMGN','GILD','ISRG','VRTX'].includes(ticker)) return { assetClass: 'equity', sector: 'Health Care' };
+    // Consumer Discretionary
+    if (['AMZN','TSLA','HD','MCD','NKE','SBUX','TJX','BKNG','OPAD'].includes(ticker)) return { assetClass: 'equity', sector: 'Consumer Discretionary' };
+    if (name.includes('offerpad') || name.includes('amazon')) return { assetClass: 'equity', sector: 'Consumer Discretionary' };
+    // Industrials
+    if (['GE','HON','UPS','BA','CAT','LMT','RTX','DE','EMR','ETN','12DA'].includes(ticker)) return { assetClass: 'equity', sector: 'Industrials' };
+    if (name.includes('dell') || name.includes('eaton')) return { assetClass: 'equity', sector: 'Industrials' };
+    // Energy
+    if (['XOM','CVX','COP','SLB','EOG','MPC','PSX','VLO','OXY','MP','55H0'].includes(ticker)) return { assetClass: 'equity', sector: 'Energy' };
+    if (name.includes('mp materials') || name.includes('exxon') || name.includes('chevron')) return { assetClass: 'equity', sector: 'Energy' };
+    // Materials
+    if (['LIN','APD','ECL','DD','NEM','FCX','NUE'].includes(ticker)) return { assetClass: 'equity', sector: 'Materials' };
+    // Consumer Staples
+    if (['PG','KO','PEP','WMT','COST','PM','MO','CL','GIS'].includes(ticker)) return { assetClass: 'equity', sector: 'Consumer Staples' };
+    // Utilities
+    if (['NEE','DUK','SO','D','AEP','XEL','EXC','SRE'].includes(ticker)) return { assetClass: 'equity', sector: 'Utilities' };
+    // Real Estate
+    if (['AMT','PLD','CCI','EQIX','PSA','SPG','WELL','DLR'].includes(ticker)) return { assetClass: 'equity', sector: 'Real Estate' };
+    // Aerospace / Defense → Industrials
+    if (['RKLB','6RJ0'].includes(ticker) || name.includes('rocket lab')) return { assetClass: 'equity', sector: 'Industrials' };
+    // Fallback for unmatched stocks
+    return { assetClass: 'equity', sector: 'Other' };
+  }
   if (h.type === 'bond') return { assetClass: 'bond', bondSegment: 'Investment Grade' };
-  if (h.type === 'equity') return { assetClass: 'equity', sector: 'Other' };
   return { assetClass: 'other' };
 }
 
