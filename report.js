@@ -748,7 +748,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const sc = stockTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Portfolio summary
-  const totalCostBasis = bondTotCost + fundTotCost + stockTotCost;
+  const totalCostBasis = bondTotCost + fundTotCost + stockTotCostUSD;
   const totalIncome = bondTotIncome + fundTotIncome + stockTotIncome;
   const totalPnL = totalUnrealizedPnL + stockTotReal + totalIncome;
   const totalPnLPct = totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—';
@@ -904,7 +904,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
               <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPct}</td>
             </tr>
             ${(portfolioData.stocks||[]).length > 0 ? `<tr>
-              <td>Stocks</td><td>—</td><td>${fmtUSD(stockTotCost)}</td><td>${fmtUSD(stockTotIncome)}</td>
+              <td>Stocks</td><td>—</td><td>${fmtUSD(stockTotCostUSD)}</td><td>${fmtUSD(stockTotIncome)}</td>
               <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':''}${fmtUSD(stockTotUnreal)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${fmtUSD(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
