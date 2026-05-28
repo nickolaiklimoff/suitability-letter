@@ -848,6 +848,41 @@ window.runPortfolioReport = async function() {
 
   try {
     const portfolioData = await parseCbondsExport(portfolioInput.files[0]);
+
+    // Portfolio base currency selected by user — converted values in the export are in this ccy
+    const portCcy = document.getElementById('r-portfolioCcy')?.value || 'USD';
+    portfolioData.portCcy = portCcy;
+
+    // If not USD, fetch exchange rate and convert all converted values to USD
+    if (portCcy !== 'USD') {
+      const fxRate = await fetchFxToUSD(portCcy);
+      portfolioData.fxRate = fxRate;
+      // Convert all convertedHoldingValue, unrealizedPnL, dividends to USD
+      const applyFx = (arr) => (arr||[]).forEach(h => {
+        h.convertedHoldingValue = (h.convertedHoldingValue || 0) * fxRate;
+        h.unrealizedPnL         = (h.unrealizedPnL || 0) * fxRate;
+        h.realizedPnL           = (h.realizedPnL || 0) * fxRate;
+      });
+      applyFx(portfolioData.bonds);
+      applyFx(portfolioData.funds);
+      applyFx(portfolioData.stocks);
+      portfolioData.cash     = (portfolioData.cash || 0) * fxRate;
+      portfolioData.totalValue = portfolioData.holdings.reduce((s,h) => s + h.convertedHoldingValue, 0) + portfolioData.cash;
+      // Convert dividend and coupon income rows
+      portfolioData.divRows = (portfolioData.divRows||[]).map(r => {
+        const row = [...r];
+        if (row[7] != null) row[7] = (parseFloat(row[7])||0) * fxRate;
+        if (row[5] != null) row[5] = (parseFloat(row[5])||0) * fxRate;
+        return row;
+      });
+      portfolioData.couponRows = (portfolioData.couponRows||[]).map(r => {
+        const row = [...r];
+        if (row[5] != null) row[5] = (parseFloat(row[5])||0) * fxRate;
+        if (row[3] != null) row[3] = (parseFloat(row[3])||0) * fxRate;
+        return row;
+      });
+    }
+
     const clientIR = document.querySelector('input[name="r-ir"]:checked')?.value || 'IR3';
     const client = clients[currentClientId] || { name: 'Client', profile: {} };
 
@@ -883,6 +918,20 @@ window.runPortfolioReport = async function() {
   btn.textContent = 'Generate report ↗';
   btn.disabled = false;
 };
+
+// ─── FX rate fetcher ─────────────────────────────────────────────────────────
+async function fetchFxToUSD(fromCcy) {
+  if (!fromCcy || fromCcy === 'USD') return 1;
+  try {
+    // Use open exchange rate API (no key needed for this endpoint)
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${fromCcy}`);
+    const data = await resp.json();
+    if (data && data.rates && data.rates['USD']) return data.rates['USD'];
+  } catch(e) {}
+  // Fallback hardcoded rates if API fails
+  const fallback = { EUR: 1.08, GBP: 1.27, CHF: 1.12, RUB: 0.011 };
+  return fallback[fromCcy] || 1;
+}
 
 async function assignPortfolioRatings(holdings, apiKey) {
   const list = holdings.map((h,i) => `${i+1}. ${h.name} (${h.type})`).join('\n');
