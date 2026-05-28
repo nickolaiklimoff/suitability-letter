@@ -836,7 +836,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <table class="report-table">
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
-            <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value USD</th>
+            <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
             <th>Unrealized PnL</th><th>Coupons Paid</th><th>Total PnL</th><th>Total PnL %</th>
           </tr></thead>
           <tbody>${bondPerfRows}
@@ -857,8 +857,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <table class="report-table">
           <thead><tr>
             <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price (orig.)</th>
-            <th>Value (USD)</th><th>Purch. Price (orig.)</th>
-            <th>Unrealized PnL (USD)</th><th>Dividends Paid (USD)</th><th>Total P&L (USD)</th><th>Total P&L %</th>
+            <th>Value (<span class="ccy-label">USD</span>)</th><th>Purch. Price (orig.)</th>
+            <th>Unrealized PnL (<span class="ccy-label">USD</span>)</th><th>Dividends Paid (<span class="ccy-label">USD</span>)</th><th>Total P&amp;L (<span class="ccy-label">USD</span>)</th><th>Total P&L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}
             <tr style="font-weight:600;background:var(--bg2)">
@@ -877,7 +877,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <table class="report-table">
           <thead><tr>
             <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
-            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value USD</th>
+            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
             <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
           <tbody>${fundPerfRows}
@@ -895,7 +895,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <table class="report-table" style="margin-top:0.5rem">
           <thead><tr>
             <th>Summary</th><th>Portfolio Value</th><th>Cost Basis</th><th>Income</th>
-            <th>Unrealized PnL</th><th>Total PnL $</th><th>Total PnL %</th>
+            <th>Unrealized PnL</th><th>Total PnL (<span class="ccy-label">USD</span>)</th><th>Total PnL %</th>
           </tr></thead>
           <tbody>
             <tr>

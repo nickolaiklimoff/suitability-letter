@@ -978,8 +978,8 @@ async function switchDisplayCcy(toCcy, btn) {
     el.textContent = prefix + formatted;
   });
 
-  // Update currency label on cover
-  content.querySelectorAll('.cover-ccy-label').forEach(el => {
+  // Update all currency labels (cover + column headers)
+  content.querySelectorAll('.cover-ccy-label, .ccy-label').forEach(el => {
     el.textContent = toCcy;
   });
 
