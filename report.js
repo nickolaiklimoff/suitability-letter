@@ -615,6 +615,191 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
 }
 
 // ─── Generate HTML report ─────────────────────────────────────────────────────
+// ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
+function buildAnalyticsSection(a, ccy) {
+  const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
+  const pct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + '%';
+  const fmt = v => sym + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const ddPeriod = a.ddStart && a.ddTrough
+    ? a.ddStart.slice(0,7).replace('-', '/') + ' → ' + a.ddTrough.slice(0,7).replace('-', '/')
+    : '—';
+  const recovered = a.ddRecovery && a.ddRecovery !== 'In progress'
+    ? '<span style="color:#3b6d11">✓ Recovered ' + a.ddRecovery.slice(0,7).replace('-','/') + '</span>'
+    : '<span style="color:#a32d2d">In progress</span>';
+  const posColor = a.pctPositive >= 0.6 ? '#3b6d11' : a.pctPositive >= 0.5 ? '#5C5148' : '#a32d2d';
+
+  return `
+    <div class="report-section report-section-numbered">
+      <div class="report-section-title">10. Portfolio Analytics</div>
+      <div style="font-size:11px;color:#8B7A68;margin-bottom:0.8rem">
+        Based on portfolio value history · Period: ${a.period} · Risk-free rate: ${(a.rf*100).toFixed(1)}% (${ccy} 5Y gov. bond)
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem">
+
+        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Total Return</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.totalReturn>=0?'#3b6d11':'#a32d2d'}">${pct(a.totalReturn)}</div>
+          <div style="font-size:11px;color:#8B7A68">${a.period}</div>
+        </div>
+
+        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Volatility (ann.)</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:#2C2C2C">${(a.vol*100).toFixed(1)}%</div>
+          <div style="font-size:11px;color:#8B7A68">Annualised std. deviation</div>
+        </div>
+
+        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Sharpe Ratio</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.sharpe>=1?'#3b6d11':a.sharpe>=0?'#5C5148':'#a32d2d'}">${a.sharpe.toFixed(2)}</div>
+          <div style="font-size:11px;color:#8B7A68">rf = ${(a.rf*100).toFixed(1)}%</div>
+        </div>
+
+        <div style="background:#FAF7F4;border:1px solid #E8E0D8;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Max Drawdown</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:#a32d2d">${pct(a.maxDD)}</div>
+          <div style="font-size:11px;color:#8B7A68">${ddPeriod} · ${recovered}</div>
+        </div>
+
+        <div style="background:#FAF7F4;border:1px solid #E8E0D8;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Best / Worst Month</div>
+          <div style="font-size:18px;font-weight:700;font-family:'Playfair Display',Georgia,serif">
+            <span style="color:#3b6d11">${pct(a.bestMonth)}</span>
+            <span style="color:#D4C9BE;margin:0 4px">/</span>
+            <span style="color:#a32d2d">${pct(a.worstMonth)}</span>
+          </div>
+          <div style="font-size:11px;color:#8B7A68">${a.bestMonthLabel} / ${a.worstMonthLabel}</div>
+        </div>
+
+        <div style="background:#FAF7F4;border:1px solid #E8E0D8;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Positive Months</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${posColor}">${a.posMonths}/${a.totalMonths}</div>
+          <div style="font-size:11px;color:#8B7A68">${(a.pctPositive*100).toFixed(0)}% of periods</div>
+        </div>
+
+      </div>
+
+      <div style="font-size:10px;color:#8B7A68;font-style:italic">
+        Analytics derived from portfolio value chart using AI image recognition. Values are approximate (±2–3%).
+        Sharpe: (Return − rf) / σ. Max Drawdown: peak-to-trough decline.
+      </div>
+    </div>`;
+}
+
+// ─── Chart analytics extractor (calls Claude API with chart image) ────────────
+window.extractChartAnalytics = async function(chartSrc, apiKey, portCcy) {
+  if (!chartSrc || !apiKey) return null;
+  const rfRates = { USD: 0.043, EUR: 0.026, GBP: 0.044, CHF: 0.008 };
+  const rf = rfRates[portCcy] || 0.043;
+
+  try {
+    // Convert src to base64 if it's a data URL, else fetch
+    let b64, mime = 'image/png';
+    if (chartSrc.startsWith('data:')) {
+      const parts = chartSrc.split(',');
+      mime = parts[0].split(':')[1].split(';')[0];
+      b64 = parts[1];
+    } else {
+      const blob = await fetch(chartSrc).then(r => r.blob());
+      const ab = await blob.arrayBuffer();
+      b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
+      mime = blob.type || 'image/png';
+    }
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+            { type: 'text', text: `This is a portfolio value chart. Extract the time series carefully.
+Read Y-axis values and X-axis dates precisely using the grid lines.
+Return ONLY valid JSON, no markdown, no explanation:
+{"series": [{"date":"YYYY-MM","value":1234567}, ...]}
+Include one data point per month (or more if visible). Be precise about values.` }
+          ]
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    const series = parsed.series;
+    if (!series || series.length < 3) return null;
+
+    // Compute analytics from series
+    const vals = series.map(p => parseFloat(p.value));
+    const dates = series.map(p => String(p.date));
+    const rets = vals.map((v,i) => i===0 ? 0 : (v-vals[i-1])/vals[i-1]).slice(1);
+
+    const n = rets.length;
+    const freq = n <= 14 ? 12 : 52; // monthly or weekly
+    const mean = rets.reduce((s,r)=>s+r,0)/n;
+    const variance = rets.reduce((s,r)=>s+(r-mean)**2,0)/(n-1);
+    const vol = Math.sqrt(variance * freq);
+    const totalReturn = (vals[vals.length-1]-vals[0])/vals[0];
+    const rfPer = rf/freq;
+    const sharpe = (totalReturn - rf) / vol;
+
+    // Max drawdown
+    let peak=vals[0], maxDD=0, peakIdx=0, ddStart=dates[0], ddTrough=dates[0];
+    vals.forEach((v,i) => {
+      if(v>peak){peak=v;peakIdx=i;}
+      const dd=(v-peak)/peak;
+      if(dd<maxDD){maxDD=dd;ddTrough=dates[i];ddStart=dates[peakIdx];}
+    });
+    let ddRecovery='In progress';
+    for(let i=peakIdx;i<vals.length;i++){if(vals[i]>=peak){ddRecovery=dates[i];break;}}
+
+    // Monthly aggregation for best/worst
+    const monthlyRets = [];
+    const monthLabels = [];
+    // Group by month label (YYYY-MM)
+    const byMonth = {};
+    series.forEach((p,i) => {
+      const m = String(p.date).slice(0,7);
+      if(!byMonth[m]) byMonth[m] = {start: parseFloat(series[Math.max(0,i-1)?.value||p.value]), end: parseFloat(p.value), label: m};
+      byMonth[m].end = parseFloat(p.value);
+    });
+    const mKeys = Object.keys(byMonth).sort();
+    for(let i=1;i<mKeys.length;i++){
+      const prev = byMonth[mKeys[i-1]].end;
+      const curr = byMonth[mKeys[i]].end;
+      const r = (curr-prev)/prev;
+      monthlyRets.push(r);
+      monthLabels.push(mKeys[i].replace('-',"'").slice(2));
+    }
+
+    const bestIdx = monthlyRets.indexOf(Math.max(...monthlyRets));
+    const worstIdx = monthlyRets.indexOf(Math.min(...monthlyRets));
+    const posMonths = monthlyRets.filter(r=>r>0).length;
+    const months = mKeys.length - 1;
+    const startMonth = mKeys[0].replace('-',"'").slice(2);
+    const endMonth = mKeys[mKeys.length-1].replace('-',"'").slice(2);
+
+    return {
+      period: startMonth + ' – ' + endMonth,
+      totalReturn, vol, sharpe, rf, maxDD,
+      ddStart, ddTrough, ddRecovery,
+      bestMonth: Math.max(...monthlyRets),
+      worstMonth: Math.min(...monthlyRets),
+      bestMonthLabel: monthLabels[bestIdx] || '—',
+      worstMonthLabel: monthLabels[worstIdx] || '—',
+      posMonths, totalMonths: months,
+      pctPositive: months > 0 ? posMonths/months : 0,
+    };
+  } catch(e) {
+    console.error('Chart analytics error:', e);
+    return null;
+  }
+};
+
 window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
@@ -961,6 +1146,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       ${buildDividendsSection(portfolioData.divRows || [])}
 
       ${buildTradesSection(portfolioData.tradeRows || [])}
+
+      \${analyticsHtml}
 
       <div class="report-disclaimer">
         <div class="report-disclaimer-title">Important Disclaimer</div>

@@ -1028,6 +1028,21 @@ window.runPortfolioReport = async function() {
 
     const chartSrc = document.getElementById('r-chartImg')?.src || '';
     const breakdownSrc = document.getElementById('r-breakdownImg')?.src || '';
+
+    // Extract analytics from chart image via Claude Vision
+    if (chartSrc && chartSrc.startsWith('data:') && apiKey) {
+      const btn = document.querySelector('.btn-generate');
+      if (btn) btn.textContent = 'Reading chart…';
+      try {
+        portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
+      } catch(e) {
+        console.warn('Analytics extraction failed:', e);
+        portfolioData._analytics = null;
+      }
+    } else {
+      portfolioData._analytics = null;
+    }
+
     window._lastPortfolioData = portfolioData;
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
