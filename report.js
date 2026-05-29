@@ -236,6 +236,7 @@ window.parseBenchmarkExcel = function(file) {
 
 // ─── Classify holdings ────────────────────────────────────────────────────────
 const SECTOR_MAP = {
+  'Magnificent Seven': 'Info Tech', 'MAGS': 'Info Tech', 'Roundhill Magnificent': 'Info Tech',
   'Technology Select': 'Info Tech', 'XLK': 'Info Tech',
   'Financial Select': 'Financials', 'XLF': 'Financials',
   'Health Care Select': 'Health Care', 'XLV': 'Health Care',
@@ -251,8 +252,10 @@ const SECTOR_MAP = {
 
 const BOND_SEGMENT_MAP = {
   '7-10 Year Treasury': 'Government', 'IEF': 'Government', 'Treasury Bond ETF': 'Government',
+  '20+ Year Treasury': 'Government', 'TMF': 'Government', 'TLT': 'Government',
+  'Daily 20+': 'Government', 'Direxion Daily 20': 'Government',
   'International Corporate': 'Investment Grade', 'Bloomberg Barclays International': 'Investment Grade',
-  'High Yield': 'High Yield',
+  'High Yield': 'High Yield', 'HYG': 'High Yield', 'JNK': 'High Yield',
   'J.P. Morgan EM': 'EM Debt', 'EM Corporate': 'EM Debt',
 };
 
@@ -1147,7 +1150,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
       ${buildTradesSection(portfolioData.tradeRows || [])}
 
-      \${analyticsHtml}
+      ${analyticsHtml}
 
       <div class="report-disclaimer">
         <div class="report-disclaimer-title">Important Disclaimer</div>
