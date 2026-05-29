@@ -1030,16 +1030,19 @@ window.runPortfolioReport = async function() {
     const breakdownSrc = document.getElementById('r-breakdownImg')?.src || '';
 
     // Extract analytics from chart image via Claude Vision
+    console.log('[analytics] chartSrc starts with data:', chartSrc?.startsWith('data:'), 'apiKey:', !!apiKey, 'portCcy:', portCcy);
     if (chartSrc && chartSrc.startsWith('data:') && apiKey) {
       const btn = document.querySelector('.btn-generate');
       if (btn) btn.textContent = 'Reading chart…';
       try {
         portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
+        console.log('[analytics] result:', portfolioData._analytics);
       } catch(e) {
-        console.warn('Analytics extraction failed:', e);
+        console.warn('[analytics] extraction failed:', e);
         portfolioData._analytics = null;
       }
     } else {
+      console.log('[analytics] skipped — no chart or no apiKey');
       portfolioData._analytics = null;
     }
 
