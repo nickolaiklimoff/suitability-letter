@@ -683,8 +683,7 @@ function buildAnalyticsSection(a, ccy) {
       </div>
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic">
-        Analytics derived from portfolio value chart using AI image recognition. Values are approximate (±2–3%).
-        Sharpe: (Return − rf) / σ. Max Drawdown: peak-to-trough decline.
+        Total Return and Sharpe from actual portfolio P&L data. Volatility, Drawdown and monthly distribution from chart analysis (AI image recognition, ±2–3%). Sharpe: (Return − rf) / σ.
       </div>
     </div>`;
 }
@@ -974,10 +973,20 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const totalPnLPct = totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—';
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
 
-  // Section 10: analytics (from Claude Vision chart reading)
-  const analyticsHtml = portfolioData._analytics
-    ? buildAnalyticsSection(portfolioData._analytics, portfolioData.reportCcy || 'USD')
-    : '';
+  // Section 10: analytics — time-series metrics from chart, Total Return from real P&L data
+  let analyticsHtml = '';
+  if (portfolioData._analytics) {
+    const a = portfolioData._analytics;
+    // Use real P&L total return (cost-basis) instead of chart-derived market return
+    const realReturn = totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn;
+    // Recalculate Sharpe with real return (volatility still from chart)
+    const realSharpe = a.vol > 0 ? (realReturn - (a.rf || 0.026)) / a.vol : a.sharpe;
+    analyticsHtml = buildAnalyticsSection({
+      ...a,
+      totalReturn: realReturn,
+      sharpe: realSharpe,
+    }, portfolioData.reportCcy || 'USD');
+  }
 
   return `
     <div class="report-cover">
