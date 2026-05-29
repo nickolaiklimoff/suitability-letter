@@ -709,6 +709,7 @@ window.extractChartAnalytics = async function(chartSrc, apiKey, portCcy) {
       mime = blob.type || 'image/png';
     }
 
+    console.log('[extractChart] calling Claude API, image size:', b64.length, 'mime:', mime);
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
@@ -731,9 +732,15 @@ Include one data point per month (or more if visible). Be precise about values.`
 
     const data = await resp.json();
     const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
+    console.log('[extractChart] Claude response:', text.slice(0, 300));
+    // Extract JSON robustly — find first { ... } block
+    let clean = text.replace(/```json|```/g, '').trim();
+    // If response has text before/after JSON, extract just the JSON object
+    const jsonMatch = clean.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in response: ' + text.slice(0,100));
+    clean = jsonMatch[0];
     const parsed = JSON.parse(clean);
-    const series = parsed.series;
+    const series = parsed.series || parsed.data || parsed.points || Object.values(parsed)[0];
     if (!series || series.length < 3) return null;
 
     // Compute analytics from series
