@@ -967,6 +967,11 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const totalPnLPct = totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—';
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
 
+  // Section 10: analytics (from Claude Vision chart reading)
+  const analyticsHtml = portfolioData._analytics
+    ? buildAnalyticsSection(portfolioData._analytics, portfolioData.reportCcy || 'USD')
+    : '';
+
   return `
     <div class="report-cover">
       <div class="report-cover-logo">ORION RIDGE CAPITAL</div>
