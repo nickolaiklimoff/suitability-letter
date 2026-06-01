@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildProfileForm();
   initLetterForm();
   renderSteps();
+  loadBenchmarkFromStorage();  // restore benchmark ETF quotes from localStorage
   // Restore API key from localStorage
   try {
     const savedKey = localStorage.getItem('suitability-api-key');
@@ -1043,30 +1044,25 @@ window.runPortfolioReport = async function() {
 
     // Analytics — full mode (quotes) or quick mode (chart)
     const analyticsMode = window._analyticsMode || 'chart';
-    // _realCostBasis and _realTotalPnL set inside generatePortfolioReport
+    const holdingFiles = Object.keys(window._holdingQuotesData||{});
+    console.log('[analytics] mode=', analyticsMode, 'holdingFiles=', holdingFiles.length, 'benchmark keys=', Object.keys(window._benchmarkQuotesData||{}));
 
-    if (analyticsMode === 'full' && Object.keys(window._holdingQuotesData||{}).length > 0) {
-      const btn2 = document.querySelector('.btn-generate');
-      if (btn2) btn2.textContent = 'Computing analytics…';
-      try {
-        portfolioData._analytics = computeFullAnalytics(portfolioData, _benchmark, clientIR);
-        console.log('[analytics] full mode result:', portfolioData._analytics);
-      } catch(e) {
-        console.warn('[analytics] full mode failed:', e);
-        portfolioData._analytics = null;
-      }
-    }
+    // Full mode: computeFullAnalytics runs AFTER generatePortfolioReport sets _realCostBasis/_realTotalPnL
+    // So we pass a flag and compute after HTML generation
+    portfolioData._pendingFullAnalytics = analyticsMode === 'full' && holdingFiles.length > 0;
 
-    // Fallback to chart-based analytics if no quotes or full mode failed
-    if (!portfolioData._analytics && chartSrc && chartSrc.startsWith('data:') && apiKey) {
-      const btn2 = document.querySelector('.btn-generate');
-      if (btn2) btn2.textContent = 'Reading chart…';
-      try {
-        portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
-        console.log('[analytics] chart mode result:', portfolioData._analytics);
-      } catch(e) {
-        console.warn('[analytics] chart mode failed:', e);
-        portfolioData._analytics = null;
+    // Quick mode: chart-based (async, needs API)
+    if (analyticsMode !== 'full' || holdingFiles.length === 0) {
+      if (chartSrc && chartSrc.startsWith('data:') && apiKey) {
+        const btn2 = document.querySelector('.btn-generate');
+        if (btn2) btn2.textContent = 'Reading chart…';
+        try {
+          portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
+          console.log('[analytics] chart result:', portfolioData._analytics ? 'OK' : 'null');
+        } catch(e) {
+          console.warn('[analytics] chart failed:', e);
+          portfolioData._analytics = null;
+        }
       }
     }
 
@@ -1074,6 +1070,27 @@ window.runPortfolioReport = async function() {
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
     document.getElementById('r-reportContent').innerHTML = html;
+
+    // Full analytics: runs HERE because generatePortfolioReport sets _realCostBasis/_realTotalPnL
+    if (portfolioData._pendingFullAnalytics) {
+      const btn2 = document.querySelector('.btn-generate');
+      if (btn2) btn2.textContent = 'Computing analytics…';
+      try {
+        const fullA = computeFullAnalytics(portfolioData, _benchmark, clientIR);
+        console.log('[analytics] full result:', fullA ? `OK (${fullA.n} days, ${fullA.matchedHoldings} holdings)` : 'null');
+        if (fullA) {
+          portfolioData._analytics = fullA;
+          // Regenerate report with full analytics
+          const html2 = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
+          document.getElementById('r-reportContent').innerHTML = html2;
+        } else {
+          console.warn('[analytics] full analytics returned null — check holding file matching');
+        }
+      } catch(e) {
+        console.warn('[analytics] full analytics error:', e);
+      }
+    }
+
     // Reset display currency to report base currency
     _displayCcy = portCcy;
     _displayFxRates = { [portCcy]: 1, _base: portCcy };

@@ -795,7 +795,13 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     }
 
     const matchedCount = Object.keys(priceMap).length;
-    if (matchedCount < 2) return null; // too few matches
+    console.log('[fullAnalytics] holdingFiles:', Object.keys(holdingQuotes).length,
+      'allHoldings:', allHoldings.length,
+      'matched:', matchedCount, Object.keys(priceMap));
+    if (matchedCount < 2) {
+      console.warn('[fullAnalytics] too few matches (<2) — check file names match holding names');
+      return null;
+    }
 
     // ── Portfolio snapshots from trades ──────────────────────────────────────
     const tradeRows = portfolioData.tradeRows || [];
