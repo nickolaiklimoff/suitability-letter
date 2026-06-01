@@ -836,34 +836,35 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
       if (tradeDateSet.has(dCurr)) continue; // skip capital inflow days
 
       const pos = getSnapshotOn(snapshots, dCurr);
-      const posPrev = getSnapshotOn(snapshots, dPrev);
-      if (!pos || !posPrev || JSON.stringify(Object.keys(pos).sort()) !== JSON.stringify(Object.keys(posPrev).sort())) continue;
+      if (!pos) continue;
+
+      // Use only positions that exist in priceMap (matched holdings)
+      // This handles changing composition gracefully
+      const activeAssets = Object.entries(pos).filter(([asset, qty]) =>
+        qty > 0 && priceMap[asset] && priceMap[asset][dPrev] && priceMap[asset][dCurr]
+      );
+      if (activeAssets.length === 0) continue;
 
       // Portfolio value on prev day (for weights)
       let portValPrev = 0;
       const assetVals = {};
-      let valid = true;
-      for (const [asset, qty] of Object.entries(posPrev)) {
-        const prices = priceMap[asset];
-        if (!prices || !prices[dPrev]) { valid = false; break; }
+      for (const [asset, qty] of activeAssets) {
         const ccy = getAssetCcy(asset, portfolioData);
-        let val = prices[dPrev] * qty;
+        let val = priceMap[asset][dPrev] * qty;
         if (ccy === 'USD') val /= EUR_USD;
         assetVals[asset] = val;
         portValPrev += val;
       }
-      if (!valid || portValPrev <= 0) continue;
+      if (portValPrev <= 0) continue;
 
-      // Weighted return
+      // Weighted return over matched positions
       let rPort = 0;
-      for (const [asset, qty] of Object.entries(posPrev)) {
-        const prices = priceMap[asset];
-        if (!prices[dCurr]) { valid = false; break; }
+      for (const [asset, qty] of activeAssets) {
         const w = assetVals[asset] / portValPrev;
-        const r = (prices[dCurr] - prices[dPrev]) / prices[dPrev];
+        const r = (priceMap[asset][dCurr] - priceMap[asset][dPrev]) / priceMap[asset][dPrev];
         rPort += w * r;
       }
-      if (valid) weightedRets.push({ date: dCurr, r: rPort, pos: pos });
+      weightedRets.push({ date: dCurr, r: rPort, pos: pos });
     }
 
     console.log('[fullAnalytics] sortedDates:', sortedDates.length, 'first:', sortedDates[0], 'last:', sortedDates[sortedDates.length-1]);
