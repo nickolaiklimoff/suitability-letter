@@ -817,8 +817,14 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
 
     const tradeDateSet = new Set(tradeRows.map(r => {
       if (!r[0]) return null;
-      const d = r[0] instanceof Date ? r[0].toISOString().slice(0,10) : String(r[0]).slice(0,10);
-      return d;
+      if (r[0] instanceof Date) return r[0].toISOString().slice(0,10);
+      if (typeof r[0] === 'number') {
+        return new Date(Math.round((r[0]-25569)*86400*1000)).toISOString().slice(0,10);
+      }
+      const s = String(r[0]).trim();
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+      return s.slice(0,10);
     }).filter(Boolean));
 
     const weightedRets = [];
@@ -978,15 +984,33 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
 // ── Helper: build portfolio snapshots from trade history ─────────────────────
 function buildPortfolioSnapshots(tradeRows, portfolioData) {
   // Returns array of {date, positions:{name:qty}}
+  function parseTradeDate(v) {
+    if (!v) return null;
+    if (v instanceof Date) return v.toISOString().slice(0,10);
+    if (typeof v === 'number') {
+      // Excel serial date → JS date
+      const dt = new Date(Math.round((v - 25569) * 86400 * 1000));
+      return dt.toISOString().slice(0,10);
+    }
+    const s = String(v).trim();
+    // dd/mm/yyyy
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    // yyyy-mm-dd or ISO
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    return null;
+  }
   const events = [];
   for (const row of tradeRows) {
     if (!row[0]) continue;
-    let d = row[0] instanceof Date ? row[0].toISOString().slice(0,10) : String(row[0]).slice(0,10);
+    const d = parseTradeDate(row[0]);
+    if (!d) continue;
     const dir = String(row[1]||'').trim();
     const name = String(row[3]||'').trim();
     const qty  = parseFloat(row[4])||0;
     if (name && qty && (dir==='Buy'||dir==='Sell')) events.push({d,dir,name,qty});
   }
+  console.log('[buildSnapshots] events:', events.length, events[0]);
   events.sort((a,b)=>a.d.localeCompare(b.d));
   const snapshots = [];
   const pos = {};
