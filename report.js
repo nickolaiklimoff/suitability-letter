@@ -1005,9 +1005,9 @@ function buildPortfolioSnapshots(tradeRows, portfolioData) {
     if (!row[0]) continue;
     const d = parseTradeDate(row[0]);
     if (!d) continue;
-    const dir = String(row[1]||'').trim();
-    const name = String(row[3]||'').trim();
-    const qty  = parseFloat(row[4])||0;
+    const dir  = String(row[2]||'').trim();   // col 2 = Direction
+    const name = String(row[4]||'').trim();   // col 4 = Asset name
+    const qty  = parseFloat(row[6])||0;       // col 6 = Quantity
     if (name && qty && (dir==='Buy'||dir==='Sell')) events.push({d,dir,name,qty});
   }
   console.log('[buildSnapshots] events:', events.length, events[0]);
