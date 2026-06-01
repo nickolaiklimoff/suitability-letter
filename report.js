@@ -1,3 +1,147 @@
+// ─── Section 7: Risk Analysis ────────────────────────────────────────────────
+function buildRiskAnalysisSection(a, portfolioData) {
+  const rc = a.riskContrib;
+  const assetRets = a.assetRets || {};
+  const assets = rc ? rc.items.map(x => x.name) : [];
+
+  function corrCoef(map1, map2) {
+    const dates = Object.keys(map1).filter(d => d in map2);
+    if (dates.length < 10) return null;
+    const xs = dates.map(d=>map1[d]), ys = dates.map(d=>map2[d]);
+    const n=xs.length, mx=xs.reduce((s,v)=>s+v,0)/n, my=ys.reduce((s,v)=>s+v,0)/n;
+    const num=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0);
+    const dx=Math.sqrt(xs.reduce((s,x)=>s+(x-mx)**2,0));
+    const dy=Math.sqrt(ys.reduce((s,y)=>s+(y-my)**2,0));
+    return dx*dy>0?num/(dx*dy):null;
+  }
+
+  function shortName(n) {
+    return n.replace(', ord.','').replace(' Technologies','').replace(' Holdings','')
+             .replace(' Platforms','').replace(' Materials','').replace(' Solutions','')
+             .replace('Advanced Micro Devices','AMD').replace('Rocket Lab USA','RktLab')
+             .replace('BigBear.ai','BigBear').replace('Direxion Daily 20+','TMF')
+             .replace('Year Treasury Bull 3X Shares','').replace('Roundhill Magnificent Seven ETF','MAGS')
+             .replace('(Frankfurt S.E.)','').replace('(Berlin Exchange)','').trim();
+  }
+
+  const rmap = {};
+  for (const asset of assets) {
+    if (assetRets[asset]) rmap[asset] = Object.fromEntries(assetRets[asset].map(x=>[x.date,x.r]));
+  }
+  const validAssets = assets.filter(a => rmap[a] && Object.keys(rmap[a]).length > 20);
+
+  let corrHtml = '';
+  if (validAssets.length >= 2) {
+    const cellStyle = c => {
+      if (c === null) return 'background:#f5f0eb;color:#ccc';
+      if (c >= 1.0)   return 'background:#EAF0EA;color:#5A7259;font-weight:600';
+      if (c >= 0.7)   return 'background:#fee2e2;color:#991b1b;font-weight:600';
+      if (c >= 0.4)   return 'background:#fef9c3;color:#713f12';
+      if (c <= -0.3)  return 'background:#dcfce7;color:#166534;font-weight:600';
+      return 'background:#f5f0eb;color:#5C5148';
+    };
+    corrHtml = `
+    <div style="overflow-x:auto;margin-bottom:1.5rem">
+      <div style="font-size:11px;color:#8B7A68;margin-bottom:0.5rem">Daily return correlations. <span style="background:#fee2e2;padding:1px 4px">Red ≥0.7</span> = high correlation (low diversification). <span style="background:#dcfce7;padding:1px 4px">Green ≤-0.3</span> = negative correlation (good hedge).</div>
+      <table style="border-collapse:collapse;font-size:9px">
+        <thead><tr>
+          <th style="padding:3px 6px;background:#5A7259;color:#fff;text-align:left;white-space:nowrap">Asset</th>
+          ${validAssets.map(a=>`<th style="padding:3px 4px;background:#5A7259;color:#fff;text-align:center;white-space:nowrap;writing-mode:vertical-lr;transform:rotate(180deg);height:60px">${shortName(a)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${validAssets.map(a1=>`<tr>
+            <td style="padding:3px 6px;background:#EAF0EA;font-weight:500;white-space:nowrap;font-size:9px">${shortName(a1)}</td>
+            ${validAssets.map(a2=>{
+              const c = a1===a2 ? 1.0 : corrCoef(rmap[a1],rmap[a2]);
+              return `<td style="padding:3px 4px;text-align:center;${cellStyle(c)}">${c!==null?c.toFixed(2):'—'}</td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  let rcHtml = '';
+  if (rc && rc.items && rc.items.length > 0) {
+    rcHtml = `
+    <div>
+      <div style="font-size:11px;color:#8B7A68;margin-bottom:0.5rem">Component risk contribution = w_i × (Σ w_j × Cov(i,j)) / σ_portfolio. Positions where risk contribution >> weight indicate concentrated risk.</div>
+      <div style="overflow-x:auto">
+      <table class="report-table">
+        <thead><tr><th>Position</th><th>Weight</th><th>Component Risk</th><th>% of Total Risk</th></tr></thead>
+        <tbody>
+          ${rc.items.slice(0,12).map(item=>{
+            const c = Math.abs(item.pct)>20?'#a32d2d':Math.abs(item.pct)>10?'#8B7A68':'#3b6d11';
+            const fw = Math.abs(item.pct)>20?'600':'400';
+            return `<tr>
+              <td>${item.name}</td>
+              <td>${(item.weight*100).toFixed(1)}%</td>
+              <td style="color:${item.rc>=0?'#3b6d11':'#a32d2d'}">${item.rc>=0?'+':''}${(item.rc*100).toFixed(2)}%</td>
+              <td style="color:${c};font-weight:${fw}">${item.pct.toFixed(1)}%</td>
+            </tr>`;
+          }).join('')}
+          <tr style="font-weight:600;background:var(--bg2)">
+            <td colspan="2">Portfolio Volatility (annualised)</td>
+            <td colspan="2">${(rc.portVol*100).toFixed(1)}%</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+  }
+
+  return `
+    <div class="report-section report-section-numbered">
+      <div class="report-section-title">7. Risk Analysis</div>
+      ${corrHtml}
+      ${rcHtml}
+      <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.8rem">
+        Based on ${a.n} daily observations (${a.period}). Excludes capital inflow dates.
+      </div>
+    </div>`;
+}
+
+// ─── Section 8: Benchmark Comparison ─────────────────────────────────────────
+function buildBenchmarkSection(a, clientIR, benchmark) {
+  const bm = a.benchmark;
+  if (!bm) return '';
+  const bmDef = benchmark[clientIR] || {};
+  const wEq   = Math.round((bmDef.equity || 0.515)*100);
+  const wBond = Math.round((bmDef.bond   || 0.475)*100);
+  const wCash = Math.round((bmDef.cash   || 0.010)*100);
+  const alphaColor = bm.alpha >= 0 ? '#3b6d11' : '#a32d2d';
+  const betaColor  = bm.beta  > 1.5 ? '#a32d2d' : bm.beta > 1.0 ? '#8B7A68' : '#3b6d11';
+
+  return `
+    <div class="report-section report-section-numbered">
+      <div class="report-section-title">8. Benchmark Comparison</div>
+      <div style="font-size:12px;color:#8B7A68;margin-bottom:1rem">
+        Benchmark: ${wEq}% MSCI ACWI + ${wBond}% Global Aggregate Bond + ${wCash}% T-Bills (${clientIR})
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1rem">
+        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Beta</div>
+          <div style="font-size:28px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${betaColor}">${bm.beta.toFixed(2)}</div>
+          <div style="font-size:11px;color:#8B7A68">${bm.beta>1.5?'Much more volatile than benchmark':bm.beta>1?'More volatile than benchmark':'Lower volatility than benchmark'}</div>
+        </div>
+        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Alpha (ann.)</div>
+          <div style="font-size:28px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${alphaColor}">${bm.alpha>=0?'+':''}${(bm.alpha*100).toFixed(1)}%</div>
+          <div style="font-size:11px;color:#8B7A68">${bm.alpha>=0?'Outperforming on risk-adjusted basis':'Underperforming on risk-adjusted basis'}</div>
+        </div>
+        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">R²</div>
+          <div style="font-size:28px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:#5C5148">${bm.r2.toFixed(2)}</div>
+          <div style="font-size:11px;color:#8B7A68">${bm.r2<0.3?'Highly idiosyncratic — low benchmark correlation':bm.r2<0.6?'Moderate benchmark correlation':'High benchmark correlation'}</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#8B7A68;font-style:italic">
+        Beta: portfolio move per 1% benchmark move. Alpha: excess annual return after beta adjustment.
+        R²: share of portfolio variance explained by benchmark moves.
+      </div>
+    </div>`;
+}
+
 // ─── Portfolio Report Module ──────────────────────────────────────────────────
 
 // ─── Parse cbonds Excel export ────────────────────────────────────────────────
@@ -441,7 +585,7 @@ function buildCouponsSection(couponRows) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">7. Coupon Payments</div>
+      <div class="report-section-title">10. Coupon Payments</div>
       <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
@@ -493,7 +637,7 @@ function buildDividendsSection(divRows) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">8. Dividends</div>
+      <div class="report-section-title">11. Dividends</div>
       <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
@@ -555,7 +699,7 @@ function buildTradesSection(tradeRows) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">9. Trade History</div>
+      <div class="report-section-title">12. Trade History</div>
       <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
@@ -598,7 +742,7 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">6. Bond Analysis</div>
+      <div class="report-section-title">9. Bond Analysis</div>
       <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
@@ -965,7 +1109,7 @@ function buildAnalyticsSection(a, ccy) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">10. Portfolio Analytics</div>
+      <div class="report-section-title">6. Portfolio Analytics</div>
       <div style="font-size:11px;color:#8B7A68;margin-bottom:0.8rem">
         Based on portfolio value history · Period: ${a.period} · Risk-free rate: ${(a.rf*100).toFixed(1)}% (${ccy} 5Y gov. bond)
       </div>
@@ -1020,33 +1164,7 @@ function buildAnalyticsSection(a, ccy) {
           : `Analytics from portfolio value chart (AI image recognition, ±2–3%). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`}
       </div>
 
-      ${a.benchmark ? `
-      <div style="margin-top:1.2rem">
-        <div style="font-size:13px;font-weight:600;color:#5A7259;margin-bottom:0.5rem">vs Benchmark (${Math.round((a.benchmark.wEq||0.515)*100)}% ACWI + ${Math.round((a.benchmark.wBond||0.475)*100)}% Global Agg)</div>
-        <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
-          <div><span style="font-size:11px;color:#8B7A68">Beta</span><br><strong style="font-size:18px">${a.benchmark.beta.toFixed(2)}</strong></div>
-          <div><span style="font-size:11px;color:#8B7A68">Alpha (ann.)</span><br><strong style="font-size:18px;color:${a.benchmark.alpha>=0?'#3b6d11':'#a32d2d'}">${a.benchmark.alpha>=0?'+':''}${(a.benchmark.alpha*100).toFixed(1)}%</strong></div>
-          <div><span style="font-size:11px;color:#8B7A68">R²</span><br><strong style="font-size:18px">${a.benchmark.r2.toFixed(2)}</strong></div>
-        </div>
-      </div>` : ''}
-
-      ${a.riskContrib ? `
-      <div style="margin-top:1.2rem">
-        <div style="font-size:13px;font-weight:600;color:#5A7259;margin-bottom:0.5rem">Risk Contribution by Position</div>
-        <table class="report-table" style="font-size:10px">
-          <thead><tr><th>Position</th><th>Weight</th><th>Risk Contrib</th><th>% of Total Risk</th></tr></thead>
-          <tbody>
-            ${a.riskContrib.items.slice(0,10).map(rc => `
-            <tr>
-              <td>${rc.name}</td>
-              <td>${(rc.weight*100).toFixed(1)}%</td>
-              <td style="color:${rc.rc>=0?'#3b6d11':'#a32d2d'}">${rc.rc>=0?'+':''}${(rc.rc*100).toFixed(2)}%</td>
-              <td style="color:${Math.abs(rc.pct)>20?'#a32d2d':Math.abs(rc.pct)>10?'#8B7A68':'#3b6d11'}">${rc.pct.toFixed(1)}%</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-        <div style="font-size:10px;color:#8B7A68;margin-top:4px">Portfolio volatility: ${(a.riskContrib.portVol*100).toFixed(1)}% (annualised)</div>
-      </div>` : ''}
+      <!-- Risk/Benchmark moved to sections 7 & 8 -->
 
     </div>`;
 }
@@ -1339,19 +1457,22 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   portfolioData._realTotalPnL  = totalPnL;
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
 
-  // Section 10: analytics — time-series metrics from chart, Total Return from real P&L data
+  // Sections 6/7/8: Portfolio Analytics, Risk Analysis, Benchmark Comparison
   let analyticsHtml = '';
+  let riskAnalysisHtml = '';
+  let benchmarkHtml = '';
   if (portfolioData._analytics) {
     const a = portfolioData._analytics;
-    // Use real P&L total return (cost-basis) instead of chart-derived market return
     const realReturn = totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn;
-    // Recalculate Sharpe with real return (volatility still from chart)
     const realSharpe = a.vol > 0 ? (realReturn - (a.rf || 0.026)) / a.vol : a.sharpe;
-    analyticsHtml = buildAnalyticsSection({
-      ...a,
-      totalReturn: realReturn,
-      sharpe: realSharpe,
-    }, portfolioData.reportCcy || 'USD');
+    const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
+    analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD');
+    if (a.mode === 'full' && a.riskContrib) {
+      riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
+    }
+    if (a.mode === 'full' && a.benchmark) {
+      benchmarkHtml = buildBenchmarkSection(a, clientIR, benchmark);
+    }
   }
 
   return `
@@ -1529,6 +1650,12 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <img src="${breakdownSrc}" style="max-width:100%;height:auto;display:block;border-radius:6px;margin-top:0.5rem" />
       </div>` : ''}
 
+      ${analyticsHtml}
+
+      ${riskAnalysisHtml}
+
+      ${benchmarkHtml}
+
       ${buildBondAnalysisSection(portfolioData.bonds || [], totalValue)}
 
       ${buildCouponsSection(portfolioData.couponRows || [])}
@@ -1536,8 +1663,6 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       ${buildDividendsSection(portfolioData.divRows || [])}
 
       ${buildTradesSection(portfolioData.tradeRows || [])}
-
-      ${analyticsHtml}
 
       <div class="report-disclaimer">
         <div class="report-disclaimer-title">Important Disclaimer</div>
