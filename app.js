@@ -278,6 +278,18 @@ function resetReportForm() {
   const dd = document.getElementById('r-dataDate');
   if (dd) dd.value = '';
 
+  // Clear holding quotes (per-client, not persisted)
+  window._holdingQuotesData = {};
+  const hqStatus = document.getElementById('r-holdingQuotesStatus');
+  if (hqStatus) hqStatus.textContent = '';
+  const hqInput = document.getElementById('r-holdingQuotes');
+  if (hqInput) hqInput.value = '';
+  // Reset analytics mode to chart
+  window._analyticsMode = 'chart';
+  document.querySelectorAll('input[name="analyticsMode"]').forEach(r => r.checked = r.value === 'chart');
+  const aInputs = document.getElementById('analyticsFullInputs');
+  if (aInputs) aInputs.style.display = 'none';
+
   // Reset currency dropdown to USD (will be auto-detected on next file upload)
   const ccy = document.getElementById('r-portfolioCcy');
   if (ccy) ccy.value = 'USD';
@@ -1029,21 +1041,33 @@ window.runPortfolioReport = async function() {
     const chartSrc = document.getElementById('r-chartImg')?.src || '';
     const breakdownSrc = document.getElementById('r-breakdownImg')?.src || '';
 
-    // Extract analytics from chart image via Claude Vision
-    console.log('[analytics] chartSrc starts with data:', chartSrc?.startsWith('data:'), 'apiKey:', !!apiKey, 'portCcy:', portCcy);
-    if (chartSrc && chartSrc.startsWith('data:') && apiKey) {
-      const btn = document.querySelector('.btn-generate');
-      if (btn) btn.textContent = 'Reading chart…';
+    // Analytics — full mode (quotes) or quick mode (chart)
+    const analyticsMode = window._analyticsMode || 'chart';
+    // _realCostBasis and _realTotalPnL set inside generatePortfolioReport
+
+    if (analyticsMode === 'full' && Object.keys(window._holdingQuotesData||{}).length > 0) {
+      const btn2 = document.querySelector('.btn-generate');
+      if (btn2) btn2.textContent = 'Computing analytics…';
       try {
-        portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
-        console.log('[analytics] result:', portfolioData._analytics);
+        portfolioData._analytics = computeFullAnalytics(portfolioData, _benchmark, clientIR);
+        console.log('[analytics] full mode result:', portfolioData._analytics);
       } catch(e) {
-        console.warn('[analytics] extraction failed:', e);
+        console.warn('[analytics] full mode failed:', e);
         portfolioData._analytics = null;
       }
-    } else {
-      console.log('[analytics] skipped — no chart or no apiKey');
-      portfolioData._analytics = null;
+    }
+
+    // Fallback to chart-based analytics if no quotes or full mode failed
+    if (!portfolioData._analytics && chartSrc && chartSrc.startsWith('data:') && apiKey) {
+      const btn2 = document.querySelector('.btn-generate');
+      if (btn2) btn2.textContent = 'Reading chart…';
+      try {
+        portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
+        console.log('[analytics] chart mode result:', portfolioData._analytics);
+      } catch(e) {
+        console.warn('[analytics] chart mode failed:', e);
+        portfolioData._analytics = null;
+      }
     }
 
     window._lastPortfolioData = portfolioData;
@@ -1065,6 +1089,160 @@ window.runPortfolioReport = async function() {
   btn.textContent = 'Generate report ↗';
   btn.disabled = false;
 };
+
+// ─── Analytics mode & file loading ──────────────────────────────────────────
+
+// In-memory stores (holding quotes reset per client, benchmark persists)
+window._holdingQuotesData = {};   // { filename: { date: price } }
+window._benchmarkQuotesData = {}; // { 'ACWI'|'BONDS'|'CASH': { date: price } }
+window._analyticsMode = 'chart';  // 'chart' | 'full'
+
+function setAnalyticsMode(mode) {
+  window._analyticsMode = mode;
+  document.getElementById('analyticsFullInputs').style.display = mode === 'full' ? 'block' : 'none';
+  // If full mode and benchmark not yet loaded, check localStorage
+  if (mode === 'full') loadBenchmarkFromStorage();
+}
+
+// ── Holding quotes ────────────────────────────────────────────────────────────
+async function loadHoldingQuotes(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  const status = document.getElementById('r-holdingQuotesStatus');
+  status.textContent = 'Loading...';
+  window._holdingQuotesData = {};
+  let loaded = 0;
+  for (const file of files) {
+    try {
+      const data = await readXlsxPrices(file);
+      if (data && Object.keys(data).length > 0) {
+        window._holdingQuotesData[file.name] = data;
+        loaded++;
+      }
+    } catch(e) { console.warn('Failed to load', file.name, e); }
+  }
+  status.textContent = `${loaded}/${files.length} files loaded`;
+  // Save to client reportState
+  saveReportState();
+}
+
+// ── Benchmark quotes ──────────────────────────────────────────────────────────
+// Detect which file is ACWI, BONDS, or CASH by filename keywords
+function detectBenchmarkType(filename) {
+  const f = filename.toLowerCase();
+  if (f.includes('acwi') || f.includes('msci')) return 'ACWI';
+  if (f.includes('aggr') || f.includes('aggu') || f.includes('qdvj') || f.includes('aggregate') || f.includes('bond')) return 'BONDS';
+  if (f.includes('t-bill') || f.includes('tbill') || f.includes('bil') || f.includes('cash')) return 'CASH';
+  return null;
+}
+
+async function loadBenchmarkQuotes(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  const status = document.getElementById('r-benchmarkStatus');
+  status.textContent = 'Loading...';
+  let loaded = [];
+  for (const file of files) {
+    const type = detectBenchmarkType(file.name);
+    if (!type) { console.warn('Cannot detect benchmark type for', file.name); continue; }
+    try {
+      const data = await readXlsxPrices(file);
+      if (data && Object.keys(data).length > 0) {
+        window._benchmarkQuotesData[type] = data;
+        loaded.push(type);
+      }
+    } catch(e) { console.warn('Failed to load benchmark', file.name, e); }
+  }
+  // Persist to localStorage (benchmark files reused across sessions)
+  try {
+    localStorage.setItem('suitability-benchmark-quotes', JSON.stringify(window._benchmarkQuotesData));
+  } catch(e) { console.warn('localStorage full:', e); }
+  updateBenchmarkStatus();
+  status.textContent = loaded.length ? loaded.join(', ') + ' loaded' : 'No files recognized';
+}
+
+function loadBenchmarkFromStorage() {
+  if (Object.keys(window._benchmarkQuotesData).length > 0) { updateBenchmarkStatus(); return; }
+  try {
+    const stored = localStorage.getItem('suitability-benchmark-quotes');
+    if (stored) {
+      window._benchmarkQuotesData = JSON.parse(stored);
+      updateBenchmarkStatus();
+    }
+  } catch(e) {}
+}
+
+function updateBenchmarkStatus() {
+  const el = document.getElementById('r-benchmarkLoaded');
+  if (!el) return;
+  const types = Object.keys(window._benchmarkQuotesData);
+  if (types.length === 0) { el.textContent = 'No benchmark data loaded'; return; }
+  const info = types.map(t => {
+    const d = window._benchmarkQuotesData[t];
+    const dates = Object.keys(d).sort();
+    return `${t}: ${dates[0]} → ${dates[dates.length-1]} (${dates.length}d)`;
+  });
+  el.textContent = '✓ ' + info.join('  |  ');
+}
+
+// ── Generic xlsx price reader (works for cbonds export format) ────────────────
+async function readXlsxPrices(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        const prices = {};
+        // Find header row (row with 'Date')
+        let dataStart = 2; // default skip 2 rows
+        for (let i = 0; i < Math.min(rows.length, 5); i++) {
+          if (rows[i] && rows[i].some(c => String(c||'').toLowerCase().includes('date'))) {
+            dataStart = i + 1; break;
+          }
+        }
+        // Detect close price column (Last/Close = col index 4 or 6)
+        const headerRow = rows[dataStart - 1] || [];
+        let closeCol = 4; // default
+        for (let j = 0; j < headerRow.length; j++) {
+          const h = String(headerRow[j]||'').toLowerCase();
+          if (h === 'last' || h === 'last/close' || h === 'close') { closeCol = j; break; }
+          if (h === 'nav per share, usd' || h === 'nav per share') { closeCol = j; break; }
+        }
+        for (let i = dataStart; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || !row[0]) continue;
+          let d = row[0];
+          let p = row[closeCol];
+          if (p === null || p === '' || p === undefined) continue;
+          // Parse date
+          if (d instanceof Date) {
+            d = d.toISOString().slice(0, 10);
+          } else if (typeof d === 'string') {
+            // dd/mm/yyyy or yyyy-mm-dd
+            const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (m) d = m[3] + '-' + m[2] + '-' + m[1];
+            else if (!/^\d{4}-/.test(d)) continue;
+          } else if (typeof d === 'number') {
+            // Excel serial date
+            const dt = new Date(Math.round((d - 25569) * 86400 * 1000));
+            d = dt.toISOString().slice(0, 10);
+          } else continue;
+          prices[d] = parseFloat(p);
+        }
+        resolve(prices);
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+// On page load — restore benchmark from localStorage
+document.addEventListener('DOMContentLoaded', () => {
+  loadBenchmarkFromStorage();
+});
 
 // ─── Display currency switcher ───────────────────────────────────────────────
 let _displayCcy = 'USD';

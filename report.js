@@ -618,6 +618,338 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
 }
 
 // ─── Generate HTML report ─────────────────────────────────────────────────────
+// ─── Full Analytics Engine (from holding quotes) ─────────────────────────────
+
+window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) {
+  try {
+    const holdingQuotes = window._holdingQuotesData || {};
+    if (Object.keys(holdingQuotes).length === 0) return null;
+
+    // ── Map holding names to quote files ──────────────────────────────────────
+    // Match by ticker or name keyword in filename
+    const holdings = portfolioData.stocks || [];
+    const funds    = portfolioData.funds  || [];
+    const bonds    = portfolioData.bonds  || [];
+    const allHoldings = [...holdings, ...funds, ...bonds];
+
+    // Build price map: assetName → {date→price}
+    const priceMap = {};
+    for (const [fname, prices] of Object.entries(holdingQuotes)) {
+      const fl = fname.toLowerCase();
+      for (const h of allHoldings) {
+        const name = (h.name||'').toLowerCase();
+        const ticker = (h.ticker||'').toLowerCase();
+        // match by ticker in filename or significant name words
+        const words = name.split(/[\s,._-]+/).filter(w => w.length > 3);
+        const matched = (ticker && fl.includes(ticker)) ||
+          words.some(w => fl.includes(w)) ||
+          (h.isin && fl.includes((h.isin||'').toLowerCase()));
+        if (matched && !priceMap[h.name]) {
+          priceMap[h.name] = prices;
+        }
+      }
+    }
+
+    const matchedCount = Object.keys(priceMap).length;
+    if (matchedCount < 2) return null; // too few matches
+
+    // ── Portfolio snapshots from trades ──────────────────────────────────────
+    const tradeRows = portfolioData.tradeRows || [];
+    // Build chronological snapshots
+    const snapshots = buildPortfolioSnapshots(tradeRows, portfolioData);
+
+    // ── Build weighted daily returns ──────────────────────────────────────────
+    const allDates = new Set();
+    for (const prices of Object.values(priceMap)) {
+      for (const d of Object.keys(prices)) allDates.add(d);
+    }
+    const sortedDates = [...allDates].filter(d => d >= '2025-09-01').sort();
+
+    const tradeDateSet = new Set(tradeRows.map(r => {
+      if (!r[0]) return null;
+      const d = r[0] instanceof Date ? r[0].toISOString().slice(0,10) : String(r[0]).slice(0,10);
+      return d;
+    }).filter(Boolean));
+
+    const weightedRets = [];
+    const EUR_USD = 1.08;
+
+    for (let i = 1; i < sortedDates.length; i++) {
+      const dPrev = sortedDates[i-1];
+      const dCurr = sortedDates[i];
+      if (tradeDateSet.has(dCurr)) continue; // skip capital inflow days
+
+      const pos = getSnapshotOn(snapshots, dCurr);
+      const posPrev = getSnapshotOn(snapshots, dPrev);
+      if (!pos || !posPrev || JSON.stringify(Object.keys(pos).sort()) !== JSON.stringify(Object.keys(posPrev).sort())) continue;
+
+      // Portfolio value on prev day (for weights)
+      let portValPrev = 0;
+      const assetVals = {};
+      let valid = true;
+      for (const [asset, qty] of Object.entries(posPrev)) {
+        const prices = priceMap[asset];
+        if (!prices || !prices[dPrev]) { valid = false; break; }
+        const ccy = getAssetCcy(asset, portfolioData);
+        let val = prices[dPrev] * qty;
+        if (ccy === 'USD') val /= EUR_USD;
+        assetVals[asset] = val;
+        portValPrev += val;
+      }
+      if (!valid || portValPrev <= 0) continue;
+
+      // Weighted return
+      let rPort = 0;
+      for (const [asset, qty] of Object.entries(posPrev)) {
+        const prices = priceMap[asset];
+        if (!prices[dCurr]) { valid = false; break; }
+        const w = assetVals[asset] / portValPrev;
+        const r = (prices[dCurr] - prices[dPrev]) / prices[dPrev];
+        rPort += w * r;
+      }
+      if (valid) weightedRets.push({ date: dCurr, r: rPort, pos: pos });
+    }
+
+    if (weightedRets.length < 20) return null;
+
+    const rets = weightedRets.map(x => x.r);
+    const n = rets.length;
+    const mean = rets.reduce((s,r)=>s+r,0)/n;
+    const vol = Math.sqrt(rets.reduce((s,r)=>s+(r-mean)**2,0)/(n-1)*252);
+
+    // Real total return from P&L
+    const costBasis = portfolioData._realCostBasis || 1;
+    const totalPnL  = portfolioData._realTotalPnL  || 0;
+    const realReturn = costBasis > 0 ? totalPnL/costBasis : 0;
+    const rfRates = {USD:0.043, EUR:0.026, GBP:0.044, CHF:0.008};
+    const rf = rfRates[portfolioData.reportCcy||'USD'] || 0.043;
+    const sharpe = vol > 0 ? (realReturn - rf)/vol : 0;
+
+    // Max drawdown
+    const equity = [1.0];
+    for (const r of rets) equity.push(equity[equity.length-1]*(1+r));
+    let peak=1, maxDD=0, peakI=0, ddStart=weightedRets[0].date, ddTrough=weightedRets[0].date;
+    for (let i=0;i<equity.length-1;i++) {
+      if (equity[i+1]>peak){peak=equity[i+1];peakI=i;}
+      const dd=(equity[i+1]-peak)/peak;
+      if(dd<maxDD){maxDD=dd;ddTrough=weightedRets[i].date;ddStart=weightedRets[peakI].date;}
+    }
+    let recovery='In progress';
+    for(let i=peakI;i<equity.length-1;i++){
+      if(equity[i+1]>=peak){recovery=weightedRets[i].date.slice(0,7);break;}
+    }
+
+    // Monthly returns
+    const monthly = {};
+    for (const {date, r} of weightedRets) {
+      const m = date.slice(0,7);
+      if (!monthly[m]) monthly[m] = 1;
+      monthly[m] *= (1+r);
+    }
+    const monthlyRets = Object.fromEntries(Object.entries(monthly).map(([m,v])=>[m,v-1]));
+    const mVals = Object.values(monthlyRets);
+    const bestM  = Object.entries(monthlyRets).reduce((a,b)=>b[1]>a[1]?b:a);
+    const worstM = Object.entries(monthlyRets).reduce((a,b)=>b[1]<a[1]?b:a);
+    const posMonths = mVals.filter(v=>v>0).length;
+
+    // ── Benchmark returns ────────────────────────────────────────────────────
+    const bmData = window._benchmarkQuotesData || {};
+    let bmRets = null;
+    if (bmData.ACWI && bmData.BONDS) {
+      const bm = buildBenchmarkReturns(bmData, benchmarkData, irProfile);
+      if (bm && bm.length > 20) {
+        // Beta & Alpha
+        const bmMap = Object.fromEntries(bm);
+        const commonDates = weightedRets.map(x=>x.date).filter(d=>bmMap[d]);
+        if (commonDates.length > 20) {
+          const pr = commonDates.map(d=>weightedRets.find(x=>x.date===d).r);
+          const br = commonDates.map(d=>bmMap[d]);
+          const np=pr.length, mp=pr.reduce((s,r)=>s+r,0)/np, mb=br.reduce((s,r)=>s+r,0)/np;
+          const covPB=pr.reduce((s,r,i)=>s+(r-mp)*(br[i]-mb),0)/(np-1);
+          const varB=br.reduce((s,r)=>s+(r-mb)**2,0)/(np-1);
+          const beta=varB>0?covPB/varB:0;
+          const alpha=(mp-beta*mb)*252;
+          const corrPB=covPB/Math.sqrt(pr.reduce((s,r)=>s+(r-mp)**2,0)/(np-1)*varB)||0;
+          bmRets = { beta, alpha, r2: corrPB**2 };
+        }
+      }
+    }
+
+    // ── Correlation matrix ───────────────────────────────────────────────────
+    const finalPos = getSnapshotOn(snapshots, sortedDates[sortedDates.length-1]);
+    const assetRetsMap = {};
+    if (finalPos) {
+      for (const asset of Object.keys(finalPos)) {
+        if (!priceMap[asset]) continue;
+        const ar = [];
+        for (let i=1;i<sortedDates.length;i++) {
+          const dp=sortedDates[i-1], dc=sortedDates[i];
+          const pp=priceMap[asset][dp], pc=priceMap[asset][dc];
+          if(pp&&pc&&pp>0) ar.push({date:dc,r:(pc-pp)/pp});
+        }
+        if(ar.length>20) assetRetsMap[asset]=ar;
+      }
+    }
+
+    // ── Risk contribution ────────────────────────────────────────────────────
+    let riskContrib = null;
+    if (finalPos) {
+      riskContrib = computeRiskContribution(finalPos, assetRetsMap, portfolioData, EUR_USD);
+    }
+
+    return {
+      period: weightedRets[0].date.slice(0,7) + ' – ' + weightedRets[weightedRets.length-1].date.slice(0,7),
+      n: n, matchedHoldings: matchedCount,
+      totalReturn: realReturn, vol, sharpe, rf,
+      maxDD, ddStart: ddStart.slice(0,7), ddTrough: ddTrough.slice(0,7), ddRecovery: recovery,
+      bestMonth: bestM[1], bestMonthLabel: bestM[0].slice(2).replace('-',"'"),
+      worstMonth: worstM[1], worstMonthLabel: worstM[0].slice(2).replace('-',"'"),
+      posMonths, totalMonths: mVals.length,
+      pctPositive: posMonths/mVals.length,
+      monthlyRets,
+      benchmark: bmRets,
+      riskContrib,
+      assetRets: assetRetsMap,
+      mode: 'full',
+    };
+  } catch(e) {
+    console.error('Full analytics error:', e);
+    return null;
+  }
+};
+
+// ── Helper: build portfolio snapshots from trade history ─────────────────────
+function buildPortfolioSnapshots(tradeRows, portfolioData) {
+  // Returns array of {date, positions:{name:qty}}
+  const events = [];
+  for (const row of tradeRows) {
+    if (!row[0]) continue;
+    let d = row[0] instanceof Date ? row[0].toISOString().slice(0,10) : String(row[0]).slice(0,10);
+    const dir = String(row[1]||'').trim();
+    const name = String(row[3]||'').trim();
+    const qty  = parseFloat(row[4])||0;
+    if (name && qty && (dir==='Buy'||dir==='Sell')) events.push({d,dir,name,qty});
+  }
+  events.sort((a,b)=>a.d.localeCompare(b.d));
+  const snapshots = [];
+  const pos = {};
+  for (const {d,dir,name,qty} of events) {
+    if (dir==='Buy') pos[name]=(pos[name]||0)+qty;
+    else pos[name]=Math.max(0,(pos[name]||0)-qty);
+    snapshots.push({date:d, positions:{...pos}});
+  }
+  return snapshots;
+}
+
+function getSnapshotOn(snapshots, date) {
+  let result = null;
+  for (const s of snapshots) {
+    if (s.date <= date) result = s.positions;
+    else break;
+  }
+  return result;
+}
+
+function getAssetCcy(assetName, portfolioData) {
+  const all = [...(portfolioData.stocks||[]), ...(portfolioData.funds||[]), ...(portfolioData.bonds||[])];
+  const h = all.find(x => x.name === assetName);
+  return h ? (h.currency || 'USD') : 'USD';
+}
+
+function buildBenchmarkReturns(bmData, benchmarkData, irProfile) {
+  // Get weights from IR benchmark
+  const bm = benchmarkData[irProfile] || {};
+  const wEq   = (bm.equity || 0.515);
+  const wBond = (bm.bond   || 0.475);
+  const wCash = (bm.cash   || 0.010);
+
+  const acwiPrices  = bmData.ACWI  || {};
+  const bondPrices  = bmData.BONDS || {};
+  const cashPrices  = bmData.CASH  || {};
+
+  const allBmDates = [...new Set([...Object.keys(acwiPrices), ...Object.keys(bondPrices)])].sort();
+  const bmRets = [];
+  for (let i=1; i<allBmDates.length; i++) {
+    const dp=allBmDates[i-1], dc=allBmDates[i];
+    const ra = acwiPrices[dp]&&acwiPrices[dc] ? (acwiPrices[dc]-acwiPrices[dp])/acwiPrices[dp] : null;
+    const rb = bondPrices[dp]&&bondPrices[dc] ? (bondPrices[dc]-bondPrices[dp])/bondPrices[dp] : null;
+    const rc = cashPrices[dp]&&cashPrices[dc] ? (cashPrices[dc]-cashPrices[dp])/cashPrices[dp] : 0;
+    if (ra===null || rb===null) continue;
+    bmRets.push([dc, wEq*ra + wBond*rb + wCash*rc]);
+  }
+  return bmRets;
+}
+
+function computeRiskContribution(positions, assetRetsMap, portfolioData, EUR_USD) {
+  const assets = Object.keys(positions).filter(a => assetRetsMap[a]);
+  if (assets.length < 2) return null;
+
+  // Common dates
+  const commonDates = assets.reduce((dates, a) => {
+    const ds = new Set(assetRetsMap[a].map(x=>x.date));
+    return dates ? [...dates].filter(d=>ds.has(d)) : [...ds];
+  }, null);
+  if (!commonDates || commonDates.length < 20) return null;
+
+  // Returns matrix
+  const retsByAsset = {};
+  for (const a of assets) {
+    const rmap = Object.fromEntries(assetRetsMap[a].map(x=>[x.date,x.r]));
+    retsByAsset[a] = commonDates.map(d=>rmap[d]||0);
+  }
+  const T = commonDates.length;
+
+  // Covariance matrix (annualised)
+  const means = Object.fromEntries(assets.map(a=>[a, retsByAsset[a].reduce((s,r)=>s+r,0)/T]));
+  const cov = {};
+  for (const a of assets) {
+    cov[a]={};
+    for (const b of assets) {
+      cov[a][b]=retsByAsset[a].reduce((s,r,t)=>s+(r-means[a])*(retsByAsset[b][t]-means[b]),0)/(T-1)*252;
+    }
+  }
+
+  // Current weights (last available prices)
+  const lastDate = commonDates[commonDates.length-1];
+  let portVal = 0;
+  const vals = {};
+  for (const a of assets) {
+    const rmap = Object.fromEntries(assetRetsMap[a].map(x=>[x.date,x.r]));
+    // Approximate current price from returns chain
+    let v = (positions[a]||0) * 100; // relative
+    vals[a] = v;
+    portVal += v;
+  }
+  // Better: use actual last prices
+  const allHoldings = [...(portfolioData.stocks||[]),...(portfolioData.funds||[]),...(portfolioData.bonds||[])];
+  portVal = 0;
+  for (const a of assets) {
+    const h = allHoldings.find(x=>x.name===a);
+    if (h) {
+      let v = (h.convertedHoldingValue || 0);
+      vals[a] = v;
+      portVal += v;
+    }
+  }
+
+  if (portVal === 0) return null;
+  const weights = Object.fromEntries(assets.map(a=>[a, vals[a]/portVal]));
+
+  // Portfolio variance
+  const portVar = assets.reduce((s,a)=>s+assets.reduce((ss,b)=>ss+weights[a]*weights[b]*cov[a][b],0),0);
+  const portVol = Math.sqrt(portVar);
+  if (portVol === 0) return null;
+
+  // Component risk contribution
+  const rc = assets.map(a => {
+    const mcr = assets.reduce((s,b)=>s+weights[b]*cov[a][b],0)/portVol;
+    const cr  = weights[a]*mcr;
+    return { name: a, weight: weights[a], rc: cr, pct: cr/portVol*100 };
+  });
+  rc.sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct));
+  return { items: rc, portVol };
+}
+
 // ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
 function buildAnalyticsSection(a, ccy) {
   const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
@@ -683,8 +1015,39 @@ function buildAnalyticsSection(a, ccy) {
       </div>
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic">
-        Total Return and Sharpe from actual portfolio P&L data. Volatility, Drawdown and monthly distribution from chart analysis (AI image recognition, ±2–3%). Sharpe: (Return − rf) / σ.
+        ${a.mode === 'full'
+          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`
+          : `Analytics from portfolio value chart (AI image recognition, ±2–3%). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`}
       </div>
+
+      ${a.benchmark ? `
+      <div style="margin-top:1.2rem">
+        <div style="font-size:13px;font-weight:600;color:#5A7259;margin-bottom:0.5rem">vs Benchmark (${Math.round((a.benchmark.wEq||0.515)*100)}% ACWI + ${Math.round((a.benchmark.wBond||0.475)*100)}% Global Agg)</div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+          <div><span style="font-size:11px;color:#8B7A68">Beta</span><br><strong style="font-size:18px">${a.benchmark.beta.toFixed(2)}</strong></div>
+          <div><span style="font-size:11px;color:#8B7A68">Alpha (ann.)</span><br><strong style="font-size:18px;color:${a.benchmark.alpha>=0?'#3b6d11':'#a32d2d'}">${a.benchmark.alpha>=0?'+':''}${(a.benchmark.alpha*100).toFixed(1)}%</strong></div>
+          <div><span style="font-size:11px;color:#8B7A68">R²</span><br><strong style="font-size:18px">${a.benchmark.r2.toFixed(2)}</strong></div>
+        </div>
+      </div>` : ''}
+
+      ${a.riskContrib ? `
+      <div style="margin-top:1.2rem">
+        <div style="font-size:13px;font-weight:600;color:#5A7259;margin-bottom:0.5rem">Risk Contribution by Position</div>
+        <table class="report-table" style="font-size:10px">
+          <thead><tr><th>Position</th><th>Weight</th><th>Risk Contrib</th><th>% of Total Risk</th></tr></thead>
+          <tbody>
+            ${a.riskContrib.items.slice(0,10).map(rc => `
+            <tr>
+              <td>${rc.name}</td>
+              <td>${(rc.weight*100).toFixed(1)}%</td>
+              <td style="color:${rc.rc>=0?'#3b6d11':'#a32d2d'}">${rc.rc>=0?'+':''}${(rc.rc*100).toFixed(2)}%</td>
+              <td style="color:${Math.abs(rc.pct)>20?'#a32d2d':Math.abs(rc.pct)>10?'#8B7A68':'#3b6d11'}">${rc.pct.toFixed(1)}%</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:#8B7A68;margin-top:4px">Portfolio volatility: ${(a.riskContrib.portVol*100).toFixed(1)}% (annualised)</div>
+      </div>` : ''}
+
     </div>`;
 }
 
@@ -971,6 +1334,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   const totalIncome = bondTotIncome + fundTotIncome + stockTotIncome;
   const totalPnL = totalUnrealizedPnL + stockTotReal + totalIncome;
   const totalPnLPct = totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—';
+  // Expose for full analytics computation
+  portfolioData._realCostBasis = totalCostBasis;
+  portfolioData._realTotalPnL  = totalPnL;
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
 
   // Section 10: analytics — time-series metrics from chart, Total Return from real P&L data
