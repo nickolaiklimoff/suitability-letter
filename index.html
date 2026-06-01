@@ -29,12 +29,26 @@
       <input type="password" id="apiKey" placeholder="sk-ant-api03-..." oninput="localStorage.setItem('suitability-api-key', this.value)" />
     </div>
     <div class="sidebar-setting">
-      <label>IR Benchmark <span id="benchmarkLoadedLabel" style="color:#3b6d11;font-weight:500"></span></label>
-      <label class="btn-import" for="sidebarBenchmarkFile" style="font-size:12px;padding:5px 10px;margin:0;display:inline-flex">
-        ↑ Upload monthly file
+      <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;display:block">Monthly update</label>
+
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">
+        IR Benchmark <span id="benchmarkLoadedLabel" style="color:#3b6d11;font-weight:500"></span>
+      </label>
+      <label class="btn-import" for="sidebarBenchmarkFile" style="font-size:12px;padding:5px 10px;margin:0 0 8px;display:inline-flex">
+        ↑ IR allocation file
         <input type="file" id="sidebarBenchmarkFile" accept=".xlsx,.xls" style="display:none"
           onchange="loadBenchmarkFile(this)" />
       </label>
+
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">
+        Benchmark ETFs <span id="benchmarkEtfLabel" style="color:#3b6d11;font-weight:500"></span>
+      </label>
+      <label class="btn-import" for="sidebarBenchmarkEtfs" style="font-size:12px;padding:5px 10px;margin:0;display:inline-flex">
+        ↑ ACWI + AGGU + BIL
+        <input type="file" id="sidebarBenchmarkEtfs" accept=".xlsx,.xls" multiple style="display:none"
+          onchange="loadBenchmarkQuotesSidebar(this)" />
+      </label>
+      <div id="benchmarkEtfStatus" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
     </div>
   </aside>
 
@@ -499,18 +513,7 @@
               </div>
             </div>
 
-            <div class="field">
-              <label>Benchmark ETF quotes <span style="font-weight:400;color:var(--text3)">(ACWI + AGGU + BIL — one-time, saved in browser)</span></label>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <label class="btn-import" for="r-benchmarkQuotes">
-                  ↑ Upload benchmark files
-                  <input type="file" id="r-benchmarkQuotes" accept=".xlsx,.xls" multiple style="display:none"
-                    onchange="loadBenchmarkQuotes(this)"/>
-                </label>
-                <span id="r-benchmarkStatus" class="file-name"></span>
-              </div>
-              <div id="r-benchmarkLoaded" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
-            </div>
+            <div id="r-benchmarkLoaded" style="font-size:12px;color:var(--text3)"></div>
           </div>
         </div>
 
@@ -592,8 +595,8 @@
 <script src="data.js"></script>
 <script src="waar.js"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1780323438"></script>
-<script src="app.js?v=1780323438"></script>
+<script src="report.js?v=1780323891"></script>
+<script src="app.js?v=1780323891"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {

@@ -1172,17 +1172,36 @@ function loadBenchmarkFromStorage() {
   } catch(e) {}
 }
 
+// Sidebar wrapper for benchmark ETF upload
+async function loadBenchmarkQuotesSidebar(input) {
+  await loadBenchmarkQuotes(input);
+  updateBenchmarkStatus();
+}
+
 function updateBenchmarkStatus() {
-  const el = document.getElementById('r-benchmarkLoaded');
-  if (!el) return;
   const types = Object.keys(window._benchmarkQuotesData);
-  if (types.length === 0) { el.textContent = 'No benchmark data loaded'; return; }
-  const info = types.map(t => {
-    const d = window._benchmarkQuotesData[t];
-    const dates = Object.keys(d).sort();
-    return `${t}: ${dates[0]} → ${dates[dates.length-1]} (${dates.length}d)`;
-  });
-  el.textContent = '✓ ' + info.join('  |  ');
+
+  // Sidebar label
+  const sideLabel = document.getElementById('benchmarkEtfLabel');
+  const sideStatus = document.getElementById('benchmarkEtfStatus');
+  if (sideLabel) sideLabel.textContent = types.length === 3 ? '✓ Loaded' : types.length > 0 ? `(${types.join(', ')})` : '';
+  if (sideStatus) {
+    if (types.length === 0) { sideStatus.textContent = 'Not loaded'; return; }
+    const info = types.map(t => {
+      const d = window._benchmarkQuotesData[t];
+      const dates = Object.keys(d).sort();
+      return `${t}: ${dates[dates.length-1]}`;
+    });
+    sideStatus.textContent = info.join('  ·  ');
+  }
+
+  // Report tab info
+  const el = document.getElementById('r-benchmarkLoaded');
+  if (el) {
+    el.textContent = types.length > 0
+      ? '✓ Benchmark ETFs loaded: ' + types.join(', ') + ' (from Settings)'
+      : '⚠ No benchmark ETFs — upload ACWI + AGGU + BIL in Settings sidebar';
+  }
 }
 
 // ── Generic xlsx price reader (works for cbonds export format) ────────────────
