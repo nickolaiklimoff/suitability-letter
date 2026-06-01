@@ -303,6 +303,27 @@ function loadClientTab() {
   if (!currentClientId) return;
   const el = document.getElementById('c-name');
   if (el) el.value = clients[currentClientId].name || '';
+  // Restore holding quotes from localStorage
+  loadHoldingQuotesFromStorage();
+}
+
+function loadHoldingQuotesFromStorage() {
+  if (!currentClientId) return;
+  try {
+    const key = 'suitability-holding-quotes-' + currentClientId;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      window._holdingQuotesData = JSON.parse(stored);
+      const count = Object.keys(window._holdingQuotesData).length;
+      const statusEl = document.getElementById('r-holdingQuotesStatus');
+      if (statusEl && count > 0) statusEl.textContent = count + ' files (saved)';
+      console.log('[holdingQuotes] restored', count, 'files from localStorage');
+    } else {
+      window._holdingQuotesData = {};
+    }
+  } catch(e) {
+    window._holdingQuotesData = {};
+  }
 }
 
 function resetLetterForm() {
@@ -1050,19 +1071,19 @@ window.runPortfolioReport = async function() {
     // Full mode: computeFullAnalytics runs AFTER generatePortfolioReport sets _realCostBasis/_realTotalPnL
     // So we pass a flag and compute after HTML generation
     portfolioData._pendingFullAnalytics = analyticsMode === 'full' && holdingFiles.length > 0;
+    console.log('[analytics] mode=', analyticsMode, 'holding files=', holdingFiles.length, 'pending full=', portfolioData._pendingFullAnalytics);
 
-    // Quick mode: chart-based (async, needs API)
-    if (analyticsMode !== 'full' || holdingFiles.length === 0) {
-      if (chartSrc && chartSrc.startsWith('data:') && apiKey) {
-        const btn2 = document.querySelector('.btn-generate');
-        if (btn2) btn2.textContent = 'Reading chart…';
-        try {
-          portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
-          console.log('[analytics] chart result:', portfolioData._analytics ? 'OK' : 'null');
-        } catch(e) {
-          console.warn('[analytics] chart failed:', e);
-          portfolioData._analytics = null;
-        }
+    // Chart-based analytics: run if quick mode OR full mode has no files (fallback)
+    const useChart = (analyticsMode !== 'full' || holdingFiles.length === 0) && chartSrc && chartSrc.startsWith('data:') && apiKey;
+    if (useChart) {
+      const btn2 = document.querySelector('.btn-generate');
+      if (btn2) btn2.textContent = 'Reading chart…';
+      try {
+        portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
+        console.log('[analytics] chart result:', portfolioData._analytics ? 'OK' : 'null');
+      } catch(e) {
+        console.warn('[analytics] chart failed:', e);
+        portfolioData._analytics = null;
       }
     }
 
@@ -1139,7 +1160,14 @@ async function loadHoldingQuotes(input) {
     } catch(e) { console.warn('Failed to load', file.name, e); }
   }
   status.textContent = `${loaded}/${files.length} files loaded`;
-  // Save to client reportState
+  // Persist holding quotes to localStorage for this client
+  try {
+    const key = 'suitability-holding-quotes-' + (window.currentClientId || 'default');
+    localStorage.setItem(key, JSON.stringify(window._holdingQuotesData));
+    console.log('[holdingQuotes] saved', loaded, 'files to localStorage');
+  } catch(e) {
+    console.warn('[holdingQuotes] localStorage save failed (possibly too large):', e.message);
+  }
   saveReportState();
 }
 
