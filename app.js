@@ -1156,8 +1156,8 @@ function detectBenchmarkType(filename) {
 async function loadBenchmarkQuotes(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
-  const status = document.getElementById('r-benchmarkStatus');
-  status.textContent = 'Loading...';
+  const status = document.getElementById('r-benchmarkStatus') || document.getElementById('benchmarkEtfStatus');
+  if (status) status.textContent = 'Loading...';
   let loaded = [];
   for (const file of files) {
     const type = detectBenchmarkType(file.name);
