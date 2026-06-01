@@ -860,7 +860,14 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
       if (valid) weightedRets.push({ date: dCurr, r: rPort, pos: pos });
     }
 
-    if (weightedRets.length < 20) return null;
+    console.log('[fullAnalytics] sortedDates:', sortedDates.length, 'first:', sortedDates[0], 'last:', sortedDates[sortedDates.length-1]);
+    console.log('[fullAnalytics] snapshots:', snapshots.length, snapshots[0]);
+    console.log('[fullAnalytics] tradeDateSet size:', tradeDateSet.size, 'sample:', [...tradeDateSet].slice(0,3));
+    console.log('[fullAnalytics] weightedRets:', weightedRets.length);
+    if (weightedRets.length < 20) {
+      console.warn('[fullAnalytics] not enough returns:', weightedRets.length, '< 20');
+      return null;
+    }
 
     const rets = weightedRets.map(x => x.r);
     const n = rets.length;
