@@ -31,7 +31,7 @@
     <div class="sidebar-setting">
       <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;display:block">Monthly update</label>
       <div id="basePortfoliosSidebarStatus" style="font-size:11px;color:var(--text3);line-height:1.5"></div>
-      <button class="btn-import" style="font-size:12px;padding:5px 10px;margin-top:4px;display:inline-flex;cursor:pointer" onclick="switchTab('base', document.getElementById('tab-btn-base'))">→ Base Portfolios</button>
+      <button class="btn-import" style="font-size:12px;padding:5px 10px;margin-top:4px;display:inline-flex;cursor:pointer" onclick="bpOpen()">→ Base Portfolios</button>
     </div>
   </aside>
 
@@ -51,7 +51,6 @@
         <button class="tab" onclick="switchTab('profile', this)">Profiling</button>
         <button class="tab" onclick="switchTab('client', this)">Client</button>
         <button class="tab" onclick="switchTab('history', this)">History</button>
-        <button class="tab hidden" id="tab-btn-base" onclick="switchTab('base', this)">Base Portfolios</button>
       </div>
 
       <!-- Client Tab -->
@@ -540,82 +539,88 @@
         <div id="reportHistoryList" class="hidden"></div>
       </div>
 
-      <!-- Base Portfolios Tab -->
-      <div id="tab-base" class="tab-content hidden">
-        <div class="section-header">
-          <h2>Base Portfolios</h2>
-          <p style="color:var(--text3);font-size:13px;margin-top:2px">Monthly update — benchmarks, BCA views, portfolio weights &amp; indicative returns</p>
-        </div>
-
-        <!-- 3 upload cards -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">
-
-          <!-- Card 1: Benchmark quotes -->
-          <div class="form-card" style="margin:0">
-            <h3 style="margin-bottom:6px">1. Benchmark quotes</h3>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.4">Upload cbonds xlsx for ACWI, AGGU and BIL. Auto-detected by filename.</p>
-            <label class="btn-import" for="bp-etf-upload" style="font-size:12px;padding:6px 10px;display:inline-flex;cursor:pointer;margin-bottom:8px">
-              ↑ Upload quotes (xlsx)
-              <input type="file" id="bp-etf-upload" accept=".xlsx,.xls" multiple style="display:none" onchange="bpLoadEtfQuotes(this)">
-            </label>
-            <div id="bp-etf-status" style="font-size:11px;color:var(--text3)">No files loaded</div>
-          </div>
-
-          <!-- Card 2: BCA PDF report -->
-          <div class="form-card" style="margin:0">
-            <h3 style="margin-bottom:6px">2. BCA monthly report (PDF)</h3>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.4">Upload PDF — system extracts views, top takeaway and market commentary via AI.</p>
-            <label class="btn-import" for="bp-pdf-upload" style="font-size:12px;padding:6px 10px;display:inline-flex;cursor:pointer;margin-bottom:8px">
-              ↑ Upload BCA PDF
-              <input type="file" id="bp-pdf-upload" accept=".pdf" style="display:none" onchange="bpLoadBcaPdf(this)">
-            </label>
-            <div id="bp-pdf-status" style="font-size:11px;color:var(--text3)">No file loaded</div>
-          </div>
-
-          <!-- Card 3: BCA allocation data (paste) -->
-          <div class="form-card" style="margin:0">
-            <h3 style="margin-bottom:6px">3. BCA allocation data</h3>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.4">Paste text from BCA GAA recommended allocation page (weights, views, performance).</p>
-            <textarea id="bp-alloc-paste" rows="4" placeholder="Paste BCA allocation text here..." style="width:100%;font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);resize:vertical;margin-bottom:8px"></textarea>
-            <button class="btn-secondary" onclick="bpParseAllocText()" style="font-size:12px;padding:4px 10px">Parse</button>
-            <span id="bp-alloc-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
-          </div>
-
-        </div>
-
-        <!-- Parsed data preview (collapsible) -->
-        <div id="bp-parsed-preview" style="display:none;margin-bottom:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <span style="font-size:12px;font-weight:600;color:var(--text2)">Parsed data preview</span>
-            <button class="btn-secondary" onclick="document.getElementById('bp-parsed-detail').classList.toggle('hidden')" style="font-size:11px;padding:2px 8px">Toggle detail</button>
-          </div>
-          <div id="bp-parsed-detail" class="hidden"></div>
-          <div id="bp-parsed-summary" style="font-size:12px;color:var(--text3)"></div>
-        </div>
-
-        <!-- Hidden inputs kept for compatibility with bpSaveAndGenerate -->
-        <input type="hidden" id="bp-ir3-eq" value="51.5">
-        <input type="hidden" id="bp-ir3-bd" value="47.5">
-        <input type="hidden" id="bp-ir3-ca" value="1.0">
-        <input type="hidden" id="bp-ret-eq-12m" value="31.6">
-        <input type="hidden" id="bp-ret-eq-5y" value="76.0">
-        <input type="hidden" id="bp-ret-bd-12m" value="2.3">
-        <input type="hidden" id="bp-ret-bd-5y" value="-9.8">
-        <input type="hidden" id="bp-ret-ca-12m" value="3.72">
-        <input type="hidden" id="bp-ret-ca-5y" value="3.61">
-        <input type="hidden" id="bp-bca-source" value="BCA Research GAA">
-
-        <div style="display:flex;gap:10px;margin:4px 0 16px;flex-wrap:wrap">
-          <button class="btn-primary" onclick="bpSaveAndGenerate()">Generate table</button>
-          <button class="btn-secondary" onclick="bpDownloadXlsx()">↓ Download xlsx</button>
-        </div>
-
-        <div id="bp-table-output" style="margin-top:8px"></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6" id="bp-footnotes"></div>
-      </div>
+      <!-- Base Portfolios Tab - removed from here, now standalone below -->
 
     </div>
   </main>
+
+  <!-- Base Portfolios — standalone panel, independent of client selection -->
+  <div id="basePortfoliosPanel" class="hidden" style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg1);overflow-y:auto;z-index:10;padding:2rem 2.5rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:4px">Orion Ridge Capital</div>
+        <h2 style="font-size:20px;font-weight:600;color:var(--text1)">Base Portfolios</h2>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">Monthly update — benchmarks, BCA views, portfolio weights &amp; indicative returns</div>
+      </div>
+      <button class="btn-secondary" onclick="bpClose()" style="font-size:13px;padding:6px 14px">← Back to clients</button>
+    </div>
+
+    <!-- 3 upload cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">
+
+      <div class="form-card" style="margin:0">
+        <h3 style="margin-bottom:6px">1. Benchmark quotes</h3>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">Upload cbonds xlsx files for benchmark ETFs. Filename auto-detection:<br>
+          <b>ACWI</b> — US4642882579 — iShares MSCI ACWI ETF<br>
+          <b>AGGU</b> — IE00BZ043R46 — iShares Core Global Agg Bond ETF<br>
+          <b>BIL</b> — US78468R6633 — SPDR Bloomberg 1-3M T-Bill ETF
+        </p>
+        <label class="btn-import" for="bp-etf-upload" style="font-size:12px;padding:6px 10px;display:inline-flex;cursor:pointer;margin-bottom:8px">
+          ↑ Upload quotes (xlsx)
+          <input type="file" id="bp-etf-upload" accept=".xlsx,.xls" multiple style="display:none" onchange="bpLoadEtfQuotes(this)">
+        </label>
+        <div id="bp-etf-status" style="font-size:11px;color:var(--text3)">No files loaded</div>
+      </div>
+
+      <div class="form-card" style="margin:0">
+        <h3 style="margin-bottom:6px">2. BCA monthly report (PDF)</h3>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.4">Upload PDF — system extracts overweight/underweight views and top takeaway via AI.</p>
+        <label class="btn-import" for="bp-pdf-upload" style="font-size:12px;padding:6px 10px;display:inline-flex;cursor:pointer;margin-bottom:8px">
+          ↑ Upload BCA PDF
+          <input type="file" id="bp-pdf-upload" accept=".pdf" style="display:none" onchange="bpLoadBcaPdf(this)">
+        </label>
+        <div id="bp-pdf-status" style="font-size:11px;color:var(--text3)">No file loaded</div>
+      </div>
+
+      <div class="form-card" style="margin:0">
+        <h3 style="margin-bottom:6px">3. BCA allocation data</h3>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.4">Paste text from BCA GAA recommended allocation page (weights, views, performance).</p>
+        <textarea id="bp-alloc-paste" rows="5" placeholder="Paste BCA allocation text here..." style="width:100%;font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);resize:vertical;margin-bottom:8px"></textarea>
+        <button class="btn-secondary" onclick="bpParseAllocText()" style="font-size:12px;padding:4px 10px">Parse</button>
+        <span id="bp-alloc-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
+      </div>
+
+    </div>
+
+    <div id="bp-parsed-preview" style="display:none;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">Parsed data</span>
+        <button class="btn-secondary" onclick="document.getElementById('bp-parsed-detail').classList.toggle('hidden')" style="font-size:11px;padding:2px 8px">Toggle detail</button>
+      </div>
+      <div id="bp-parsed-detail" class="hidden"></div>
+      <div id="bp-parsed-summary" style="font-size:12px;color:var(--text3)"></div>
+    </div>
+
+    <!-- Hidden inputs for bpSaveAndGenerate compatibility -->
+    <input type="hidden" id="bp-ir3-eq" value="51.5">
+    <input type="hidden" id="bp-ir3-bd" value="47.5">
+    <input type="hidden" id="bp-ir3-ca" value="1.0">
+    <input type="hidden" id="bp-ret-eq-12m" value="31.6">
+    <input type="hidden" id="bp-ret-eq-5y" value="76.0">
+    <input type="hidden" id="bp-ret-bd-12m" value="2.3">
+    <input type="hidden" id="bp-ret-bd-5y" value="-9.8">
+    <input type="hidden" id="bp-ret-ca-12m" value="3.72">
+    <input type="hidden" id="bp-ret-ca-5y" value="3.61">
+    <input type="hidden" id="bp-bca-source" value="BCA Research GAA">
+
+    <div style="display:flex;gap:10px;margin:4px 0 16px;flex-wrap:wrap">
+      <button class="btn-primary" onclick="bpSaveAndGenerate()">Generate table</button>
+      <button class="btn-secondary" onclick="bpDownloadXlsx()">↓ Download xlsx</button>
+    </div>
+
+    <div id="bp-table-output" style="margin-top:8px"></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6" id="bp-footnotes"></div>
+  </div>
 
   <!-- Letter Modal -->
   <div id="letterModal" class="modal hidden">

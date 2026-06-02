@@ -2310,7 +2310,7 @@ function bpUpdateSidebarStatus() {
     const s = localStorage.getItem('suitability-bp-bca-views');
     if (s) _bpBcaViews = JSON.parse(s);
   } catch(e) {}
-  // If no _benchmark in storage but bp-data exists, restore it
+  // Restore _benchmark from bp-data if needed
   try {
     const bpStored = localStorage.getItem('suitability-bp-data');
     const bmStored = localStorage.getItem('suitability-benchmark');
@@ -2325,46 +2325,52 @@ function bpUpdateSidebarStatus() {
       });
     }
   } catch(e) {}
-
-  // Render BCA table when tab is opened
-  const origSwitch = window.switchTab;
-  if (origSwitch) {
-    window.switchTab = function(tab, el) {
-      origSwitch(tab, el);
-      if (tab === 'base') {
-        bpRenderBcaTable();
-        bpUpdateSidebarStatus();
-        // Restore saved inputs
-        try {
-          const s = localStorage.getItem('suitability-bp-data');
-          if (s) {
-            const bp = JSON.parse(s);
-            document.getElementById('bp-ir3-eq').value = (bp.ir3eq*100).toFixed(1);
-            document.getElementById('bp-ir3-bd').value = (bp.ir3bd*100).toFixed(1);
-            document.getElementById('bp-ir3-ca').value = (bp.ir3ca*100).toFixed(1);
-            document.getElementById('bp-ret-eq-12m').value = bp.rets.eq['12M'];
-            document.getElementById('bp-ret-eq-5y').value  = bp.rets.eq['5Y'];
-            document.getElementById('bp-ret-bd-12m').value = bp.rets.bd['12M'];
-            document.getElementById('bp-ret-bd-5y').value  = bp.rets.bd['5Y'];
-            document.getElementById('bp-ret-ca-12m').value = bp.rets.ca['12M'];
-            document.getElementById('bp-ret-ca-5y').value  = bp.rets.ca['5Y'];
-            if (bp.source) document.getElementById('bp-bca-source').value = bp.source;
-            bpRenderOutputTable(bp.W, bp.rets, bp.source);
-          }
-        } catch(e) {}
-        // Update ETF status
-        const keys = Object.keys(_bpEtfData);
-        if (keys.length > 0) {
-          const st = document.getElementById('bp-etf-status');
-          if (st) st.textContent = `Loaded: ${keys.join(', ')}`;
-        }
-      }
-    };
-  }
-
-  // Update sidebar status on load
   setTimeout(bpUpdateSidebarStatus, 100);
 })();
+
+window.bpOpen = function() {
+  document.getElementById('basePortfoliosPanel').classList.remove('hidden');
+  // Restore saved state
+  bpRestoreState();
+  // Update ETF status
+  const keys = Object.keys(_bpEtfData);
+  if (keys.length > 0) {
+    const st = document.getElementById('bp-etf-status');
+    if (st) st.textContent = `Loaded: ${keys.join(', ')}`;
+  }
+  // Update PDF status
+  try {
+    const t = localStorage.getItem('suitability-bp-takeaway');
+    if (t) {
+      const st = document.getElementById('bp-pdf-status');
+      if (st) { st.textContent = '✓ Views loaded from previous session'; st.style.color = '#3b6d11'; }
+    }
+  } catch(e) {}
+};
+
+window.bpClose = function() {
+  document.getElementById('basePortfoliosPanel').classList.add('hidden');
+};
+
+function bpRestoreState() {
+  try {
+    const s = localStorage.getItem('suitability-bp-data');
+    if (s) {
+      const bp = JSON.parse(s);
+      document.getElementById('bp-ir3-eq').value = (bp.ir3eq*100).toFixed(1);
+      document.getElementById('bp-ir3-bd').value = (bp.ir3bd*100).toFixed(1);
+      document.getElementById('bp-ir3-ca').value = (bp.ir3ca*100).toFixed(1);
+      document.getElementById('bp-ret-eq-12m').value = bp.rets.eq['12M'];
+      document.getElementById('bp-ret-eq-5y').value  = bp.rets.eq['5Y'];
+      document.getElementById('bp-ret-bd-12m').value = bp.rets.bd['12M'];
+      document.getElementById('bp-ret-bd-5y').value  = bp.rets.bd['5Y'];
+      document.getElementById('bp-ret-ca-12m').value = bp.rets.ca['12M'];
+      document.getElementById('bp-ret-ca-5y').value  = bp.rets.ca['5Y'];
+      if (bp.source) document.getElementById('bp-bca-source').value = bp.source;
+      bpRenderOutputTable(bp.W, bp.rets, bp.source);
+    }
+  } catch(e) {}
+}
 
 // ─── BASE PORTFOLIOS — PDF & TEXT PARSING ────────────────────────────────────
 
