@@ -2378,7 +2378,10 @@ window.bpLoadBcaPdf = async function(input) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(e.target.result)));
+      const bytes = new Uint8Array(e.target.result);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
       const apiKey = localStorage.getItem('suitability-api-key');
       if (!apiKey) { status.textContent = 'Add API key in Settings first'; status.style.color = '#a32d2d'; return; }
 
