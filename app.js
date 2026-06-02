@@ -2595,10 +2595,9 @@ window.bpLoadBcaPdf = async function(input) {
 
       status.textContent = 'Extracting views via AI...';
 
-      const bytes = new Uint8Array(e.target.result);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
+      // Convert image to base64
+      const base64 = e.target.result.split(',')[1];
+      const mimeType = file.type || 'image/png';
 
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -2606,7 +2605,6 @@ window.bpLoadBcaPdf = async function(input) {
           'Content-Type': 'application/json',
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'pdfs-2024-09-25',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
@@ -2616,12 +2614,14 @@ window.bpLoadBcaPdf = async function(input) {
             role: 'user',
             content: [
               {
-                type: 'document',
-                source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+                type: 'image',
+                source: { type: 'base64', media_type: mimeType, data: base64 }
               },
               {
                 type: 'text',
-                text: `From this BCA Research GAA monthly report, extract the "Recommended Allocation" table (page 2) showing Previous and Current views for all categories. Return ONLY valid JSON, no markdown:
+                text: `This is the "Recommended Allocation" table from a BCA Research Global Asset Allocation monthly report. The table shows investment views using filled squares: dark filled square = current position, lighter/outline square = previous position. Each row has 5 squares on a scale from — (far left) to + (far right). The middle position = neutral, right of middle = overweight, left of middle = underweight.
+
+Extract all views and return ONLY valid JSON, no markdown:
 {
   "reportTitle": "string",
   "reportDate": "string",
@@ -2667,7 +2667,7 @@ window.bpLoadBcaPdf = async function(input) {
     "fx_em":   {"prev":"...","curr":"..."}
   }
 }
-Use ONLY: overweight, neutral, underweight. The filled dark square = current position, lighter square = previous.`
+Use ONLY: overweight, neutral, underweight. If a category is not visible, use neutral.`
               }
             ]
           }]
@@ -2750,7 +2750,7 @@ Use ONLY: overweight, neutral, underweight. The filled dark square = current pos
       status.style.color = '#a32d2d';
     }
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsDataURL(file);
 };
 
 window.bpParseAllocText = function() {
