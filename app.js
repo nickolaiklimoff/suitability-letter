@@ -2329,16 +2329,15 @@ function bpUpdateSidebarStatus() {
 })();
 
 window.bpOpen = function() {
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('appContent').classList.add('hidden');
   document.getElementById('basePortfoliosPanel').classList.remove('hidden');
-  // Restore saved state
   bpRestoreState();
-  // Update ETF status
   const keys = Object.keys(_bpEtfData);
   if (keys.length > 0) {
     const st = document.getElementById('bp-etf-status');
     if (st) st.textContent = `Loaded: ${keys.join(', ')}`;
   }
-  // Update PDF status
   try {
     const t = localStorage.getItem('suitability-bp-takeaway');
     if (t) {
@@ -2350,6 +2349,12 @@ window.bpOpen = function() {
 
 window.bpClose = function() {
   document.getElementById('basePortfoliosPanel').classList.add('hidden');
+  // Restore previous state — show client content if one was selected
+  if (window.currentClientId) {
+    document.getElementById('appContent').classList.remove('hidden');
+  } else {
+    document.getElementById('emptyState').classList.remove('hidden');
+  }
 };
 
 function bpRestoreState() {
