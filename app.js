@@ -1100,9 +1100,6 @@ window.runPortfolioReport = async function() {
     window._lastBmEquity = bmDef.equity != null ? (bmDef.equity*100).toFixed(1)+'%' : 'N/A';
     window._lastBmBond   = bmDef.bond   != null ? (bmDef.bond*100).toFixed(1)+'%'   : 'N/A';
     window._lastAnalyticsData = analytics;
-    // Auto-generate commentary (async, doesn't block report display)
-    autoGenerateCommentary();
-
     // Full analytics: runs HERE because generatePortfolioReport sets _realCostBasis/_realTotalPnL
     if (portfolioData._pendingFullAnalytics) {
       const btn2 = document.querySelector('.btn-generate');
@@ -1122,6 +1119,9 @@ window.runPortfolioReport = async function() {
         console.warn('[analytics] full analytics error:', e);
       }
     }
+
+    // Auto-generate commentary AFTER full analytics (so it has complete data)
+    autoGenerateCommentary();
 
     // Reset display currency to report base currency
     _displayCcy = portCcy;
@@ -1354,22 +1354,38 @@ function buildCommentaryPrompt() {
     ].filter(Boolean).join(' | ');
   }
 
+  // Add full-mode specific metrics
+  let fullModeText = '';
+  if (analytics && analytics.mode === 'full') {
+    const bm = analytics.benchmark;
+    const rc = analytics.riskContrib;
+    if (bm) fullModeText += `Beta vs benchmark: ${bm.beta.toFixed(2)} | Alpha (ann.): ${(bm.alpha*100).toFixed(1)}% | R²: ${bm.r2.toFixed(2)}. `;
+    if (rc && rc.items) {
+      const top3rc = rc.items.slice(0,3).map(x=>`${x.name.split(',')[0]} (${x.pct.toFixed(0)}% of risk)`).join(', ');
+      fullModeText += `Top risk contributors: ${top3rc}. Portfolio volatility: ${(rc.portVol*100).toFixed(1)}%.`;
+    }
+  }
+
+  const isFullMode = analytics?.mode === 'full';
+
   return `You are writing a concise portfolio risk commentary for an investment advisory report at Orion Ridge Capital.
 
 CLIENT: ${cfg.client?.name || 'Client'}
 RISK PROFILE: ${clientIR} | MAX PERMITTED WAAR: ${maxWaar.toFixed(2)}
-CURRENT WAAR: ${waar != null ? waar.toFixed(2) : 'N/A'} ${waarBreached ? '— BREACH (+' + (waar-maxWaar).toFixed(2) + ')' : '— within corridor'}
+CURRENT WAAR: ${waar != null ? waar.toFixed(2) : 'N/A'} ${waarBreached ? '— BREACH (+' + (waar-maxWaar).toFixed(2) + ' points above ' + clientIR + ' maximum)' : '— within ' + clientIR + ' corridor'}
 
 ASSET ALLOCATION vs ${clientIR} benchmark:
 Equities: ${window._lastEquityPct || 'N/A'} vs ${window._lastBmEquity || 'N/A'} | Bonds: ${window._lastBondPct || 'N/A'} vs ${window._lastBmBond || 'N/A'} | Cash: ${window._lastCashPct || 'N/A'}
 
 TOP 5 POSITIONS: ${topPos}
-METRICS: ${metrics || 'N/A'}
+PERFORMANCE METRICS: ${metrics || 'N/A'}
+${fullModeText ? 'FULL ANALYTICS (daily price data): ' + fullModeText : ''}
 
-Write exactly 3 paragraphs (no headers, no bullets) covering:
-1. Suitability Assessment — WAAR status and allocation vs mandate with exact numbers
-2. Portfolio Behaviour — volatility, drawdown, beta with exact numbers
-3. Performance — total return vs benchmark estimate, key drivers
+Write exactly ${isFullMode ? '4' : '3'} paragraphs (no headers, no bullets) covering:
+1. Suitability Assessment — WAAR status vs ${clientIR} maximum of ${maxWaar.toFixed(2)}, and allocation deviation from benchmark with exact numbers
+2. Portfolio Behaviour — volatility, max drawdown, recovery${isFullMode ? ', beta, alpha vs benchmark' : ''}
+3. Performance — total return, key contributors
+${isFullMode ? '4. Risk Concentration — based on risk contribution analysis, which positions drive the most portfolio risk and what this means for diversification' : ''}
 
 Style: factual, objective, professional investment advisory. No recommendations. No value judgements on specific holdings.`;
 }
