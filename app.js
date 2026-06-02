@@ -2461,7 +2461,9 @@ Use only: overweight, neutral, underweight. If not found, use neutral.` }
       });
 
       const data = await resp.json();
-      console.log('API response:', JSON.stringify(data).slice(0, 500));
+      console.log('HTTP status:', resp.status);
+      console.log('API response:', JSON.stringify(data).slice(0, 1000));
+      if (!resp.ok) throw new Error(`API error ${resp.status}: ${data.error?.message || JSON.stringify(data)}`);
       const text = data.content?.map(c => c.text || '').join('') || '';
       console.log('Text response:', text.slice(0, 500));
       let clean = text.replace(/```json|```/g, '').trim();
