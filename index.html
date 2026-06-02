@@ -559,15 +559,18 @@
 
       <div class="form-card" style="margin:0">
         <h3 style="margin-bottom:6px">1. Benchmark quotes</h3>
-        <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">Upload cbonds xlsx files for benchmark ETFs. Filename auto-detection:<br>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">Upload cbonds xlsx for equity and bond ETFs:<br>
           <b>ACWI</b> — US4642882579 — iShares MSCI ACWI ETF<br>
           <b>AGGU</b> — IE00BZ043R46 — iShares Core Global Agg Bond ETF<br>
-          <b>BIL</b> — US78468R6633 — SPDR Bloomberg 1-3M T-Bill ETF
+          <span style="color:#3b6d11">Cash rates fetched automatically from FRED (US 1Y Treasury GS1)</span>
         </p>
-        <label class="btn-import" for="bp-etf-upload" style="font-size:12px;padding:6px 10px;display:inline-flex;cursor:pointer;margin-bottom:8px">
-          ↑ Upload quotes (xlsx)
-          <input type="file" id="bp-etf-upload" accept=".xlsx,.xls" multiple style="display:none" onchange="bpLoadEtfQuotes(this)">
-        </label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <label class="btn-import" for="bp-etf-upload" style="font-size:12px;padding:6px 10px;display:inline-flex;cursor:pointer">
+            ↑ Upload ACWI + AGGU (xlsx)
+            <input type="file" id="bp-etf-upload" accept=".xlsx,.xls" multiple style="display:none" onchange="bpLoadEtfQuotes(this)">
+          </label>
+          <button class="btn-secondary" onclick="bpFetchFredGS1(document.getElementById('bp-etf-status'))" style="font-size:12px;padding:5px 10px">↓ Fetch cash from FRED</button>
+        </div>
         <div id="bp-etf-status" style="font-size:11px;color:var(--text3)">No files loaded</div>
       </div>
 

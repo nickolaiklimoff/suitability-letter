@@ -2003,23 +2003,88 @@ window.bpLoadEtfQuotes = async function(input) {
           const prices = Object.keys(monthly).sort().map(k=>monthly[k]);
           const m = calcMetrics(prices);
           const fn = file.name.toLowerCase();
-          let key = 'BIL';
+          let key = null;
           if (fn.includes('acwi')||fn.includes('msci')) key = 'ACWI';
           else if (fn.includes('aggr')||fn.includes('aggu')||fn.includes('aggregate')||fn.includes('bond')) key = 'AGGU';
-          _bpEtfData[key] = m;
+          if (key) _bpEtfData[key] = m;
         }
       } catch(e) {}
       done++;
       if (done === files.length) {
         try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
-        const keys = Object.keys(_bpEtfData);
-        if (status) status.textContent = `Loaded: ${keys.join(', ')}`;
-        bpUpdateSidebarStatus();
+        const keys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
+        if (status) status.textContent = `Loaded: ${keys.join(', ')} · Fetching cash rates from FRED...`;
+        bpFetchFredGS1(status);
       }
     };
     reader.readAsArrayBuffer(file);
   });
 };
+
+async function bpFetchFredGS1(statusEl) {
+  try {
+    const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=GS1';
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('FRED fetch failed');
+    const text = await resp.text();
+    const lines = text.trim().split('\n').slice(1); // skip header
+
+    // Parse monthly yields (already in % per annum)
+    const monthly = {};
+    lines.forEach(line => {
+      const [date, val] = line.split(',');
+      if (!date || !val || val.trim() === '.') return;
+      const k = date.trim().slice(0,7); // YYYY-MM
+      monthly[k] = parseFloat(val.trim());
+    });
+
+    const sorted = Object.keys(monthly).sort();
+    const yields = sorted.map(k => monthly[k]); // already annualized %
+
+    // For return: average yield over period (already annualized)
+    // For volatility: annualized std dev of monthly yield changes (in %)
+    function calcCashMetrics(ylds) {
+      if (ylds.length < 3) return {};
+      const changes = [];
+      for (let i=1;i<ylds.length;i++) changes.push(ylds[i]-ylds[i-1]);
+
+      function avgYield(ys) { return ys.reduce((a,v)=>a+v,0)/ys.length; }
+      function stdDevChanges(ch) {
+        if (ch.length<2) return null;
+        const m=ch.reduce((a,v)=>a+v,0)/ch.length;
+        return Math.sqrt(ch.reduce((a,v)=>a+(v-m)**2,0)/(ch.length-1)*12); // annualized
+      }
+
+      const last12y = ylds.slice(-12);
+      const last36y = ylds.slice(-36);
+      const last12c = changes.slice(-12);
+      const last36c = changes.slice(-36);
+
+      return {
+        ret1y: avgYield(last12y),
+        vol1y: stdDevChanges(last12c),
+        ret3y: last36y.length>=33 ? avgYield(last36y) : null,
+        vol3y: last36c.length>=33 ? stdDevChanges(last36c) : null,
+      };
+    }
+
+    const m = calcCashMetrics(yields);
+    _bpEtfData['BIL'] = m;
+    try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
+
+    const keys = Object.keys(_bpEtfData);
+    if (statusEl) {
+      statusEl.textContent = `Loaded: ${keys.filter(k=>k!=='BIL').join(', ')} · Cash: US 1Y Treasury avg ${m.ret1y?.toFixed(2)}% (FRED GS1)`;
+      statusEl.style.color = '#3b6d11';
+    }
+    bpUpdateSidebarStatus();
+  } catch(err) {
+    if (statusEl) {
+      statusEl.textContent += ` · Cash FRED fetch failed: ${err.message}`;
+      statusEl.style.color = '#854f0b';
+    }
+  }
+}
 
 function bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca) {
   const dEq = ir3eq - BP_BM_WEIGHTS.eq.IR3;
@@ -2100,7 +2165,7 @@ function bpRenderOutputTable(W, rets, source) {
   const ETF_META = [
     {key:'ACWI', label:'Equities', isin:'US4642882579', name:'iShares MSCI ACWI ETF', type:'eq'},
     {key:'AGGU', label:'Bonds',    isin:'IE00BZ043R46', name:'AGGU – iShares Core Global Aggregate Bond ETF', type:'bd'},
-    {key:'BIL',  label:'Cash',     isin:'US78468R6633', name:'SPDR Bloomberg 1-3M T-Bill ETF', type:'ca'},
+    {key:'BIL',  label:'Cash',     isin:'GS1',          name:'US 1-Year Treasury CMT — avg yield (FRED GS1)', type:'ca'},
   ];
 
   function weighted(metric, ir) {
@@ -2264,7 +2329,7 @@ window.bpDownloadXlsx = function() {
   const ETF_META = [
     {label:'ACWI', isin:'US4642882579', name:'iShares MSCI ACWI ETF', type:'eq'},
     {label:'AGGU', isin:'IE00BZ043R46', name:'AGGU – iShares Core Global Aggregate Bond UCITS ETF USD Hedged', type:'bd'},
-    {label:'BIL',  isin:'US78468R6633', name:'SPDR Bloomberg 1-3 Month T-Bill ETF', type:'ca'},
+    {label:'BIL',  isin:'GS1',          name:'US 1-Year Treasury CMT – avg yield (FRED GS1)', type:'ca'},
   ];
 
   ETF_META.forEach(e => {
