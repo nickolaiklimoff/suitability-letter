@@ -2554,13 +2554,22 @@ window.bpLoadBcaPdf = async function(input) {
   reader.onload = async function(e) {
     try {
       const bytes = new Uint8Array(e.target.result);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
       const apiKey = localStorage.getItem('suitability-api-key');
       if (!apiKey) { status.textContent = 'Add API key in Settings first'; status.style.color = '#a32d2d'; return; }
 
       status.textContent = 'Extracting views via AI...';
+
+      // Extract text from PDF using basic pattern matching on the binary
+      // Convert bytes to string to find readable text
+      let pdfText = '';
+      for (let i = 0; i < Math.min(bytes.byteLength, 80000); i++) {
+        const c = bytes[i];
+        if (c >= 32 && c < 127) pdfText += String.fromCharCode(c);
+        else if (c === 10 || c === 13) pdfText += ' ';
+      }
+      // Keep only printable ASCII segments of 4+ chars
+      const textChunks = pdfText.match(/[\x20-\x7E]{4,}/g) || [];
+      const cleanText = textChunks.join(' ').slice(0, 12000);
 
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -2570,9 +2579,10 @@ window.bpLoadBcaPdf = async function(input) {
           max_tokens: 4000,
           messages: [{
             role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: `Extract from this BCA Research GAA report and return ONLY valid JSON, no markdown:
+            content: `This is extracted text from a BCA Research Global Asset Allocation monthly report. Extract the investment views and return ONLY valid JSON, no markdown:\n\n${cleanText}\n\nReturn this exact JSON structure:\n{\n  "reportTitle": "string",\n  "reportDate": "string",\n  "topTakeaway": "1-2 sentence top takeaway",\n  "source": "BCA Research GAA, [Month Year]",\n  "views": {\n    "gaa_eq": {"prev":"neutral|overweight|underweight","curr":"..."},\n    "gaa_fi": {"prev":"...","curr":"..."},\n    "gaa_ca": {"prev":"...","curr":"..."},\n    "eq_us": {"prev":"...","curr":"..."},\n    "eq_eu": {"prev":"...","curr":"..."},\n    "eq_jp": {"prev":"...","curr":"..."},\n    "eq_ca": {"prev":"...","curr":"..."},\n    "eq_au": {"prev":"...","curr":"..."},\n    "eq_uk": {"prev":"...","curr":"..."},\n    "eq_cn": {"prev":"...","curr":"..."},\n    "eq_em": {"prev":"...","curr":"..."},\n    "fi_gov": {"prev":"...","curr":"..."},\n    "fi_ig": {"prev":"...","curr":"..."},\n    "fi_hy": {"prev":"...","curr":"..."},\n    "fi_em": {"prev":"...","curr":"..."},\n    "fi_dur": {"prev":"...","curr":"..."},\n    "fi_inf": {"prev":"...","curr":"..."},\n    "sec_fin": {"prev":"...","curr":"..."},\n    "sec_it": {"prev":"...","curr":"..."},\n    "sec_hc": {"prev":"...","curr":"..."},\n    "sec_cs2": {"prev":"...","curr":"..."},\n    "sec_ind": {"prev":"...","curr":"..."},\n    "sec_cd": {"prev":"...","curr":"..."},\n    "sec_cst": {"prev":"...","curr":"..."},\n    "sec_en": {"prev":"...","curr":"..."},\n    "sec_mat": {"prev":"...","curr":"..."},\n    "sec_re": {"prev":"...","curr":"..."},\n    "sec_ut": {"prev":"...","curr":"..."},\n    "fx_usd": {"prev":"...","curr":"..."},\n    "fx_eur": {"prev":"...","curr":"..."},\n    "fx_jpy": {"prev":"...","curr":"..."},\n    "fx_gbp": {"prev":"...","curr":"..."},\n    "fx_aud": {"prev":"...","curr":"..."},\n    "fx_cad": {"prev":"...","curr":"..."},\n    "fx_chf": {"prev":"...","curr":"..."},\n    "fx_cny": {"prev":"...","curr":"..."},\n    "fx_em": {"prev":"...","curr":"..."}\n  }\n}\nUse only: overweight, neutral, underweight. If not found use neutral.`
+          }]
+        })
+      });
 {
   "reportTitle": "string",
   "reportDate": "string",
@@ -2585,45 +2595,6 @@ window.bpLoadBcaPdf = async function(input) {
     "eq_us": {"prev":"...","curr":"..."},
     "eq_eu": {"prev":"...","curr":"..."},
     "eq_jp": {"prev":"...","curr":"..."},
-    "eq_ca": {"prev":"...","curr":"..."},
-    "eq_au": {"prev":"...","curr":"..."},
-    "eq_uk": {"prev":"...","curr":"..."},
-    "eq_cn": {"prev":"...","curr":"..."},
-    "eq_em": {"prev":"...","curr":"..."},
-    "fi_gov": {"prev":"...","curr":"..."},
-    "fi_ig": {"prev":"...","curr":"..."},
-    "fi_hy": {"prev":"...","curr":"..."},
-    "fi_em": {"prev":"...","curr":"..."},
-    "fi_dur": {"prev":"...","curr":"..."},
-    "fi_inf": {"prev":"...","curr":"..."},
-    "sec_fin": {"prev":"...","curr":"..."},
-    "sec_it": {"prev":"...","curr":"..."},
-    "sec_hc": {"prev":"...","curr":"..."},
-    "sec_cs2": {"prev":"...","curr":"..."},
-    "sec_ind": {"prev":"...","curr":"..."},
-    "sec_cd": {"prev":"...","curr":"..."},
-    "sec_cst": {"prev":"...","curr":"..."},
-    "sec_en": {"prev":"...","curr":"..."},
-    "sec_mat": {"prev":"...","curr":"..."},
-    "sec_re": {"prev":"...","curr":"..."},
-    "sec_ut": {"prev":"...","curr":"..."},
-    "fx_usd": {"prev":"...","curr":"..."},
-    "fx_eur": {"prev":"...","curr":"..."},
-    "fx_jpy": {"prev":"...","curr":"..."},
-    "fx_gbp": {"prev":"...","curr":"..."},
-    "fx_aud": {"prev":"...","curr":"..."},
-    "fx_cad": {"prev":"...","curr":"..."},
-    "fx_chf": {"prev":"...","curr":"..."},
-    "fx_cny": {"prev":"...","curr":"..."},
-    "fx_em": {"prev":"...","curr":"..."}
-  }
-}
-Use only: overweight, neutral, underweight. If not found, use neutral.` }
-            ]
-          }]
-        })
-      });
-
       const data = await resp.json();
       console.log('HTTP status:', resp.status);
       console.log('API response:', JSON.stringify(data).slice(0, 1000));
