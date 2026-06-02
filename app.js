@@ -2365,3 +2365,213 @@ function bpUpdateSidebarStatus() {
   // Update sidebar status on load
   setTimeout(bpUpdateSidebarStatus, 100);
 })();
+
+// ─── BASE PORTFOLIOS — PDF & TEXT PARSING ────────────────────────────────────
+
+window.bpLoadBcaPdf = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('bp-pdf-status');
+  status.textContent = 'Reading PDF...';
+  status.style.color = '#854f0b';
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(e.target.result)));
+      const apiKey = localStorage.getItem('suitability-api-key');
+      if (!apiKey) { status.textContent = 'Add API key in Settings first'; status.style.color = '#a32d2d'; return; }
+
+      status.textContent = 'Extracting views via AI...';
+
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+              { type: 'text', text: `Extract from this BCA Research GAA report and return ONLY valid JSON, no markdown:
+{
+  "reportTitle": "string",
+  "reportDate": "string",
+  "topTakeaway": "string (1-2 sentences, the top takeaway)",
+  "source": "string (e.g. BCA Research GAA, June 2026)",
+  "views": {
+    "gaa_eq": {"prev":"neutral|overweight|underweight","curr":"neutral|overweight|underweight"},
+    "gaa_fi": {"prev":"...","curr":"..."},
+    "gaa_ca": {"prev":"...","curr":"..."},
+    "eq_us": {"prev":"...","curr":"..."},
+    "eq_eu": {"prev":"...","curr":"..."},
+    "eq_jp": {"prev":"...","curr":"..."},
+    "eq_ca": {"prev":"...","curr":"..."},
+    "eq_au": {"prev":"...","curr":"..."},
+    "eq_uk": {"prev":"...","curr":"..."},
+    "eq_cn": {"prev":"...","curr":"..."},
+    "eq_em": {"prev":"...","curr":"..."},
+    "fi_gov": {"prev":"...","curr":"..."},
+    "fi_ig": {"prev":"...","curr":"..."},
+    "fi_hy": {"prev":"...","curr":"..."},
+    "fi_em": {"prev":"...","curr":"..."},
+    "fi_dur": {"prev":"...","curr":"..."},
+    "fi_inf": {"prev":"...","curr":"..."},
+    "sec_fin": {"prev":"...","curr":"..."},
+    "sec_it": {"prev":"...","curr":"..."},
+    "sec_hc": {"prev":"...","curr":"..."},
+    "sec_cs2": {"prev":"...","curr":"..."},
+    "sec_ind": {"prev":"...","curr":"..."},
+    "sec_cd": {"prev":"...","curr":"..."},
+    "sec_cst": {"prev":"...","curr":"..."},
+    "sec_en": {"prev":"...","curr":"..."},
+    "sec_mat": {"prev":"...","curr":"..."},
+    "sec_re": {"prev":"...","curr":"..."},
+    "sec_ut": {"prev":"...","curr":"..."},
+    "fx_usd": {"prev":"...","curr":"..."},
+    "fx_eur": {"prev":"...","curr":"..."},
+    "fx_jpy": {"prev":"...","curr":"..."},
+    "fx_gbp": {"prev":"...","curr":"..."},
+    "fx_aud": {"prev":"...","curr":"..."},
+    "fx_cad": {"prev":"...","curr":"..."},
+    "fx_chf": {"prev":"...","curr":"..."},
+    "fx_cny": {"prev":"...","curr":"..."},
+    "fx_em": {"prev":"...","curr":"..."}
+  }
+}
+Use only: overweight, neutral, underweight. If not found, use neutral.` }
+            ]
+          }]
+        })
+      });
+
+      const data = await resp.json();
+      const text = data.content?.map(c => c.text || '').join('') || '';
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+
+      // Apply views
+      if (parsed.views) {
+        Object.entries(parsed.views).forEach(([k, v]) => { _bpBcaViews[k] = v; });
+        try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
+      }
+      if (parsed.source) {
+        document.getElementById('bp-bca-source').value = parsed.source;
+      }
+      // Store top takeaway for use in commentary
+      if (parsed.topTakeaway) {
+        try { localStorage.setItem('suitability-bp-takeaway', parsed.topTakeaway); } catch(e) {}
+      }
+
+      status.textContent = `✓ ${parsed.reportDate || file.name} — views extracted`;
+      status.style.color = '#3b6d11';
+
+      // Show preview
+      const preview = document.getElementById('bp-parsed-preview');
+      const detail = document.getElementById('bp-parsed-detail');
+      const summary = document.getElementById('bp-parsed-summary');
+      if (preview) preview.style.display = 'block';
+      if (summary) summary.textContent = `Top takeaway: ${parsed.topTakeaway || '—'}`;
+      if (detail) {
+        const changed = Object.entries(_bpBcaViews).filter(([k,v]) => v.prev !== v.curr).map(([k]) => k);
+        detail.innerHTML = `<div style="font-size:11px;color:var(--text3);padding:8px;background:var(--bg2);border-radius:4px;margin-bottom:6px">
+          <b>Changed this month:</b> ${changed.length > 0 ? changed.join(', ') : 'none'}<br>
+          <b>Report:</b> ${parsed.reportTitle || '—'}
+        </div>`;
+        detail.classList.remove('hidden');
+      }
+
+    } catch(err) {
+      status.textContent = 'Error: ' + err.message;
+      status.style.color = '#a32d2d';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+window.bpParseAllocText = function() {
+  const text = document.getElementById('bp-alloc-paste').value;
+  const status = document.getElementById('bp-alloc-status');
+  if (!text.trim()) { status.textContent = 'Paste text first'; return; }
+
+  // Parse allocation % for Equities/Bonds/Cash
+  function extractAlloc(label) {
+    const re = new RegExp(label + '[^\\d]+(\\d+\\.?\\d*)%', 'i');
+    const m = text.match(re);
+    return m ? parseFloat(m[1]) : null;
+  }
+
+  const eq = extractAlloc('Equities');
+  const bd = extractAlloc('Bonds');
+  const ca = extractAlloc('Cash');
+
+  // Parse performance numbers
+  function extractPerf(section, period) {
+    // Match section header, then find the period row
+    const sectionRe = new RegExp(section + '[\\s\\S]{0,200}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
+    const m = text.match(sectionRe);
+    return m ? { gaa: parseFloat(m[1]), bm: parseFloat(m[2]) } : null;
+  }
+
+  const eq12m = extractPerf('Equity Allocation \\(Sectors\\)', '12 Months');
+  const eq5y  = extractPerf('Equity Allocation \\(Sectors\\)', '5 Years');
+  const bd12m = extractPerf('Bond Allocation', '12 Months');
+  const bd5y  = extractPerf('Bond Allocation', '5 Years');
+
+  // Parse views from text
+  function extractView(label) {
+    const re = new RegExp(label + '\\s+(Overweight|Neutral|Underweight)', 'i');
+    const m = text.match(re);
+    return m ? m[1].toLowerCase() : null;
+  }
+
+  // Update hidden inputs
+  if (eq !== null) document.getElementById('bp-ir3-eq').value = eq;
+  if (bd !== null) document.getElementById('bp-ir3-bd').value = bd;
+  if (ca !== null) document.getElementById('bp-ir3-ca').value = ca;
+  if (eq12m) document.getElementById('bp-ret-eq-12m').value = eq12m.gaa;
+  if (eq5y)  document.getElementById('bp-ret-eq-5y').value  = eq5y.gaa;
+  if (bd12m) document.getElementById('bp-ret-bd-12m').value = bd12m.gaa;
+  if (bd5y)  document.getElementById('bp-ret-bd-5y').value  = bd5y.gaa;
+
+  // Update BCA views from text if present
+  const viewMap = {
+    'Equities': 'gaa_eq', 'Fixed Income': 'gaa_fi', 'Cash': 'gaa_ca',
+    'US': 'eq_us', 'Euro Area': 'eq_eu', 'Japan': 'eq_jp', 'UK': 'eq_uk',
+    'Canada': 'eq_ca', 'Australia': 'eq_au', 'China': 'eq_cn',
+    'Government': 'fi_gov', 'Investment Grade': 'fi_ig', 'High-Yield': 'fi_hy',
+    'EM Debt': 'fi_em', 'Duration': 'fi_dur', 'Inflation-linked': 'fi_inf',
+    'Financials': 'sec_fin', 'Info Tech': 'sec_it', 'Health Care': 'sec_hc',
+    'Communication Services': 'sec_cs2', 'Industrials': 'sec_ind',
+    'Consumer Disc': 'sec_cd', 'Consumer Staples': 'sec_cst',
+    'Energy': 'sec_en', 'Materials': 'sec_mat', 'Utilities': 'sec_ut', 'Real Estate': 'sec_re',
+    'USD': 'fx_usd', 'EUR': 'fx_eur', 'JPY': 'fx_jpy', 'GBP': 'fx_gbp',
+    'AUD': 'fx_aud', 'CAD': 'fx_cad', 'CHF': 'fx_chf', 'CNY': 'fx_cny',
+  };
+
+  let viewsFound = 0;
+  Object.entries(viewMap).forEach(([label, key]) => {
+    const v = extractView(label);
+    if (v) {
+      if (!_bpBcaViews[key]) _bpBcaViews[key] = {prev: 'neutral', curr: 'neutral'};
+      _bpBcaViews[key].curr = v;
+      viewsFound++;
+    }
+  });
+  try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
+
+  // Store full text for AI commentary context
+  try { localStorage.setItem('suitability-bp-alloc-text', text); } catch(e) {}
+
+  const parts = [];
+  if (eq !== null) parts.push(`Eq ${eq}%`);
+  if (bd !== null) parts.push(`Bd ${bd}%`);
+  if (ca !== null) parts.push(`Ca ${ca}%`);
+  if (eq12m) parts.push(`Eq 12M ${eq12m.gaa}%`);
+  if (bd12m) parts.push(`Bd 12M ${bd12m.gaa}%`);
+  parts.push(`${viewsFound} views`);
+
+  status.textContent = `✓ Parsed: ${parts.join(' · ')}`;
+  status.style.color = '#3b6d11';
+};
