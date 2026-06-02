@@ -2705,22 +2705,56 @@ window.bpParseAllocText = function() {
   const status = document.getElementById('bp-alloc-status');
   if (!text.trim()) { status.textContent = 'Paste text first'; return; }
 
-  // Parse allocation % for Equities/Bonds/Cash
-  function extractAlloc(label) {
-    const re = new RegExp(label + '[^\\d]+(\\d+\\.?\\d*)%', 'i');
-    const m = text.match(re);
+  // Normalise: lowercase, collapse whitespace, strip dates like "01 Jun 2026"
+  const norm = text
+    .replace(/\d{2}\s+[A-Za-z]{3}\s+\d{4}/g, '') // remove dates
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Extract allocation % for Equities/Bonds/Cash (top-level)
+  function extractTopAlloc(label) {
+    // "Equities Overweight 51.5% 50.0%" or "Equities\tOverweight\t51.5%"
+    const re = new RegExp(label + '\\s+(?:overweight|underweight|neutral)\\s+([\\d\\.]+)%', 'i');
+    const m = norm.match(re);
     return m ? parseFloat(m[1]) : null;
   }
 
-  const eq = extractAlloc('Equities');
-  const bd = extractAlloc('Bonds');
-  const ca = extractAlloc('Cash');
+  const eq = extractTopAlloc('Equities');
+  const bd = extractTopAlloc('Bonds');
+  const ca = extractTopAlloc('Cash');
 
-  // Parse performance numbers
+  // Extract view for any label
+  function extractView(label) {
+    // Match label followed (within 60 chars) by overweight/underweight/neutral
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped + '.{0,60}?\\b(overweight|underweight|neutral)\\b', 'i');
+    const m = norm.match(re);
+    return m ? m[1].toLowerCase() : null;
+  }
+
+  // For items that appear twice (prev + curr), take the LAST match as current
+  function extractViewCurrent(label) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped + '.{0,60}?\\b(overweight|underweight|neutral)\\b', 'gi');
+    const matches = [...norm.matchAll(re)];
+    if (matches.length === 0) return null;
+    // Last match = current recommendation
+    return matches[matches.length - 1][1].toLowerCase();
+  }
+
+  function extractViewPrev(label) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped + '.{0,60}?\\b(overweight|underweight|neutral)\\b', 'gi');
+    const matches = [...norm.matchAll(re)];
+    if (matches.length < 2) return extractViewCurrent(label) || 'neutral';
+    return matches[matches.length - 2][1].toLowerCase();
+  }
+
+  // Extract performance numbers
   function extractPerf(section, period) {
-    // Match section header, then find the period row
-    const sectionRe = new RegExp(section + '[\\s\\S]{0,200}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
-    const m = text.match(sectionRe);
+    const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped + '[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
+    const m = text.match(re);
     return m ? { gaa: parseFloat(m[1]), bm: parseFloat(m[2]) } : null;
   }
 
@@ -2728,13 +2762,6 @@ window.bpParseAllocText = function() {
   const eq5y  = extractPerf('Equity Allocation \\(Sectors\\)', '5 Years');
   const bd12m = extractPerf('Bond Allocation', '12 Months');
   const bd5y  = extractPerf('Bond Allocation', '5 Years');
-
-  // Parse views from text
-  function extractView(label) {
-    const re = new RegExp(label + '\\s+(Overweight|Neutral|Underweight)', 'i');
-    const m = text.match(re);
-    return m ? m[1].toLowerCase() : null;
-  }
 
   // Update hidden inputs
   if (eq !== null) document.getElementById('bp-ir3-eq').value = eq;
@@ -2745,33 +2772,63 @@ window.bpParseAllocText = function() {
   if (bd12m) document.getElementById('bp-ret-bd-12m').value = bd12m.gaa;
   if (bd5y)  document.getElementById('bp-ret-bd-5y').value  = bd5y.gaa;
 
-  // Update BCA views from text if present
-  const viewMap = {
-    'Equities': 'gaa_eq', 'Fixed Income': 'gaa_fi', 'Cash': 'gaa_ca',
-    'US': 'eq_us', 'Euro Area': 'eq_eu', 'Japan': 'eq_jp', 'UK': 'eq_uk',
-    'Canada': 'eq_ca', 'Australia': 'eq_au', 'China': 'eq_cn',
-    'Government': 'fi_gov', 'Investment Grade': 'fi_ig', 'High-Yield': 'fi_hy',
-    'EM Debt': 'fi_em', 'Duration': 'fi_dur', 'Inflation-linked': 'fi_inf',
-    'Financials': 'sec_fin', 'Info Tech': 'sec_it', 'Health Care': 'sec_hc',
-    'Communication Services': 'sec_cs2', 'Industrials': 'sec_ind',
-    'Consumer Disc': 'sec_cd', 'Consumer Staples': 'sec_cst',
-    'Energy': 'sec_en', 'Materials': 'sec_mat', 'Utilities': 'sec_ut', 'Real Estate': 'sec_re',
-    'USD': 'fx_usd', 'EUR': 'fx_eur', 'JPY': 'fx_jpy', 'GBP': 'fx_gbp',
-    'AUD': 'fx_aud', 'CAD': 'fx_cad', 'CHF': 'fx_chf', 'CNY': 'fx_cny',
-  };
+  // Map label → key, extract prev+curr
+  const VIEW_MAP = [
+    // GAA
+    {label:'Equities',          key:'gaa_eq'},
+    {label:'Fixed Income',      key:'gaa_fi'},
+    {label:'Cash',              key:'gaa_ca'},
+    // Regions
+    {label:'US',                key:'eq_us'},
+    {label:'Euro Area',         key:'eq_eu'},
+    {label:'Japan',             key:'eq_jp'},
+    {label:'UK',                key:'eq_uk'},
+    {label:'Canada',            key:'eq_ca'},
+    {label:'Australia',         key:'eq_au'},
+    {label:'China',             key:'eq_cn'},
+    {label:'Other EM',          key:'eq_em'},
+    // Fixed income
+    {label:'Government',        key:'fi_gov'},
+    {label:'Investment Grade',  key:'fi_ig'},
+    {label:'High-Yield',        key:'fi_hy'},
+    {label:'EM Debt',           key:'fi_em'},
+    {label:'Duration',          key:'fi_dur'},
+    {label:'Inflation-linked',  key:'fi_inf'},
+    // Sectors
+    {label:'Financials',        key:'sec_fin'},
+    {label:'Info Tech',         key:'sec_it'},
+    {label:'Health Care',       key:'sec_hc'},
+    {label:'Communication Services', key:'sec_cs2'},
+    {label:'Industrials',       key:'sec_ind'},
+    {label:'Consumer Disc',     key:'sec_cd'},
+    {label:'Consumer Staples',  key:'sec_cst'},
+    {label:'Energy',            key:'sec_en'},
+    {label:'Materials',         key:'sec_mat'},
+    {label:'Utilities',         key:'sec_ut'},
+    {label:'Real Estate',       key:'sec_re'},
+    // FX
+    {label:'USD',               key:'fx_usd'},
+    {label:'EUR',               key:'fx_eur'},
+    {label:'JPY',               key:'fx_jpy'},
+    {label:'GBP',               key:'fx_gbp'},
+    {label:'AUD',               key:'fx_aud'},
+    {label:'CAD',               key:'fx_cad'},
+    {label:'CHF',               key:'fx_chf'},
+    {label:'CNY',               key:'fx_cny'},
+    {label:'EM Currencies',     key:'fx_em'},
+  ];
 
   let viewsFound = 0;
-  Object.entries(viewMap).forEach(([label, key]) => {
-    const v = extractView(label);
-    if (v) {
-      if (!_bpBcaViews[key]) _bpBcaViews[key] = {prev: 'neutral', curr: 'neutral'};
-      _bpBcaViews[key].curr = v;
+  VIEW_MAP.forEach(({label, key}) => {
+    const curr = extractViewCurrent(label);
+    const prev = extractViewPrev(label);
+    if (curr) {
+      _bpBcaViews[key] = { prev: prev || curr, curr };
       viewsFound++;
     }
   });
-  try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
 
-  // Store full text for AI commentary context
+  try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
   try { localStorage.setItem('suitability-bp-alloc-text', text); } catch(e) {}
 
   const parts = [];
@@ -2785,6 +2842,5 @@ window.bpParseAllocText = function() {
   status.textContent = `✓ Parsed: ${parts.join(' · ')}`;
   status.style.color = '#3b6d11';
 
-  // Auto-regenerate table with new data
   bpSaveAndGenerate();
 };
