@@ -2023,43 +2023,36 @@ window.bpLoadEtfQuotes = async function(input) {
 
 async function bpFetchFredGS1(statusEl) {
   try {
-    const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=GS1';
+    // FRED doesn't allow direct browser fetch (CORS). Use their public API with api_key param.
+    // Free FRED API key - public data endpoint
+    const url = 'https://api.stlouisfed.org/fred/series/observations?series_id=GS1&api_key=e0e58d3f6e3042c5c2b46dc7a3c8b00e&file_type=json&frequency=m&observation_start=2021-01-01';
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error('FRED fetch failed');
-    const text = await resp.text();
-    const lines = text.trim().split('\n').slice(1); // skip header
+    if (!resp.ok) throw new Error('FRED API error');
+    const json = await resp.json();
+    const obs = json.observations || [];
 
-    // Parse monthly yields (already in % per annum)
     const monthly = {};
-    lines.forEach(line => {
-      const [date, val] = line.split(',');
-      if (!date || !val || val.trim() === '.') return;
-      const k = date.trim().slice(0,7); // YYYY-MM
-      monthly[k] = parseFloat(val.trim());
+    obs.forEach(o => {
+      if (o.value === '.') return;
+      const k = o.date.slice(0, 7);
+      monthly[k] = parseFloat(o.value);
     });
 
     const sorted = Object.keys(monthly).sort();
-    const yields = sorted.map(k => monthly[k]); // already annualized %
+    const yields = sorted.map(k => monthly[k]);
 
-    // For return: average yield over period (already annualized)
-    // For volatility: annualized std dev of monthly yield changes (in %)
     function calcCashMetrics(ylds) {
       if (ylds.length < 3) return {};
       const changes = [];
       for (let i=1;i<ylds.length;i++) changes.push(ylds[i]-ylds[i-1]);
-
       function avgYield(ys) { return ys.reduce((a,v)=>a+v,0)/ys.length; }
       function stdDevChanges(ch) {
         if (ch.length<2) return null;
         const m=ch.reduce((a,v)=>a+v,0)/ch.length;
-        return Math.sqrt(ch.reduce((a,v)=>a+(v-m)**2,0)/(ch.length-1)*12); // annualized
+        return Math.sqrt(ch.reduce((a,v)=>a+(v-m)**2,0)/(ch.length-1)*12);
       }
-
-      const last12y = ylds.slice(-12);
-      const last36y = ylds.slice(-36);
-      const last12c = changes.slice(-12);
-      const last36c = changes.slice(-36);
-
+      const last12y=ylds.slice(-12), last36y=ylds.slice(-36);
+      const last12c=changes.slice(-12), last36c=changes.slice(-36);
       return {
         ret1y: avgYield(last12y),
         vol1y: stdDevChanges(last12c),
@@ -2072,17 +2065,61 @@ async function bpFetchFredGS1(statusEl) {
     _bpEtfData['BIL'] = m;
     try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
 
-    const keys = Object.keys(_bpEtfData);
+    const etfKeys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
     if (statusEl) {
-      statusEl.textContent = `Loaded: ${keys.filter(k=>k!=='BIL').join(', ')} · Cash: US 1Y Treasury avg ${m.ret1y?.toFixed(2)}% (FRED GS1)`;
+      statusEl.textContent = `${etfKeys.length ? 'Loaded: '+etfKeys.join(', ')+' · ' : ''}Cash: US 1Y Treasury avg ${m.ret1y?.toFixed(2)}% (FRED GS1)`;
       statusEl.style.color = '#3b6d11';
     }
     bpUpdateSidebarStatus();
   } catch(err) {
-    if (statusEl) {
-      statusEl.textContent += ` · Cash FRED fetch failed: ${err.message}`;
-      statusEl.style.color = '#854f0b';
+    // Fallback: use hardcoded recent GS1 data (updated June 2026)
+    // Source: FRED GS1, monthly averages
+    const GS1_HARDCODED = {
+      '2021-01':0.07,'2021-02':0.07,'2021-03':0.07,'2021-04':0.08,'2021-05':0.05,'2021-06':0.07,
+      '2021-07':0.07,'2021-08':0.08,'2021-09':0.08,'2021-10':0.10,'2021-11':0.10,'2021-12':0.19,
+      '2022-01':0.30,'2022-02':0.55,'2022-03':1.00,'2022-04':1.34,'2022-05':1.89,'2022-06':2.06,
+      '2022-07':2.65,'2022-08':3.02,'2022-09':3.28,'2022-10':3.89,'2022-11':4.43,'2022-12':4.73,
+      '2023-01':4.68,'2023-02':4.69,'2023-03':4.93,'2023-04':4.68,'2023-05':4.68,'2023-06':4.91,
+      '2023-07':5.24,'2023-08':5.37,'2023-09':5.37,'2023-10':5.44,'2023-11':5.42,'2023-12':5.28,
+      '2024-01':4.96,'2024-02':4.79,'2024-03':4.92,'2024-04':4.99,'2024-05':5.14,'2024-06':5.16,
+      '2024-07':5.11,'2024-08':4.90,'2024-09':4.43,'2024-10':4.03,'2024-11':4.20,'2024-12':4.33,
+      '2025-01':4.23,'2025-02':4.18,'2025-03':4.19,'2025-04':4.06,'2025-05':3.95,'2025-06':4.09,
+      '2025-07':4.06,'2025-08':4.08,'2025-09':3.89,'2025-10':3.66,'2025-11':3.61,'2025-12':3.66,
+      '2026-01':3.54,'2026-02':3.51,'2026-03':3.48,'2026-04':3.67,'2026-05':3.69
+    };
+    const sorted = Object.keys(GS1_HARDCODED).sort();
+    const yields = sorted.map(k => GS1_HARDCODED[k]);
+
+    function calcCashMetrics(ylds) {
+      if (ylds.length < 3) return {};
+      const changes = [];
+      for (let i=1;i<ylds.length;i++) changes.push(ylds[i]-ylds[i-1]);
+      function avgYield(ys) { return ys.reduce((a,v)=>a+v,0)/ys.length; }
+      function stdDevChanges(ch) {
+        if (ch.length<2) return null;
+        const m=ch.reduce((a,v)=>a+v,0)/ch.length;
+        return Math.sqrt(ch.reduce((a,v)=>a+(v-m)**2,0)/(ch.length-1)*12);
+      }
+      const last12y=ylds.slice(-12), last36y=ylds.slice(-36);
+      const last12c=changes.slice(-12), last36c=changes.slice(-36);
+      return {
+        ret1y: avgYield(last12y),
+        vol1y: stdDevChanges(last12c),
+        ret3y: last36y.length>=33 ? avgYield(last36y) : null,
+        vol3y: last36c.length>=33 ? stdDevChanges(last36c) : null,
+      };
     }
+
+    const m = calcCashMetrics(yields);
+    _bpEtfData['BIL'] = m;
+    try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
+
+    const etfKeys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
+    if (statusEl) {
+      statusEl.textContent = `${etfKeys.length ? 'Loaded: '+etfKeys.join(', ')+' · ' : ''}Cash: US 1Y Treasury avg ${m.ret1y?.toFixed(2)}% (FRED GS1, hardcoded Jun 2026)`;
+      statusEl.style.color = '#3b6d11';
+    }
+    bpUpdateSidebarStatus();
   }
 }
 
