@@ -2082,21 +2082,30 @@ function bpRenderOutputTable(W, rets, source) {
   const out = document.getElementById('bp-table-output');
   if (!out) return;
 
-  const fmtW = v => v < 0.00005 ? '—' : (v*100).toFixed(2)+'%';
-  const fmtR = v => (v>=0?'+':'')+v.toFixed(1)+'%';
+  const BRAND = '#5A7259';
+  const BRAND_HDR = '#EAF0EA';
+  const BRAND_DARK = '#3d4f3c';
+  const fmtW = v => v < 0.00005 ? '<span style="color:#aaa">—</span>' : (v*100).toFixed(2)+'%';
+  const fmtR = (v, w) => {
+    if (w === 0) return '<span style="color:#aaa">—</span>';
+    const col = v*w >= 0 ? '#2e7d32' : '#c62828';
+    return `<span style="color:${col};font-weight:500">${v*w>=0?'+':''}${(v*w).toFixed(1)}%</span>`;
+  };
   const fmtV = (v, isRet) => {
-    if (v==null||isNaN(v)) return '—';
-    const col = isRet ? (v>=0?'#2e7d32':'#c62828') : 'inherit';
+    if (v == null || isNaN(v)) return '<span style="color:#aaa">—</span>';
+    const col = isRet ? (v >= 0 ? '#2e7d32' : '#c62828') : BRAND_DARK;
     return `<span style="color:${col}">${v.toFixed(2)}%</span>`;
   };
 
-  const ETF_TYPES = [{key:'ACWI',type:'eq'},{key:'AGGU',type:'bd'},{key:'BIL',type:'ca'}];
-  const ETF_NAMES = {ACWI:'iShares MSCI ACWI ETF',AGGU:'AGGU – iShares Core Global Aggregate Bond ETF',BIL:'SPDR Bloomberg 1-3M T-Bill ETF'};
-  const ETF_ISINS = {ACWI:'US4642882579',AGGU:'IE00BZ043R46',BIL:'US78468R6633'};
+  const ETF_META = [
+    {key:'ACWI', label:'Equities', isin:'US4642882579', name:'iShares MSCI ACWI ETF', type:'eq'},
+    {key:'AGGU', label:'Bonds',    isin:'IE00BZ043R46', name:'AGGU – iShares Core Global Aggregate Bond ETF', type:'bd'},
+    {key:'BIL',  label:'Cash',     isin:'US78468R6633', name:'SPDR Bloomberg 1-3M T-Bill ETF', type:'ca'},
+  ];
 
   function weighted(metric, ir) {
-    let sum=0,ok=false;
-    ETF_TYPES.forEach(e => {
+    let sum=0, ok=false;
+    ETF_META.forEach(e => {
       const w = BP_BM_WEIGHTS[e.type][ir];
       const v = (_bpEtfData[e.key]||{})[metric];
       if (v!=null&&!isNaN(v)&&w>0) { sum+=w*v; ok=true; }
@@ -2104,112 +2113,120 @@ function bpRenderOutputTable(W, rets, source) {
     return ok ? sum : null;
   }
 
-  const irCols = BP_IRS.map(ir => `<th style="text-align:right;padding:0 6px 8px;font-size:10px;font-weight:500;color:var(--text3)${ir==='IR3'?';background:var(--bg2)':''}">${ir}</th>`).join('');
+  // Styles
+  const TS = `font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;border-collapse:collapse;width:100%`;
+  const TH_IR = `text-align:right;padding:6px 8px;font-size:11px;font-weight:600;color:white;background:${BRAND};white-space:nowrap`;
+  const TH_IR3 = `text-align:right;padding:6px 8px;font-size:11px;font-weight:600;color:white;background:${BRAND_DARK};white-space:nowrap`;
+  const TD_R = `text-align:right;padding:5px 8px;border-bottom:0.5px solid #e8e5e0`;
+  const TD_R3 = `text-align:right;padding:5px 8px;border-bottom:0.5px solid #e8e5e0;background:#f5f8f5`;
+  const SEC_HDR = `font-family:'Playfair Display',Georgia,serif;font-size:13px;font-weight:700;color:white;background:${BRAND};padding:7px 10px;letter-spacing:0.02em`;
+  const SUB_HDR = `font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:${BRAND};background:${BRAND_HDR};padding:5px 10px;border-bottom:1px solid #d4e4d4`;
 
-  let h = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
-  <thead><tr><th style="text-align:left;width:22%;padding:0 6px 8px;font-size:10px;color:var(--text3)"></th><th style="text-align:left;font-size:10px;color:var(--text3);padding:0 6px 8px">ISIN</th><th style="text-align:left;font-size:10px;color:var(--text3);padding:0 6px 8px"></th>${irCols}</tr></thead><tbody>`;
+  let h = `<div style="overflow-x:auto;border:1px solid #d4d0c8;border-radius:6px;overflow:hidden">
+  <table style="${TS}">
+  <thead><tr>
+    <th style="text-align:left;padding:6px 10px;font-size:11px;font-weight:600;color:white;background:${BRAND};width:16%"></th>
+    <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:600;color:white;background:${BRAND};width:12%">ISIN</th>
+    <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:600;color:white;background:${BRAND}"></th>
+    ${BP_IRS.map(ir => `<th style="${ir==='IR3'?TH_IR3:TH_IR}">${ir}</th>`).join('')}
+  </tr></thead><tbody>`;
 
-  // Benchmarks block
-  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Benchmarks</td></tr>`;
-  ETF_TYPES.forEach(e => {
-    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-weight:500;padding:6px 6px 1px">${e.key}</td><td style="font-size:10px;color:var(--text3);padding:6px 6px 1px">${ETF_ISINS[e.key]}</td><td style="font-size:10px;color:var(--text3);padding:6px 6px 1px">${ETF_NAMES[e.key]}</td>`;
+  // ── BENCHMARKS ──
+  h += `<tr><td colspan="9" style="${SEC_HDR}">Benchmarks</td></tr>`;
+  ETF_META.forEach(e => {
+    h += `<tr style="background:white">
+      <td style="padding:6px 10px;font-weight:600;font-size:12px;color:${BRAND_DARK};border-bottom:0.5px solid #e8e5e0">
+        ${e.key} <span style="font-weight:400;font-size:10px;color:#888;margin-left:4px">${e.label}</span>
+      </td>
+      <td style="padding:6px 8px;font-size:10px;color:#888;border-bottom:0.5px solid #e8e5e0">${e.isin}</td>
+      <td style="padding:6px 8px;font-size:11px;color:#555;border-bottom:0.5px solid #e8e5e0">${e.name}</td>`;
     BP_IRS.forEach(ir => {
       const w = BP_BM_WEIGHTS[e.type][ir];
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      h += `<td style="text-align:right;padding:6px 6px 1px;${bg}">${w>0?(w*100).toFixed(0)+'%':'—'}</td>`;
+      h += `<td style="${ir==='IR3'?TD_R3:TD_R}">${w>0?(w*100).toFixed(0)+'%':'<span style="color:#aaa">—</span>'}</td>`;
     });
     h += '</tr>';
   });
+  // Metric rows under benchmarks
   [{key:'ret1y',label:'1y return',isRet:true},{key:'ret3y',label:'3y return (ann.)',isRet:true},
    {key:'vol1y',label:'1y volatility',isRet:false},{key:'vol3y',label:'3y volatility (ann.)',isRet:false}
   ].forEach(m => {
-    h += `<tr><td style="font-size:11px;color:var(--text3);padding:2px 6px;padding-left:10px">${m.label}</td><td></td><td></td>`;
+    h += `<tr style="background:#fafaf8"><td style="padding:3px 10px 3px 18px;font-size:11px;color:#777;border-bottom:0.5px solid #ece9e3">${m.label}</td><td style="border-bottom:0.5px solid #ece9e3"></td><td style="border-bottom:0.5px solid #ece9e3"></td>`;
     BP_IRS.forEach(ir => {
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      h += `<td style="text-align:right;padding:2px 6px;${bg}">${fmtV(weighted(m.key,ir),m.isRet)}</td>`;
+      const bg = ir==='IR3' ? 'background:#f5f8f5;' : 'background:#fafaf8;';
+      h += `<td style="text-align:right;padding:3px 8px;border-bottom:0.5px solid #ece9e3;${bg}">${fmtV(weighted(m.key,ir),m.isRet)}</td>`;
     });
     h += '</tr>';
   });
 
-  // Portfolio weights block
-  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Portfolio weights *</td></tr>`;
+  // ── PORTFOLIO WEIGHTS ──
+  h += `<tr><td colspan="9" style="${SEC_HDR}">Portfolio weights <span style="font-size:10px;font-weight:400;opacity:0.8">based on BCA Research GAA</span></td></tr>`;
   [{key:'eq',label:'Equities'},{key:'bd',label:'Bonds'},{key:'ca',label:'Cash'}].forEach(a => {
-    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-weight:500;padding:5px 6px">${a.label}</td><td></td><td></td>`;
+    h += `<tr style="background:white"><td style="padding:6px 10px;font-weight:600;color:${BRAND_DARK};border-bottom:0.5px solid #e8e5e0" colspan="3">${a.label}</td>`;
     BP_IRS.forEach(ir => {
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}">${fmtW(W[ir][a.key])}</td>`;
+      h += `<td style="${ir==='IR3'?TD_R3:TD_R};font-weight:600">${fmtW(W[ir][a.key])}</td>`;
     });
     h += '</tr>';
-    h += `<tr><td style="font-size:10px;color:var(--text3);padding:1px 6px 4px;padding-left:10px">Benchmark</td><td></td><td></td>`;
+    h += `<tr style="background:#fafaf8"><td style="padding:2px 10px 4px 18px;font-size:10px;color:#888;border-bottom:0.5px solid #ece9e3" colspan="3">Benchmark</td>`;
     BP_IRS.forEach(ir => {
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      h += `<td style="text-align:right;padding:1px 6px 4px;font-size:10px;color:var(--text3);${bg}">${(BP_BM_WEIGHTS[a.key][ir]*100).toFixed(0)}%</td>`;
+      const bg = ir==='IR3' ? 'background:#f5f8f5;' : 'background:#fafaf8;';
+      h += `<td style="text-align:right;padding:2px 8px 4px;font-size:10px;color:#888;border-bottom:0.5px solid #ece9e3;${bg}">${(BP_BM_WEIGHTS[a.key][ir]*100).toFixed(0)}%</td>`;
     });
     h += '</tr>';
   });
 
-  // Sectors block
-  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Equity sectors *</td></tr>`;
+  // ── EQUITY SECTORS ──
+  h += `<tr><td colspan="9" style="${SUB_HDR}">Equity sectors</td></tr>`;
   BP_SECTORS.forEach(s => {
-    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px">${s.label}</td><td></td><td></td>`;
+    h += `<tr style="background:white"><td style="padding:4px 10px 4px 18px;font-size:11px;color:#444;border-bottom:0.5px solid #ece9e3" colspan="3">${s.label}</td>`;
     BP_IRS.forEach(ir => {
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      h += `<td style="text-align:right;padding:4px 6px;${bg}">${fmtW(W[ir].eq*s.w)}</td>`;
+      h += `<td style="${ir==='IR3'?TD_R3:TD_R}">${fmtW(W[ir].eq*s.w)}</td>`;
     });
     h += '</tr>';
   });
-  h += `<tr style="border-top:1px solid var(--border)"><td style="font-weight:500;padding:5px 6px">Total equities</td><td></td><td></td>`;
+  h += `<tr style="background:${BRAND_HDR}"><td style="padding:5px 10px;font-weight:600;font-size:11px;color:${BRAND_DARK};border-bottom:1px solid #c8dac8" colspan="3">Total equities</td>`;
   BP_IRS.forEach(ir => {
-    const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-    h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}">${fmtW(W[ir].eq)}</td>`;
+    h += `<td style="text-align:right;padding:5px 8px;font-weight:600;font-size:11px;color:${BRAND_DARK};border-bottom:1px solid #c8dac8;${ir==='IR3'?'background:#deeede;':''}">${fmtW(W[ir].eq)}</td>`;
   });
   h += '</tr>';
 
-  // Bond segments block
-  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Bond segments *</td></tr>`;
+  // ── BOND SEGMENTS ──
+  h += `<tr><td colspan="9" style="${SUB_HDR}">Bond segments</td></tr>`;
   BP_BOND_SEGS.forEach(s => {
-    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px">${s.label}</td><td></td><td></td>`;
+    h += `<tr style="background:white"><td style="padding:4px 10px 4px 18px;font-size:11px;color:#444;border-bottom:0.5px solid #ece9e3" colspan="3">${s.label}</td>`;
     BP_IRS.forEach(ir => {
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      h += `<td style="text-align:right;padding:4px 6px;${bg}">${fmtW(W[ir].bd*s.w)}</td>`;
+      h += `<td style="${ir==='IR3'?TD_R3:TD_R}">${fmtW(W[ir].bd*s.w)}</td>`;
     });
     h += '</tr>';
   });
-  h += `<tr style="border-top:1px solid var(--border)"><td style="font-weight:500;padding:5px 6px">Total bonds</td><td></td><td></td>`;
+  h += `<tr style="background:${BRAND_HDR}"><td style="padding:5px 10px;font-weight:600;font-size:11px;color:${BRAND_DARK};border-bottom:1px solid #c8dac8" colspan="3">Total bonds</td>`;
   BP_IRS.forEach(ir => {
-    const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-    h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}">${fmtW(W[ir].bd)}</td>`;
+    h += `<td style="text-align:right;padding:5px 8px;font-weight:600;font-size:11px;color:${BRAND_DARK};border-bottom:1px solid #c8dac8;${ir==='IR3'?'background:#deeede;':''}">${fmtW(W[ir].bd)}</td>`;
   });
   h += '</tr>';
 
-  // Cash
-  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Cash</td></tr>`;
-  h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px">Cash</td><td></td><td></td>`;
+  // ── CASH ──
+  h += `<tr style="background:white"><td style="padding:5px 10px;font-weight:600;color:${BRAND_DARK};border-bottom:0.5px solid #e8e5e0" colspan="3">Cash</td>`;
   BP_IRS.forEach(ir => {
-    const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-    h += `<td style="text-align:right;padding:4px 6px;${bg}">${fmtW(W[ir].ca)}</td>`;
+    h += `<td style="${ir==='IR3'?TD_R3:TD_R};font-weight:600">${fmtW(W[ir].ca)}</td>`;
   });
   h += '</tr>';
 
-  // Returns
-  [{key:'12M',label:'12-month return **'},{key:'5Y',label:'5-year return **'}].forEach(p => {
-    h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Indicative return — ${p.label}</td></tr>`;
-    [{key:'eq',label:'Equities **'},{key:'bd',label:'Bonds **'},{key:'ca',label:'Cash ***'}].forEach(a => {
-      h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px;padding-left:10px">${a.label}</td><td></td><td></td>`;
+  // ── RETURNS ──
+  [{key:'12M',label:'Indicative returns — 12 months'},{key:'5Y',label:'Indicative returns — 5 years'}].forEach(p => {
+    h += `<tr><td colspan="9" style="${SEC_HDR}">${p.label}</td></tr>`;
+    [{key:'eq',label:'Equities'},{key:'bd',label:'Bonds'},{key:'ca',label:'Cash'}].forEach(a => {
+      h += `<tr style="background:#fafaf8"><td style="padding:4px 10px 4px 18px;font-size:11px;color:#666;border-bottom:0.5px solid #ece9e3" colspan="3">${a.label}</td>`;
       BP_IRS.forEach(ir => {
-        const w=W[ir][a.key], v=rets[a.key][p.key];
-        const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-        const col = w===0 ? 'color:var(--text3)' : v*w>=0?'color:#2e7d32':'color:#c62828';
-        h += `<td style="text-align:right;padding:4px 6px;${bg}${col}">${w===0?'—':fmtR(w*v)}</td>`;
+        const bg = ir==='IR3' ? 'background:#f5f8f5;' : 'background:#fafaf8;';
+        h += `<td style="text-align:right;padding:4px 8px;border-bottom:0.5px solid #ece9e3;${bg}">${fmtR(rets[a.key][p.key], W[ir][a.key])}</td>`;
       });
       h += '</tr>';
     });
-    h += `<tr style="border-top:1px solid var(--border)"><td style="font-weight:500;padding:5px 6px">Portfolio total</td><td></td><td></td>`;
+    h += `<tr style="background:${BRAND_HDR}"><td style="padding:6px 10px;font-weight:600;color:${BRAND_DARK};border-bottom:1px solid #c8dac8" colspan="3">Portfolio total</td>`;
     BP_IRS.forEach(ir => {
       let t=0; ['eq','bd','ca'].forEach(k=>{t+=W[ir][k]*rets[k][p.key];});
-      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
-      const col = t>=0?'color:#2e7d32':'color:#c62828';
-      h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}${col}">${fmtR(t)}</td>`;
+      const col = t>=0?'#2e7d32':'#c62828';
+      h += `<td style="text-align:right;padding:6px 8px;font-weight:600;color:${col};border-bottom:1px solid #c8dac8;${ir==='IR3'?'background:#deeede;':''}">${t>=0?'+':''}${t.toFixed(1)}%</td>`;
     });
     h += '</tr>';
   });
@@ -2218,9 +2235,7 @@ function bpRenderOutputTable(W, rets, source) {
   out.innerHTML = h;
 
   document.getElementById('bp-footnotes').innerHTML =
-    `* Sector and bond segment weights are based on BCA Research GAA benchmark proportions (${source}), scaled by each IR equity/bond allocation.<br>
-     ** Equity return: BCA Research Equity Allocation (Sectors) GAA. Bond return: BCA Research Bond Allocation GAA. Source: ${source}.<br>
-     *** Cash return: average US 1-Year Treasury Constant Maturity yield (GS1). Source: Federal Reserve H.15 via FRED. All returns are indicative only.`;
+    `<span style="color:${BRAND};font-weight:500">Source:</span> ${source}. Sector/segment weights based on BCA Research GAA benchmark proportions, scaled by IR equity/bond allocation. Equity return: BCA Equity Allocation (Sectors) GAA performance. Bond return: BCA Bond Allocation GAA performance. Cash return: avg US 1-Year Treasury CMT (GS1), Federal Reserve H.15 via FRED. All returns are indicative only and do not constitute investment advice.`;
 }
 
 window.bpDownloadXlsx = function() {
