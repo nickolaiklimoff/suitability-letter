@@ -2461,7 +2461,9 @@ Use only: overweight, neutral, underweight. If not found, use neutral.` }
       });
 
       const data = await resp.json();
+      console.log('API response:', JSON.stringify(data).slice(0, 500));
       const text = data.content?.map(c => c.text || '').join('') || '';
+      console.log('Text response:', text.slice(0, 500));
       let clean = text.replace(/```json|```/g, '').trim();
 
       // Extract just the JSON object if there's surrounding text
