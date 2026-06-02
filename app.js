@@ -2590,33 +2590,86 @@ window.bpLoadBcaPdf = async function(input) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
-      const bytes = new Uint8Array(e.target.result);
       const apiKey = localStorage.getItem('suitability-api-key');
       if (!apiKey) { status.textContent = 'Add API key in Settings first'; status.style.color = '#a32d2d'; return; }
 
       status.textContent = 'Extracting views via AI...';
 
-      // Extract text from PDF using basic pattern matching on the binary
-      // Convert bytes to string to find readable text
-      let pdfText = '';
-      for (let i = 0; i < Math.min(bytes.byteLength, 80000); i++) {
-        const c = bytes[i];
-        if (c >= 32 && c < 127) pdfText += String.fromCharCode(c);
-        else if (c === 10 || c === 13) pdfText += ' ';
-      }
-      // Keep only printable ASCII segments of 4+ chars
-      const textChunks = pdfText.match(/[\x20-\x7E]{4,}/g) || [];
-      const cleanText = textChunks.join(' ').slice(0, 12000);
+      const bytes = new Uint8Array(e.target.result);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
 
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'pdfs-2024-09-25',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
         body: JSON.stringify({
           model: 'claude-sonnet-4-5',
           max_tokens: 4000,
           messages: [{
             role: 'user',
-            content: `This is extracted text from a BCA Research Global Asset Allocation monthly report. Extract the investment views and return ONLY valid JSON, no markdown:\n\n${cleanText}\n\nReturn this exact JSON structure:\n{\n  "reportTitle": "string",\n  "reportDate": "string",\n  "topTakeaway": "1-2 sentence top takeaway",\n  "source": "BCA Research GAA, [Month Year]",\n  "views": {\n    "gaa_eq": {"prev":"neutral|overweight|underweight","curr":"..."},\n    "gaa_fi": {"prev":"...","curr":"..."},\n    "gaa_ca": {"prev":"...","curr":"..."},\n    "eq_us": {"prev":"...","curr":"..."},\n    "eq_eu": {"prev":"...","curr":"..."},\n    "eq_jp": {"prev":"...","curr":"..."},\n    "eq_ca": {"prev":"...","curr":"..."},\n    "eq_au": {"prev":"...","curr":"..."},\n    "eq_uk": {"prev":"...","curr":"..."},\n    "eq_cn": {"prev":"...","curr":"..."},\n    "eq_em": {"prev":"...","curr":"..."},\n    "fi_gov": {"prev":"...","curr":"..."},\n    "fi_ig": {"prev":"...","curr":"..."},\n    "fi_hy": {"prev":"...","curr":"..."},\n    "fi_em": {"prev":"...","curr":"..."},\n    "fi_dur": {"prev":"...","curr":"..."},\n    "fi_inf": {"prev":"...","curr":"..."},\n    "sec_fin": {"prev":"...","curr":"..."},\n    "sec_it": {"prev":"...","curr":"..."},\n    "sec_hc": {"prev":"...","curr":"..."},\n    "sec_cs2": {"prev":"...","curr":"..."},\n    "sec_ind": {"prev":"...","curr":"..."},\n    "sec_cd": {"prev":"...","curr":"..."},\n    "sec_cst": {"prev":"...","curr":"..."},\n    "sec_en": {"prev":"...","curr":"..."},\n    "sec_mat": {"prev":"...","curr":"..."},\n    "sec_re": {"prev":"...","curr":"..."},\n    "sec_ut": {"prev":"...","curr":"..."},\n    "fx_usd": {"prev":"...","curr":"..."},\n    "fx_eur": {"prev":"...","curr":"..."},\n    "fx_jpy": {"prev":"...","curr":"..."},\n    "fx_gbp": {"prev":"...","curr":"..."},\n    "fx_aud": {"prev":"...","curr":"..."},\n    "fx_cad": {"prev":"...","curr":"..."},\n    "fx_chf": {"prev":"...","curr":"..."},\n    "fx_cny": {"prev":"...","curr":"..."},\n    "fx_em": {"prev":"...","curr":"..."}\n  }\n}\nUse only: overweight, neutral, underweight. If not found use neutral.`
+            content: [
+              {
+                type: 'document',
+                source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+              },
+              {
+                type: 'text',
+                text: `From this BCA Research GAA monthly report, extract the "Recommended Allocation" table (page 2) showing Previous and Current views for all categories. Return ONLY valid JSON, no markdown:
+{
+  "reportTitle": "string",
+  "reportDate": "string",
+  "topTakeaway": "string",
+  "source": "BCA Research GAA, [Month Year]",
+  "views": {
+    "gaa_eq":  {"prev":"overweight|neutral|underweight", "curr":"overweight|neutral|underweight"},
+    "gaa_fi":  {"prev":"...","curr":"..."},
+    "gaa_ca":  {"prev":"...","curr":"..."},
+    "eq_us":   {"prev":"...","curr":"..."},
+    "eq_eu":   {"prev":"...","curr":"..."},
+    "eq_jp":   {"prev":"...","curr":"..."},
+    "eq_ca":   {"prev":"...","curr":"..."},
+    "eq_au":   {"prev":"...","curr":"..."},
+    "eq_uk":   {"prev":"...","curr":"..."},
+    "eq_cn":   {"prev":"...","curr":"..."},
+    "eq_em":   {"prev":"...","curr":"..."},
+    "fi_gov":  {"prev":"...","curr":"..."},
+    "fi_ig":   {"prev":"...","curr":"..."},
+    "fi_hy":   {"prev":"...","curr":"..."},
+    "fi_em":   {"prev":"...","curr":"..."},
+    "fi_dur":  {"prev":"...","curr":"..."},
+    "fi_inf":  {"prev":"...","curr":"..."},
+    "sec_fin": {"prev":"...","curr":"..."},
+    "sec_it":  {"prev":"...","curr":"..."},
+    "sec_hc":  {"prev":"...","curr":"..."},
+    "sec_cs2": {"prev":"...","curr":"..."},
+    "sec_ind": {"prev":"...","curr":"..."},
+    "sec_cd":  {"prev":"...","curr":"..."},
+    "sec_cst": {"prev":"...","curr":"..."},
+    "sec_en":  {"prev":"...","curr":"..."},
+    "sec_mat": {"prev":"...","curr":"..."},
+    "sec_re":  {"prev":"...","curr":"..."},
+    "sec_ut":  {"prev":"...","curr":"..."},
+    "fx_usd":  {"prev":"...","curr":"..."},
+    "fx_eur":  {"prev":"...","curr":"..."},
+    "fx_jpy":  {"prev":"...","curr":"..."},
+    "fx_gbp":  {"prev":"...","curr":"..."},
+    "fx_aud":  {"prev":"...","curr":"..."},
+    "fx_cad":  {"prev":"...","curr":"..."},
+    "fx_chf":  {"prev":"...","curr":"..."},
+    "fx_cny":  {"prev":"...","curr":"..."},
+    "fx_em":   {"prev":"...","curr":"..."}
+  }
+}
+Use ONLY: overweight, neutral, underweight. The filled dark square = current position, lighter square = previous.`
+              }
+            ]
           }]
         })
       });
