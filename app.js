@@ -2228,42 +2228,114 @@ window.bpDownloadXlsx = function() {
   if (!stored) { alert('Generate table first.'); return; }
   const bp = JSON.parse(stored);
   const W = bp.W;
+  const rets = bp.rets;
+  const source = bp.source || 'BCA Research GAA';
+  const etf = _bpEtfData || {};
 
+  const IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: weights
-  const wData = [];
-  wData.push(['','Benchmarks']);
-  wData.push([]);
-  wData.push(['','tracked by:','','','','IR1','IR2','IR3','IR4','IR5','IR6']);
-  wData.push(['Equities','US4642882579','iShares MSCI ACWI ETF','','',0,0.20,0.60,0.80,0.90,1.00]);
-  wData.push(['Bonds','IE00BZ043R46','AGGU - iShares Core Global Aggregate Bond UCITS ETF USD Hedged','','',0.10,0.40,0.40,0.20,0.10,0]);
-  wData.push(['Cash','US78468R6633','SPDR® Bloomberg 1-3 Month T-Bill ETF','','',0.90,0.40,0,0,0,0]);
-  wData.push([]);
-  wData.push(['','Portfolios ' + new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})]);
-  wData.push([]);
-  wData.push(['','','','','','IR1','IR2','IR3','IR4','IR5','IR6']);
-  wData.push(['Equities','','','','',W.IR1.eq,W.IR2.eq,W.IR3.eq,W.IR4.eq,W.IR5.eq,W.IR6.eq]);
-  wData.push(['Bonds','','','','',W.IR1.bd,W.IR2.bd,W.IR3.bd,W.IR4.bd,W.IR5.bd,W.IR6.bd]);
-  wData.push(['Cash','','','','',W.IR1.ca,W.IR2.ca,W.IR3.ca,W.IR4.ca,W.IR5.ca,W.IR6.ca]);
-  wData.push([]);
-  wData.push(['','tracked by:']);
+  // ── Sheet 1: Base Portfolios (mirrors the on-screen table) ──
+  const d = [];
+  const fmtPct = v => v == null ? '—' : parseFloat((v*100).toFixed(4));
+  const fmtRet = v => v == null ? '—' : parseFloat(v.toFixed(2));
+
+  const header = ['', 'ISIN', 'Name / description', ...IRS];
+
+  // BENCHMARKS
+  d.push(['BENCHMARKS', '', '', ...IRS.map(ir => ir)]);
+  d.push(header);
+
+  const ETF_META = [
+    {label:'ACWI', isin:'US4642882579', name:'iShares MSCI ACWI ETF', type:'eq'},
+    {label:'AGGU', isin:'IE00BZ043R46', name:'AGGU – iShares Core Global Aggregate Bond UCITS ETF USD Hedged', type:'bd'},
+    {label:'BIL',  isin:'US78468R6633', name:'SPDR Bloomberg 1-3 Month T-Bill ETF', type:'ca'},
+  ];
+
+  ETF_META.forEach(e => {
+    d.push([e.label, e.isin, e.name, ...IRS.map(ir => {
+      const w = BP_BM_WEIGHTS[e.type][ir];
+      return w > 0 ? fmtPct(w) : '—';
+    })]);
+  });
+
+  // Weighted benchmark metrics
+  function weightedMetric(metric, ir) {
+    let sum = 0, ok = false;
+    ETF_META.forEach(e => {
+      const w = BP_BM_WEIGHTS[e.type][ir];
+      const v = (etf[e.label] || {})[metric];
+      if (v != null && !isNaN(v) && w > 0) { sum += w * v; ok = true; }
+    });
+    return ok ? parseFloat(sum.toFixed(2)) : '—';
+  }
+
+  d.push(['1y return (ann.)', '', '', ...IRS.map(ir => weightedMetric('ret1y', ir))]);
+  d.push(['3y return (ann.)', '', '', ...IRS.map(ir => weightedMetric('ret3y', ir))]);
+  d.push(['1y volatility', '', '', ...IRS.map(ir => weightedMetric('vol1y', ir))]);
+  d.push(['3y volatility', '', '', ...IRS.map(ir => weightedMetric('vol3y', ir))]);
+  d.push([]);
+
+  // PORTFOLIO WEIGHTS
+  d.push(['PORTFOLIO WEIGHTS *']);
+  d.push(['', '', '', ...IRS]);
+  d.push(['Equities', '', '', ...IRS.map(ir => fmtPct(W[ir].eq))]);
+  d.push(['  Benchmark', '', '', ...IRS.map(ir => fmtPct(BP_BM_WEIGHTS.eq[ir]))]);
+  d.push(['Bonds', '', '', ...IRS.map(ir => fmtPct(W[ir].bd))]);
+  d.push(['  Benchmark', '', '', ...IRS.map(ir => fmtPct(BP_BM_WEIGHTS.bd[ir]))]);
+  d.push(['Cash', '', '', ...IRS.map(ir => fmtPct(W[ir].ca))]);
+  d.push(['  Benchmark', '', '', ...IRS.map(ir => fmtPct(BP_BM_WEIGHTS.ca[ir]))]);
+  d.push([]);
+
+  // EQUITY SECTORS
+  d.push(['EQUITY SECTORS *']);
+  d.push(['', '', '', ...IRS]);
   BP_SECTORS.forEach(s => {
-    wData.push([s.label,'','',s.w,'',
-      W.IR1.eq*s.w, W.IR2.eq*s.w, W.IR3.eq*s.w, W.IR4.eq*s.w, W.IR5.eq*s.w, W.IR6.eq*s.w]);
+    d.push([s.label, '', '', ...IRS.map(ir => fmtPct(W[ir].eq * s.w))]);
   });
-  wData.push([]);
+  d.push(['Total equities', '', '', ...IRS.map(ir => fmtPct(W[ir].eq))]);
+  d.push([]);
+
+  // BOND SEGMENTS
+  d.push(['BOND SEGMENTS *']);
+  d.push(['', '', '', ...IRS]);
   BP_BOND_SEGS.forEach(s => {
-    wData.push([s.label,'','',s.w,'',
-      W.IR1.bd*s.w, W.IR2.bd*s.w, W.IR3.bd*s.w, W.IR4.bd*s.w, W.IR5.bd*s.w, W.IR6.bd*s.w]);
+    d.push([s.label, '', '', ...IRS.map(ir => fmtPct(W[ir].bd * s.w))]);
   });
-  wData.push([]);
-  wData.push(['Cash','US78468R6633','SPDR® Bloomberg 1-3 Month T-Bill ETF',1,'',
-    W.IR1.ca, W.IR2.ca, W.IR3.ca, W.IR4.ca, W.IR5.ca, W.IR6.ca]);
+  d.push(['Total bonds', '', '', ...IRS.map(ir => fmtPct(W[ir].bd))]);
+  d.push([]);
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wData), 'weights');
+  // CASH
+  d.push(['CASH']);
+  d.push(['Cash', '', '', ...IRS.map(ir => fmtPct(W[ir].ca))]);
+  d.push([]);
 
-  // Sheet 2: for reporting IR3
+  // INDICATIVE RETURNS
+  [['12M', '12-month return'], ['5Y', '5-year return']].forEach(([key, label]) => {
+    d.push([`INDICATIVE RETURN — ${label} **`]);
+    d.push(['', '', '', ...IRS]);
+    d.push(['Equities **', '', '', ...IRS.map(ir => W[ir].eq === 0 ? '—' : fmtRet(W[ir].eq * rets.eq[key]))]);
+    d.push(['Bonds **', '', '', ...IRS.map(ir => W[ir].bd === 0 ? '—' : fmtRet(W[ir].bd * rets.bd[key]))]);
+    d.push(['Cash ***', '', '', ...IRS.map(ir => W[ir].ca === 0 ? '—' : fmtRet(W[ir].ca * rets.ca[key]))]);
+    d.push(['Portfolio total', '', '', ...IRS.map(ir => {
+      let t = 0;
+      ['eq','bd','ca'].forEach(k => { t += W[ir][k] * rets[k][key]; });
+      return fmtRet(t);
+    })]);
+    d.push([]);
+  });
+
+  // Footnotes
+  d.push([`* Sector/segment weights based on BCA Research GAA benchmark proportions (${source}), scaled by IR equity/bond allocation.`]);
+  d.push([`** Equity: BCA Equity Allocation (Sectors) GAA. Bond: BCA Bond Allocation GAA. Source: ${source}.`]);
+  d.push([`*** Cash: avg US 1-Year Treasury CMT (GS1). Source: Federal Reserve H.15 via FRED. Returns are indicative only.`]);
+
+  const ws = XLSX.utils.aoa_to_sheet(d);
+  // Set column widths
+  ws['!cols'] = [{wch:32},{wch:14},{wch:52},{wch:9},{wch:9},{wch:9},{wch:9},{wch:9},{wch:9}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Base Portfolios');
+
+  // ── Sheet 2: for reporting IR3 (kept for app compatibility) ──
   const ir3 = W.IR3;
   const ir3Data = [
     ['','','Asset classes'],['','','Equities',ir3.eq],['','','Bonds',ir3.bd],['','','Cash',ir3.ca],[],
@@ -2276,13 +2348,12 @@ window.bpDownloadXlsx = function() {
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ir3Data), 'for reporting IR3');
 
-  // Sheet 3: for reporting IR6
-  const ir6 = W.IR6;
-  const ir6Data = BP_SECTORS.map(s => ['',s.label, ir6.eq*s.w]);
+  // ── Sheet 3: for reporting IR6 ──
+  const ir6Data = BP_SECTORS.map(s => ['',s.label, W.IR6.eq*s.w]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ir6Data), 'for reporting IR6');
 
   const month = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'}).replace(' ','_');
-  XLSX.writeFile(wb, `${month}_IR1-IR6_Benchmarks_and_Portfolios.xlsx`);
+  XLSX.writeFile(wb, `${month}_Base_Portfolios.xlsx`);
 };
 
 function bpUpdateSidebarStatus() {
