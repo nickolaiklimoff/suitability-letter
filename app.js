@@ -1975,7 +1975,7 @@ window.bpLoadEtfQuotes = async function(input) {
     const annRet = r => r.length ? ((r.reduce((a,v)=>a*(1+v),1)**(12/r.length))-1)*100 : null;
     const annVol = r => { if(r.length<2)return null; const m=r.reduce((a,v)=>a+v,0)/r.length; return Math.sqrt(r.reduce((a,v)=>a+(v-m)**2,0)/(r.length-1)*12)*100; };
     const l12=rets.slice(-12), l36=rets.slice(-36);
-    return { ret1y:annRet(l12), vol1y:annVol(l12), ret3y:l36.length>=24?annRet(l36):null, vol3y:l36.length>=24?annVol(l36):null };
+    return { ret1y:annRet(l12), vol1y:annVol(l12), ret3y:l36.length>=33?annRet(l36):null, vol3y:l36.length>=33?annVol(l36):null };
   }
 
   let done = 0;
@@ -2120,8 +2120,8 @@ function bpRenderOutputTable(W, rets, source) {
     });
     h += '</tr>';
   });
-  [{key:'ret1y',label:'1y return',isRet:true},{key:'ret3y',label:'3y return',isRet:true},
-   {key:'vol1y',label:'1y volatility',isRet:false},{key:'vol3y',label:'3y volatility',isRet:false}
+  [{key:'ret1y',label:'1y return',isRet:true},{key:'ret3y',label:'3y return (ann.)',isRet:true},
+   {key:'vol1y',label:'1y volatility',isRet:false},{key:'vol3y',label:'3y volatility (ann.)',isRet:false}
   ].forEach(m => {
     h += `<tr><td style="font-size:11px;color:var(--text3);padding:2px 6px;padding-left:10px">${m.label}</td><td></td><td></td>`;
     BP_IRS.forEach(ir => {
