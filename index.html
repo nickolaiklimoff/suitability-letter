@@ -31,7 +31,7 @@
     <div class="sidebar-setting">
       <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;display:block">Monthly update</label>
       <div id="basePortfoliosSidebarStatus" style="font-size:11px;color:var(--text3);line-height:1.5"></div>
-      <button class="btn-import" style="font-size:12px;padding:5px 10px;margin-top:4px;display:inline-flex;cursor:pointer" onclick="openBasePortfolios()">→ Base Portfolios</button>
+      <button class="btn-import" style="font-size:12px;padding:5px 10px;margin-top:4px;display:inline-flex;cursor:pointer" onclick="switchTab('base', document.getElementById('tab-btn-base'))">→ Base Portfolios</button>
     </div>
   </aside>
 
@@ -51,7 +51,7 @@
         <button class="tab" onclick="switchTab('profile', this)">Profiling</button>
         <button class="tab" onclick="switchTab('client', this)">Client</button>
         <button class="tab" onclick="switchTab('history', this)">History</button>
-        <button class="tab" id="tab-btn-base" onclick="switchTab('base', this)">Base Portfolios</button>
+        <button class="tab hidden" id="tab-btn-base" onclick="switchTab('base', this)">Base Portfolios</button>
       </div>
 
       <!-- Client Tab -->

@@ -390,8 +390,8 @@ function resetLetterForm() {
 function switchTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-  if (btn) btn.classList.add('active');
-  else {
+  if (btn && !btn.classList.contains('hidden')) btn.classList.add('active');
+  else if (name !== 'base') {
     const tabs = document.querySelectorAll('.tab');
     const idx = ['report','letter','profile','client','history'].indexOf(name);
     if (tabs[idx]) tabs[idx].classList.add('active');
