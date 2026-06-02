@@ -1196,13 +1196,6 @@ function buildAnalyticsSection(a, ccy, waarAssessment, clientIR) {
 
       </div>
 
-      ${waarAssessment ? `
-      <div style="margin-top:1rem;padding:0.6rem 0.8rem;border-radius:6px;font-size:12px;
-        background:${waarAssessment.status==='ok'?'#f0fdf4':waarAssessment.status==='above'?'#fef2f2':'#fefce8'};
-        border-left:3px solid ${waarAssessment.status==='ok'?'#16a34a':waarAssessment.status==='above'?'#dc2626':'#ca8a04'}">
-        <strong>WAAR Assessment (${clientIR} corridor ${waarAssessment.corridor}):</strong>
-        ${waarAssessment.message}${waarAssessment.status!=='ok'?` — breach of ${waarAssessment.breach.toFixed(2)} points`:''}
-      </div>` : ''}
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
           ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`
@@ -1586,7 +1579,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
             ${waarAssessment ? `<span style="margin-left:8px;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:500;
               background:${waarAssessment.status==='ok'?'#dcfce7':waarAssessment.status==='above'?'#fee2e2':'#fef9c3'};
               color:${waarAssessment.status==='ok'?'#166534':waarAssessment.status==='above'?'#991b1b':'#713f12'}">
-              ${waarAssessment.status==='ok'?'✓ Within IR'+clientIR+' corridor':waarAssessment.status==='above'?'⚠ Above IR'+clientIR+' max ('+IR_CORRIDORS[clientIR].max.toFixed(2)+')':'⚠ Below IR'+clientIR+' min ('+IR_CORRIDORS[clientIR].min.toFixed(2)+')'}
+              ${waarAssessment.status==='ok'?'✓ Within '+clientIR+' corridor':waarAssessment.status==='above'?'⚠ Above '+clientIR+' max ('+IR_CORRIDORS[clientIR].max.toFixed(2)+')':'⚠ Below '+clientIR+' min ('+IR_CORRIDORS[clientIR].min.toFixed(2)+')'}
             </span>` : ''}
           </td></tr>
           ${(client.profile?.knowledge||[]).length > 0 ? `
