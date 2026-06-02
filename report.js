@@ -1133,7 +1133,7 @@ function computeRiskContribution(positions, assetRetsMap, portfolioData, EUR_USD
 }
 
 // ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
-function buildAnalyticsSection(a, ccy) {
+function buildAnalyticsSection(a, ccy, waarAssessment, clientIR) {
   const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
   const pct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + '%';
   const fmt = v => sym + Math.round(Math.abs(v)).toLocaleString('en-US');
@@ -1196,7 +1196,14 @@ function buildAnalyticsSection(a, ccy) {
 
       </div>
 
-      <div style="font-size:10px;color:#8B7A68;font-style:italic">
+      ${waarAssessment ? `
+      <div style="margin-top:1rem;padding:0.6rem 0.8rem;border-radius:6px;font-size:12px;
+        background:${waarAssessment.status==='ok'?'#f0fdf4':waarAssessment.status==='above'?'#fef2f2':'#fefce8'};
+        border-left:3px solid ${waarAssessment.status==='ok'?'#16a34a':waarAssessment.status==='above'?'#dc2626':'#ca8a04'}">
+        <strong>WAAR Assessment (${clientIR} corridor ${waarAssessment.corridor}):</strong>
+        ${waarAssessment.message}${waarAssessment.status!=='ok'?` — breach of ${waarAssessment.breach.toFixed(2)} points`:''}
+      </div>` : ''}
+      <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
           ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`
           : `Analytics from portfolio value chart (AI image recognition, ±2–3%). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`}
@@ -1340,6 +1347,10 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
   const bm = benchmark[clientIR] || {};
   const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics;
+  // WAAR corridor assessment
+  const waarAssessment = (typeof assessWAAR === 'function')
+    ? assessWAAR(waar, clientIR)
+    : null;
   const { totalUnrealizedPnL } = portfolioData;
   const incomeMap = buildIncomeMap(portfolioData);
 
@@ -1504,7 +1515,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
     const realReturn = totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn;
     const realSharpe = a.vol > 0 ? (realReturn - (a.rf || 0.026)) / a.vol : a.sharpe;
     const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
-    analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD');
+    analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
     }
@@ -1543,7 +1554,14 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
           <tr><td class="profile-label">Risk Profile</td><td><strong>${clientIR}</strong></td></tr>
           <tr><td class="profile-label">Investment Horizon</td><td>${decodeHorizon(client.profile?.timeHorizon)}</td></tr>
           <tr><td class="profile-label">Primary Objective</td><td>${decodeObjective(client.profile?.investmentObjective)}</td></tr>
-          <tr><td class="profile-label">WAAR</td><td><strong>${waar.toFixed(2)}</strong></td></tr>
+          <tr><td class="profile-label">WAAR</td><td>
+            <strong>${waar.toFixed(2)}</strong>
+            ${waarAssessment ? `<span style="margin-left:8px;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:500;
+              background:${waarAssessment.status==='ok'?'#dcfce7':waarAssessment.status==='above'?'#fee2e2':'#fef9c3'};
+              color:${waarAssessment.status==='ok'?'#166534':waarAssessment.status==='above'?'#991b1b':'#713f12'}">
+              ${waarAssessment.status==='ok'?'✓ Within IR'+clientIR+' corridor':waarAssessment.status==='above'?'⚠ Above IR'+clientIR+' max ('+IR_CORRIDORS[clientIR].max.toFixed(2)+')':'⚠ Below IR'+clientIR+' min ('+IR_CORRIDORS[clientIR].min.toFixed(2)+')'}
+            </span>` : ''}
+          </td></tr>
           ${(client.profile?.knowledge||[]).length > 0 ? `
           <tr><td class="profile-label" style="vertical-align:top">Knowledge &amp; Experience</td>
               <td style="font-size:12px">${(client.profile.knowledge).join(', ')}</td></tr>` : ''}
