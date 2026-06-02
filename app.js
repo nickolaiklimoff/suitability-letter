@@ -1091,6 +1091,17 @@ window.runPortfolioReport = async function() {
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
     document.getElementById('r-reportContent').innerHTML = html;
+    // Store key metrics for commentary generation
+    window._lastWaar = analytics?.waar ?? null;
+    window._lastEquityPct = analytics?.equityPct != null ? (analytics.equityPct*100).toFixed(1)+'%' : 'N/A';
+    window._lastBondPct   = analytics?.bondPct   != null ? (analytics.bondPct*100).toFixed(1)+'%'   : 'N/A';
+    window._lastCashPct   = analytics?.cashPct   != null ? (analytics.cashPct*100).toFixed(1)+'%'   : 'N/A';
+    const bmDef = _benchmark?.[clientIR] || {};
+    window._lastBmEquity = bmDef.equity != null ? (bmDef.equity*100).toFixed(1)+'%' : 'N/A';
+    window._lastBmBond   = bmDef.bond   != null ? (bmDef.bond*100).toFixed(1)+'%'   : 'N/A';
+    window._lastAnalyticsData = analytics;
+    // Auto-generate commentary (async, doesn't block report display)
+    autoGenerateCommentary();
 
     // Full analytics: runs HERE because generatePortfolioReport sets _realCostBasis/_realTotalPnL
     if (portfolioData._pendingFullAnalytics) {
@@ -1307,6 +1318,147 @@ async function readXlsxPrices(file) {
 document.addEventListener('DOMContentLoaded', () => {
   loadBenchmarkFromStorage();
 });
+
+// ─── Portfolio Commentary Generator ──────────────────────────────────────────
+
+function buildCommentaryPrompt() {
+  const pd = window._lastPortfolioData;
+  const cfg = window._lastReportConfig;
+  if (!pd || !cfg) return null;
+
+  const clientIR = cfg.clientIR || 'IR3';
+  const irNum = parseInt(clientIR.replace('IR','')) || 3;
+  const maxWaar = irNum + 0.49;
+  const waar = window._lastWaar;
+  const waarBreached = typeof waar === 'number' && waar > maxWaar;
+  const analytics = pd._analytics;
+  const portCcy = pd.reportCcy || 'USD';
+  const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[portCcy] || portCcy;
+  const allH = [...(pd.stocks||[]),...(pd.funds||[]),...(pd.bonds||[])];
+  const topPos = allH
+    .sort((a,b)=>b.convertedHoldingValue-a.convertedHoldingValue)
+    .slice(0,5)
+    .map(h=>`${h.name}: ${sym}${Math.round(h.convertedHoldingValue).toLocaleString()} (${((h.convertedHoldingValue/(pd.totalValue||1))*100).toFixed(1)}%)`)
+    .join('; ');
+
+  let metrics = '';
+  if (analytics) {
+    metrics = [
+      analytics.totalReturn != null ? `Total Return: ${(analytics.totalReturn*100).toFixed(1)}%` : '',
+      analytics.vol         != null ? `Volatility (ann.): ${(analytics.vol*100).toFixed(1)}%` : '',
+      analytics.maxDD       != null ? `Max Drawdown: ${(analytics.maxDD*100).toFixed(1)}%` : '',
+      analytics.sharpe      != null ? `Sharpe: ${analytics.sharpe.toFixed(2)}` : '',
+      analytics.benchmark?.beta != null ? `Beta vs benchmark: ${analytics.benchmark.beta.toFixed(2)}` : '',
+      analytics.period ? `Period: ${analytics.period}` : '',
+      analytics.ddStart && analytics.ddTrough ? `DD period: ${analytics.ddStart} → ${analytics.ddTrough}, recovery: ${analytics.ddRecovery}` : '',
+    ].filter(Boolean).join(' | ');
+  }
+
+  return `You are writing a concise portfolio risk commentary for an investment advisory report at Orion Ridge Capital.
+
+CLIENT: ${cfg.client?.name || 'Client'}
+RISK PROFILE: ${clientIR} | MAX PERMITTED WAAR: ${maxWaar.toFixed(2)}
+CURRENT WAAR: ${waar != null ? waar.toFixed(2) : 'N/A'} ${waarBreached ? '— BREACH (+' + (waar-maxWaar).toFixed(2) + ')' : '— within corridor'}
+
+ASSET ALLOCATION vs ${clientIR} benchmark:
+Equities: ${window._lastEquityPct || 'N/A'} vs ${window._lastBmEquity || 'N/A'} | Bonds: ${window._lastBondPct || 'N/A'} vs ${window._lastBmBond || 'N/A'} | Cash: ${window._lastCashPct || 'N/A'}
+
+TOP 5 POSITIONS: ${topPos}
+METRICS: ${metrics || 'N/A'}
+
+Write exactly 3 paragraphs (no headers, no bullets) covering:
+1. Suitability Assessment — WAAR status and allocation vs mandate with exact numbers
+2. Portfolio Behaviour — volatility, drawdown, beta with exact numbers
+3. Performance — total return vs benchmark estimate, key drivers
+
+Style: factual, objective, professional investment advisory. No recommendations. No value judgements on specific holdings.`;
+}
+
+async function generateCommentaryText(extraInstruction) {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) return null;
+
+  const basePrompt = buildCommentaryPrompt();
+  if (!basePrompt) return null;
+
+  const userContent = extraInstruction
+    ? basePrompt + `
+
+Additional instruction: ${extraInstruction}`
+    : basePrompt;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: userContent }]
+    })
+  });
+  const data = await resp.json();
+  return data.content?.[0]?.text?.trim() || null;
+}
+
+// Auto-generate commentary after report is rendered
+async function autoGenerateCommentary() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey || !window._lastPortfolioData) return;
+
+  const bodyEl = document.getElementById('r-commentary-body');
+  if (!bodyEl) return;
+
+  bodyEl.innerHTML = '<div style="color:#8B7A68;font-size:12px;padding:0.5rem 0">Generating commentary…</div>';
+
+  try {
+    const text = await generateCommentaryText(null);
+    if (text) {
+      const paras = text.split('\n\n').filter(p => p.trim());
+      bodyEl.innerHTML = paras.map(p =>
+        `<p style="font-size:12px;line-height:1.7;margin-bottom:0.8rem;color:#2C2C2C">${p.trim()}</p>`
+      ).join('');
+      saveReportState();
+    } else {
+      bodyEl.innerHTML = '<div style="color:#8B7A68;font-size:12px">Commentary not available — check API key.</div>';
+    }
+  } catch(e) {
+    bodyEl.innerHTML = '<div style="color:#a32d2d;font-size:12px">Error generating commentary: ' + e.message + '</div>';
+  }
+}
+
+// Rewrite with instruction from the inline widget
+window.rewriteCommentary = async function() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { alert('Please enter API key in Settings.'); return; }
+
+  const instruction = document.getElementById('r-rewrite-instruction')?.value?.trim();
+  const statusEl   = document.getElementById('r-rewrite-status');
+  const bodyEl     = document.getElementById('r-commentary-body');
+  if (!bodyEl) return;
+
+  if (statusEl) { statusEl.textContent = 'Rewriting…'; statusEl.style.color = '#8B7A68'; }
+
+  try {
+    const text = await generateCommentaryText(instruction);
+    if (text) {
+      const paras = text.split('\n\n').filter(p => p.trim());
+      bodyEl.innerHTML = paras.map(p =>
+        `<p style="font-size:12px;line-height:1.7;margin-bottom:0.8rem;color:#2C2C2C">${p.trim()}</p>`
+      ).join('');
+      if (statusEl) { statusEl.textContent = '✓ Done'; statusEl.style.color = '#3b6d11'; }
+      if (document.getElementById('r-rewrite-instruction'))
+        document.getElementById('r-rewrite-instruction').value = '';
+      saveReportState();
+    }
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.style.color = '#a32d2d'; }
+  }
+};
 
 // ─── Display currency switcher ───────────────────────────────────────────────
 let _displayCcy = 'USD';

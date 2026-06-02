@@ -1335,6 +1335,30 @@ Include one data point per month (or more if visible). Be precise about values.`
   }
 };
 
+// ─── Section 13: Portfolio Risk Commentary ────────────────────────────────────
+function buildCommentarySection(commentaryText) {
+  const paras = (commentaryText || '').split('\n\n').filter(p => p.trim());
+  return `
+    <div class="report-section report-section-numbered" id="r-commentary-section">
+      <div class="report-section-title">13. Portfolio Risk Commentary</div>
+      <div id="r-commentary-body">
+        ${paras.map(p => `<p style="font-size:12px;line-height:1.7;margin-bottom:0.8rem;color:#2C2C2C">${p.trim()}</p>`).join('')}
+      </div>
+      <div class="no-print" id="r-rewrite-widget" style="margin-top:1.2rem;padding:1rem;background:#F5F0EB;border-radius:6px;border:1px solid #E8E0D8">
+        <div style="font-size:12px;font-weight:600;color:#5A7259;margin-bottom:0.5rem">Ask AI to rewrite</div>
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <textarea id="r-rewrite-instruction"
+            placeholder="e.g. Make it shorter · Focus on WAAR breach · Add bullet points · Translate to Russian"
+            style="flex:1;padding:8px;font-size:12px;font-family:inherit;border:1px solid #D4C9BE;border-radius:4px;resize:vertical;min-height:52px;line-height:1.5;outline:none"></textarea>
+          <button onclick="rewriteCommentary()" style="white-space:nowrap;padding:8px 14px;background:#5A7259;color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">
+            ↺ Rewrite
+          </button>
+        </div>
+        <div id="r-rewrite-status" style="font-size:11px;color:#8B7A68;margin-top:6px"></div>
+      </div>
+    </div>`;
+}
+
 window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
@@ -1505,6 +1529,9 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   portfolioData._realCostBasis = totalCostBasis;
   portfolioData._realTotalPnL  = totalPnL;
   const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
+
+  // Section 13: commentary placeholder (text injected async after generation)
+  const commentaryHtml = buildCommentarySection('');
 
   // Sections 6/7/8: Portfolio Analytics, Risk Analysis, Benchmark Comparison
   let analyticsHtml = '';
@@ -1719,6 +1746,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       ${buildDividendsSection(portfolioData.divRows || [])}
 
       ${buildTradesSection(portfolioData.tradeRows || [])}
+
+      ${commentaryHtml}
 
       <div class="report-disclaimer">
         <div class="report-disclaimer-title">Important Disclaimer</div>
