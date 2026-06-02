@@ -2403,7 +2403,7 @@ window.bpLoadBcaPdf = async function(input) {
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1500,
+          max_tokens: 4000,
           messages: [{
             role: 'user',
             content: [
@@ -2462,8 +2462,39 @@ Use only: overweight, neutral, underweight. If not found, use neutral.` }
 
       const data = await resp.json();
       const text = data.content?.map(c => c.text || '').join('') || '';
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(clean);
+      let clean = text.replace(/```json|```/g, '').trim();
+
+      // Extract just the JSON object if there's surrounding text
+      const jsonStart = clean.indexOf('{');
+      const jsonEnd = clean.lastIndexOf('}');
+      if (jsonStart >= 0 && jsonEnd > jsonStart) {
+        clean = clean.slice(jsonStart, jsonEnd + 1);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(clean);
+      } catch(jsonErr) {
+        // Try to recover truncated JSON by extracting what we can
+        // Extract views object manually
+        const viewsMatch = clean.match(/"views"\s*:\s*(\{[\s\S]*)/);
+        if (viewsMatch) {
+          // Try to parse partial views
+          let viewsStr = viewsMatch[1];
+          // Close any unclosed objects
+          const opens = (viewsStr.match(/\{/g)||[]).length;
+          const closes = (viewsStr.match(/\}/g)||[]).length;
+          for (let i=0; i<opens-closes; i++) viewsStr += '}';
+          try {
+            const views = JSON.parse(viewsStr);
+            parsed = { views, reportDate: file.name, topTakeaway: '', source: 'BCA Research GAA' };
+          } catch(e2) {
+            throw new Error('Could not parse response. Try uploading again.');
+          }
+        } else {
+          throw new Error('Invalid response format. Try again.');
+        }
+      }
 
       // Apply views
       if (parsed.views) {
