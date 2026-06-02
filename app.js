@@ -2454,7 +2454,13 @@ function bpUpdateSidebarStatus() {
   // Load saved ETF data
   try {
     const s = localStorage.getItem('suitability-bp-etf');
-    if (s) _bpEtfData = JSON.parse(s);
+    if (s) {
+      _bpEtfData = JSON.parse(s);
+      // Validate BIL data - if ret1y < 1% it's likely old BIL price data, not GS1 yield
+      if (_bpEtfData['BIL'] && _bpEtfData['BIL'].ret1y != null && _bpEtfData['BIL'].ret1y < 1.0) {
+        delete _bpEtfData['BIL']; // will refetch from FRED on open
+      }
+    }
   } catch(e) {}
   // Load saved BCA views
   try {
@@ -2484,16 +2490,23 @@ window.bpOpen = function() {
   document.getElementById('appContent').classList.add('hidden');
   document.getElementById('basePortfoliosPanel').classList.remove('hidden');
   bpRestoreState();
-  const keys = Object.keys(_bpEtfData);
-  if (keys.length > 0) {
-    const st = document.getElementById('bp-etf-status');
-    if (st) st.textContent = `Loaded: ${keys.join(', ')}`;
+  const st = document.getElementById('bp-etf-status');
+  const etfKeys = Object.keys(_bpEtfData).filter(k => k !== 'BIL');
+  // Auto-fetch FRED if BIL missing or stale
+  if (!_bpEtfData['BIL'] || _bpEtfData['BIL'].ret1y == null) {
+    if (st) st.textContent = `${etfKeys.length ? 'Loaded: '+etfKeys.join(', ')+' · ' : ''}Fetching cash rates from FRED...`;
+    bpFetchFredGS1(st);
+  } else {
+    if (st) {
+      st.textContent = `${etfKeys.length ? 'Loaded: '+etfKeys.join(', ')+' · ' : ''}Cash: US 1Y Treasury avg ${_bpEtfData['BIL'].ret1y.toFixed(2)}% (FRED GS1)`;
+      st.style.color = '#3b6d11';
+    }
   }
   try {
     const t = localStorage.getItem('suitability-bp-takeaway');
     if (t) {
-      const st = document.getElementById('bp-pdf-status');
-      if (st) { st.textContent = '✓ Views loaded from previous session'; st.style.color = '#3b6d11'; }
+      const pst = document.getElementById('bp-pdf-status');
+      if (pst) { pst.textContent = '✓ Views loaded from previous session'; pst.style.color = '#3b6d11'; }
     }
   } catch(e) {}
 };
@@ -2774,4 +2787,7 @@ window.bpParseAllocText = function() {
 
   status.textContent = `✓ Parsed: ${parts.join(' · ')}`;
   status.style.color = '#3b6d11';
+
+  // Auto-regenerate table with new data
+  bpSaveAndGenerate();
 };
