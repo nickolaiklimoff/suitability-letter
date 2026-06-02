@@ -2583,18 +2583,7 @@ window.bpLoadBcaPdf = async function(input) {
           }]
         })
       });
-{
-  "reportTitle": "string",
-  "reportDate": "string",
-  "topTakeaway": "string (1-2 sentences, the top takeaway)",
-  "source": "string (e.g. BCA Research GAA, June 2026)",
-  "views": {
-    "gaa_eq": {"prev":"neutral|overweight|underweight","curr":"neutral|overweight|underweight"},
-    "gaa_fi": {"prev":"...","curr":"..."},
-    "gaa_ca": {"prev":"...","curr":"..."},
-    "eq_us": {"prev":"...","curr":"..."},
-    "eq_eu": {"prev":"...","curr":"..."},
-    "eq_jp": {"prev":"...","curr":"..."},
+
       const data = await resp.json();
       console.log('HTTP status:', resp.status);
       console.log('API response:', JSON.stringify(data).slice(0, 1000));
