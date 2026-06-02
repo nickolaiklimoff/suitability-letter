@@ -29,26 +29,9 @@
       <input type="password" id="apiKey" placeholder="sk-ant-api03-..." oninput="localStorage.setItem('suitability-api-key', this.value)" />
     </div>
     <div class="sidebar-setting">
-      <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;display:block">Monthly update</label>
-
-      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">
-        IR Benchmark <span id="benchmarkLoadedLabel" style="color:#3b6d11;font-weight:500"></span>
-      </label>
-      <label class="btn-import" for="sidebarBenchmarkFile" style="font-size:12px;padding:5px 10px;margin:0 0 8px;display:inline-flex">
-        ↑ IR allocation file
-        <input type="file" id="sidebarBenchmarkFile" accept=".xlsx,.xls" style="display:none"
-          onchange="loadBenchmarkFile(this)" />
-      </label>
-
-      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">
-        Benchmark ETFs <span id="benchmarkEtfLabel" style="color:#3b6d11;font-weight:500"></span>
-      </label>
-      <label class="btn-import" for="sidebarBenchmarkEtfs" style="font-size:12px;padding:5px 10px;margin:0;display:inline-flex">
-        ↑ ACWI + AGGU + BIL
-        <input type="file" id="sidebarBenchmarkEtfs" accept=".xlsx,.xls" multiple style="display:none"
-          onchange="loadBenchmarkQuotesSidebar(this)" />
-      </label>
-      <div id="benchmarkEtfStatus" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+      <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;display:block">Monthly update</label>
+      <div id="basePortfoliosSidebarStatus" style="font-size:11px;color:var(--text3);line-height:1.5"></div>
+      <button class="btn-import" style="font-size:12px;padding:5px 10px;margin-top:4px;display:inline-flex;cursor:pointer" onclick="openBasePortfolios()">→ Base Portfolios</button>
     </div>
   </aside>
 
@@ -68,6 +51,7 @@
         <button class="tab" onclick="switchTab('profile', this)">Profiling</button>
         <button class="tab" onclick="switchTab('client', this)">Client</button>
         <button class="tab" onclick="switchTab('history', this)">History</button>
+        <button class="tab" id="tab-btn-base" onclick="switchTab('base', this)">Base Portfolios</button>
       </div>
 
       <!-- Client Tab -->
@@ -554,6 +538,88 @@
         </div>
         <div id="historyList"></div>
         <div id="reportHistoryList" class="hidden"></div>
+      </div>
+
+      <!-- Base Portfolios Tab -->
+      <div id="tab-base" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Base Portfolios</h2>
+          <p style="color:var(--text3);font-size:13px;margin-top:2px">Monthly update — benchmarks, BCA views, portfolio weights &amp; indicative returns</p>
+        </div>
+
+        <div class="form-section">
+          <h3>1. Benchmark quotes</h3>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:10px">Upload cbonds xlsx files for ACWI, AGGU and BIL. System auto-detects by filename.</p>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label class="btn-import" for="bp-etf-upload" style="font-size:12px;padding:6px 12px;display:inline-flex;cursor:pointer">
+              ↑ Upload quotes (xlsx)
+              <input type="file" id="bp-etf-upload" accept=".xlsx,.xls" multiple style="display:none" onchange="bpLoadEtfQuotes(this)">
+            </label>
+            <span id="bp-etf-status" style="font-size:11px;color:var(--text3)">No files loaded</span>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>2. BCA Research views</h3>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:10px">Source: BCA Research Global Asset Allocation monthly report. Views set below reflect current recommendations.</p>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+            <input type="text" id="bp-bca-source" placeholder="Source (e.g. BCA GAA, June 2026)" style="font-size:12px;padding:5px 8px;width:280px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          </div>
+          <div id="bp-bca-table-wrap"></div>
+        </div>
+
+        <div class="form-section">
+          <h3>3. Portfolio weights (TAA)</h3>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:10px">Enter IR3 weights from BCA recommendations. IR1–IR2 and IR4–IR6 are calculated automatically.</p>
+          <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">IR3 Equities (%)</label>
+              <input type="number" id="bp-ir3-eq" value="51.5" min="0" max="100" step="0.5" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">IR3 Bonds (%)</label>
+              <input type="number" id="bp-ir3-bd" value="47.5" min="0" max="100" step="0.5" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">IR3 Cash (%)</label>
+              <input type="number" id="bp-ir3-ca" value="1.0" min="0" max="100" step="0.5" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Equity 12M return (%)</label>
+              <input type="number" id="bp-ret-eq-12m" value="31.6" step="0.1" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Equity 5Y return (%)</label>
+              <input type="number" id="bp-ret-eq-5y" value="76.0" step="0.1" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Bond 12M return (%)</label>
+              <input type="number" id="bp-ret-bd-12m" value="2.3" step="0.1" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Bond 5Y return (%)</label>
+              <input type="number" id="bp-ret-bd-5y" value="-9.8" step="0.1" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Cash 12M return (%)</label>
+              <input type="number" id="bp-ret-ca-12m" value="3.72" step="0.01" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Cash 5Y return (%)</label>
+              <input type="number" id="bp-ret-ca-5y" value="3.61" step="0.01" style="width:90px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin:16px 0;flex-wrap:wrap">
+          <button class="btn-primary" onclick="bpSaveAndGenerate()">Save &amp; Generate table</button>
+          <button class="btn-secondary" onclick="bpDownloadXlsx()">↓ Download xlsx</button>
+        </div>
+
+        <div id="bp-table-output" style="margin-top:8px"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6" id="bp-footnotes"></div>
       </div>
 
     </div>

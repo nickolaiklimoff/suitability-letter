@@ -1820,3 +1820,548 @@ window.printReport = function() {
   w.document.write(html);
   w.document.close();
 };
+
+// ─── BASE PORTFOLIOS ──────────────────────────────────────────────────────────
+
+const BP_BM_WEIGHTS = {
+  eq:{IR1:0,    IR2:0.20,IR3:0.60,IR4:0.80,IR5:0.90,IR6:1.00},
+  bd:{IR1:0.10, IR2:0.40,IR3:0.40,IR4:0.20,IR5:0.10,IR6:0.00},
+  ca:{IR1:0.90, IR2:0.40,IR3:0.00,IR4:0.00,IR5:0.00,IR6:0.00}
+};
+const BP_IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
+
+const BP_SECTORS = [
+  {label:'Financials',w:0.164},{label:'Info Tech',w:0.287},{label:'Health Care',w:0.096},
+  {label:'Consumer Discretionary',w:0.068},{label:'Industrials',w:0.120},
+  {label:'Communication Services',w:0.098},{label:'Consumer Staples',w:0.026},
+  {label:'Energy',w:0.051},{label:'Materials',w:0.047},{label:'Utilities',w:0.027},{label:'Real Estate',w:0.017}
+];
+const BP_BOND_SEGS = [
+  {label:'Government',w:0.755},{label:'Investment Grade',w:0.195},{label:'High-Yield',w:0.018},{label:'EM Debt',w:0.031}
+];
+
+const BP_BCA_ITEMS = [
+  {section:'Global Asset Allocation'},
+  {key:'gaa_eq',  label:'Equities',            prev:'neutral',     curr:'overweight'},
+  {key:'gaa_fi',  label:'Fixed Income',         prev:'neutral',     curr:'neutral'},
+  {key:'gaa_ca',  label:'Cash',                 prev:'neutral',     curr:'underweight'},
+  {section:'Global Equities*'},
+  {key:'eq_us',   label:'US',                   prev:'overweight',  curr:'overweight'},
+  {key:'eq_eu',   label:'Euro Area',            prev:'overweight',  curr:'overweight'},
+  {key:'eq_jp',   label:'Japan',                prev:'neutral',     curr:'neutral'},
+  {key:'eq_ca',   label:'Canada',               prev:'neutral',     curr:'neutral'},
+  {key:'eq_au',   label:'Australia',            prev:'neutral',     curr:'neutral'},
+  {key:'eq_uk',   label:'UK',                   prev:'neutral',     curr:'neutral'},
+  {key:'eq_cn',   label:'China',                prev:'neutral',     curr:'neutral'},
+  {key:'eq_em',   label:'EM Ex China',          prev:'neutral',     curr:'overweight'},
+  {section:'Global Fixed Income**'},
+  {key:'fi_gov',  label:'Government',           prev:'neutral',     curr:'neutral'},
+  {key:'fi_ig',   label:'Investment Grade',     prev:'overweight',  curr:'overweight'},
+  {key:'fi_hy',   label:'High-Yield',           prev:'overweight',  curr:'overweight'},
+  {key:'fi_em',   label:'EM Debt',              prev:'neutral',     curr:'neutral'},
+  {key:'fi_dur',  label:'Duration',             prev:'neutral',     curr:'neutral'},
+  {key:'fi_inf',  label:'Inflation-linked',     prev:'neutral',     curr:'neutral'},
+  {section:'Global Sectors'},
+  {key:'sec_fin', label:'Financials',           prev:'overweight',  curr:'overweight'},
+  {key:'sec_it',  label:'Info Tech',            prev:'overweight',  curr:'overweight'},
+  {key:'sec_hc',  label:'Health Care',          prev:'neutral',     curr:'neutral'},
+  {key:'sec_cs2', label:'Communications Serv.', prev:'overweight',  curr:'overweight'},
+  {key:'sec_ind', label:'Industrials',          prev:'neutral',     curr:'neutral'},
+  {key:'sec_cd',  label:'Consumer Disc.',       prev:'neutral',     curr:'overweight'},
+  {key:'sec_cst', label:'Consumer Staples',     prev:'neutral',     curr:'neutral'},
+  {key:'sec_en',  label:'Energy',               prev:'overweight',  curr:'neutral'},
+  {key:'sec_mat', label:'Materials',            prev:'neutral',     curr:'overweight'},
+  {key:'sec_re',  label:'Real Estate',          prev:'neutral',     curr:'neutral'},
+  {key:'sec_ut',  label:'Utilities',            prev:'neutral',     curr:'neutral'},
+  {section:'Currencies'},
+  {key:'fx_usd',  label:'USD',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_eur',  label:'EUR',                  prev:'underweight', curr:'underweight'},
+  {key:'fx_jpy',  label:'JPY',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_gbp',  label:'GBP',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_aud',  label:'AUD',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_cad',  label:'CAD',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_chf',  label:'CHF',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_cny',  label:'CNY',                  prev:'neutral',     curr:'neutral'},
+  {key:'fx_em',   label:'EM Currencies',        prev:'neutral',     curr:'overweight'},
+];
+
+// State
+let _bpEtfData = {}; // {ACWI:{ret1y,vol1y,ret3y,vol3y}, AGGU:{...}, BIL:{...}}
+let _bpBcaViews = {}; // {key: {prev, curr}}
+
+function openBasePortfolios() {
+  // Find Base Portfolios tab button and click it
+  const btn = document.getElementById('tab-btn-base');
+  if (btn) btn.click();
+}
+
+// Init BCA views state from defaults
+function bpInitBcaViews() {
+  if (Object.keys(_bpBcaViews).length > 0) return;
+  BP_BCA_ITEMS.forEach(item => {
+    if (item.key) _bpBcaViews[item.key] = {prev: item.prev, curr: item.curr};
+  });
+  // Try to load from localStorage
+  try {
+    const stored = localStorage.getItem('suitability-bp-bca-views');
+    if (stored) _bpBcaViews = JSON.parse(stored);
+  } catch(e) {}
+}
+
+function bpRenderBcaTable() {
+  bpInitBcaViews();
+  const wrap = document.getElementById('bp-bca-table-wrap');
+  if (!wrap) return;
+
+  const VIEWS = ['overweight','neutral','underweight'];
+  const pillCss = {
+    overweight: 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600',
+    neutral:    'background:#f5f5f5;color:#666;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600',
+    underweight:'background:#ffebee;color:#c62828;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600'
+  };
+
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr>
+      <th style="text-align:left;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500;width:44%"></th>
+      <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Previous</th>
+      <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Current</th>
+    </tr></thead><tbody>`;
+
+  BP_BCA_ITEMS.forEach(item => {
+    if (item.section) {
+      html += `<tr><td colspan="3" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 8px 3px;border-top:1px solid var(--border);background:var(--bg2)">${item.section}</td></tr>`;
+      return;
+    }
+    const view = _bpBcaViews[item.key] || {prev: item.prev, curr: item.curr};
+    const changed = view.prev !== view.curr;
+    const changedBadge = changed ? `<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600">changed</span>` : '';
+
+    const prevOpts = VIEWS.map(v => `<option value="${v}"${view.prev===v?' selected':''}>${v.charAt(0).toUpperCase()+v.slice(1)}</option>`).join('');
+    const currOpts = VIEWS.map(v => `<option value="${v}"${view.curr===v?' selected':''}>${v.charAt(0).toUpperCase()+v.slice(1)}</option>`).join('');
+
+    html += `<tr style="border-top:0.5px solid var(--border)">
+      <td style="padding:4px 8px">${item.label}${changedBadge}</td>
+      <td style="text-align:center;padding:4px 8px">
+        <select data-key="${item.key}" data-field="prev" onchange="bpUpdateView(this)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">${prevOpts}</select>
+      </td>
+      <td style="text-align:center;padding:4px 8px">
+        <select data-key="${item.key}" data-field="curr" onchange="bpUpdateView(this)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">${currOpts}</select>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+window.bpUpdateView = function(sel) {
+  const key = sel.dataset.key, field = sel.dataset.field;
+  if (!_bpBcaViews[key]) _bpBcaViews[key] = {};
+  _bpBcaViews[key][field] = sel.value;
+  try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
+  // Re-render to update changed badge
+  bpRenderBcaTable();
+};
+
+window.bpLoadEtfQuotes = async function(input) {
+  const files = Array.from(input.files);
+  const status = document.getElementById('bp-etf-status');
+  if (status) status.textContent = 'Loading...';
+
+  function calcMetrics(prices) {
+    if (prices.length < 3) return {};
+    const rets = [];
+    for (let i=1;i<prices.length;i++) { if(prices[i-1]>0) rets.push((prices[i]-prices[i-1])/prices[i-1]); }
+    const annRet = r => r.length ? ((r.reduce((a,v)=>a*(1+v),1)**(12/r.length))-1)*100 : null;
+    const annVol = r => { if(r.length<2)return null; const m=r.reduce((a,v)=>a+v,0)/r.length; return Math.sqrt(r.reduce((a,v)=>a+(v-m)**2,0)/(r.length-1)*12)*100; };
+    const l12=rets.slice(-12), l36=rets.slice(-36);
+    return { ret1y:annRet(l12), vol1y:annVol(l12), ret3y:l36.length>=24?annRet(l36):null, vol3y:l36.length>=24?annVol(l36):null };
+  }
+
+  let done = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+        let hi = -1;
+        for (let i=0;i<Math.min(5,rows.length);i++) {
+          if (rows[i].some(c=>String(c).trim().toLowerCase()==='last')) { hi=i; break; }
+        }
+        if (hi >= 0) {
+          const hdrs = rows[hi].map(c=>String(c).trim().toLowerCase());
+          const lc=hdrs.indexOf('last'), dc=hdrs.indexOf('date');
+          const monthly = {};
+          rows.slice(hi+1).forEach(r => {
+            if (!r[lc]||isNaN(parseFloat(r[lc]))) return;
+            const d = new Date(String(r[dc]).split('/').reverse().join('-'));
+            const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            monthly[k] = parseFloat(r[lc]);
+          });
+          const prices = Object.keys(monthly).sort().map(k=>monthly[k]);
+          const m = calcMetrics(prices);
+          const fn = file.name.toLowerCase();
+          let key = 'BIL';
+          if (fn.includes('acwi')||fn.includes('msci')) key = 'ACWI';
+          else if (fn.includes('aggr')||fn.includes('aggu')||fn.includes('aggregate')||fn.includes('bond')) key = 'AGGU';
+          _bpEtfData[key] = m;
+        }
+      } catch(e) {}
+      done++;
+      if (done === files.length) {
+        try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
+        const keys = Object.keys(_bpEtfData);
+        if (status) status.textContent = `Loaded: ${keys.join(', ')}`;
+        bpUpdateSidebarStatus();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+function bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca) {
+  const dEq = ir3eq - BP_BM_WEIGHTS.eq.IR3;
+  const dBd = ir3bd - BP_BM_WEIGHTS.bd.IR3;
+  const W = {};
+  BP_IRS.forEach(ir => {
+    const bmEq=BP_BM_WEIGHTS.eq[ir], bmBd=BP_BM_WEIGHTS.bd[ir];
+    let eq,bd,ca;
+    if (ir==='IR6') { eq=1;bd=0;ca=0; }
+    else if (ir==='IR3') { eq=ir3eq;bd=ir3bd;ca=ir3ca; }
+    else if (ir==='IR1'||ir==='IR2') {
+      const sEq=BP_BM_WEIGHTS.eq.IR3>0?bmEq/BP_BM_WEIGHTS.eq.IR3:0;
+      const sBd=BP_BM_WEIGHTS.bd.IR3>0?bmBd/BP_BM_WEIGHTS.bd.IR3:0;
+      eq=Math.max(0,bmEq+dEq*sEq); bd=Math.max(0,bmBd+dBd*sBd); ca=Math.max(0,1-eq-bd);
+    } else { eq=bmEq; bd=bmBd; ca=BP_BM_WEIGHTS.ca[ir]; }
+    W[ir] = {eq,bd,ca};
+  });
+  return W;
+}
+
+window.bpSaveAndGenerate = function() {
+  const ir3eq = parseFloat(document.getElementById('bp-ir3-eq').value)/100;
+  const ir3bd = parseFloat(document.getElementById('bp-ir3-bd').value)/100;
+  const ir3ca = parseFloat(document.getElementById('bp-ir3-ca').value)/100;
+  const rets = {
+    eq: {'12M': parseFloat(document.getElementById('bp-ret-eq-12m').value), '5Y': parseFloat(document.getElementById('bp-ret-eq-5y').value)},
+    bd: {'12M': parseFloat(document.getElementById('bp-ret-bd-12m').value), '5Y': parseFloat(document.getElementById('bp-ret-bd-5y').value)},
+    ca: {'12M': parseFloat(document.getElementById('bp-ret-ca-12m').value), '5Y': parseFloat(document.getElementById('bp-ret-ca-5y').value)}
+  };
+  const source = document.getElementById('bp-bca-source').value || 'BCA Research GAA';
+
+  const W = bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca);
+
+  // Save to localStorage so report tab can use it
+  const bpData = {ir3eq, ir3bd, ir3ca, rets, W, source, etf: _bpEtfData, bcaViews: _bpBcaViews, updatedAt: new Date().toISOString()};
+  try { localStorage.setItem('suitability-bp-data', JSON.stringify(bpData)); } catch(e) {}
+
+  // Also build _benchmark object for report tab compatibility
+  _benchmark = {};
+  BP_IRS.forEach(ir => {
+    _benchmark[ir] = {
+      equities: W[ir].eq,
+      bonds:    W[ir].bd,
+      cash:     W[ir].ca,
+      sectors:  {},
+      bondSegments: {}
+    };
+    BP_SECTORS.forEach(s => { _benchmark[ir].sectors[s.label] = W[ir].eq * s.w; });
+    BP_BOND_SEGS.forEach(s => { _benchmark[ir].bondSegments[s.label] = W[ir].bd * s.w; });
+  });
+  try { localStorage.setItem('suitability-benchmark', JSON.stringify(_benchmark)); } catch(e) {}
+
+  // Render table
+  bpRenderOutputTable(W, rets, source);
+  bpUpdateSidebarStatus();
+  alert('Saved ✓  Base Portfolios data is now used by Portfolio Report.');
+};
+
+function bpRenderOutputTable(W, rets, source) {
+  const out = document.getElementById('bp-table-output');
+  if (!out) return;
+
+  const fmtW = v => v < 0.00005 ? '—' : (v*100).toFixed(2)+'%';
+  const fmtR = v => (v>=0?'+':'')+v.toFixed(1)+'%';
+  const fmtV = (v, isRet) => {
+    if (v==null||isNaN(v)) return '—';
+    const col = isRet ? (v>=0?'#2e7d32':'#c62828') : 'inherit';
+    return `<span style="color:${col}">${v.toFixed(2)}%</span>`;
+  };
+
+  const ETF_TYPES = [{key:'ACWI',type:'eq'},{key:'AGGU',type:'bd'},{key:'BIL',type:'ca'}];
+  const ETF_NAMES = {ACWI:'iShares MSCI ACWI ETF',AGGU:'AGGU – iShares Core Global Aggregate Bond ETF',BIL:'SPDR Bloomberg 1-3M T-Bill ETF'};
+  const ETF_ISINS = {ACWI:'US4642882579',AGGU:'IE00BZ043R46',BIL:'US78468R6633'};
+
+  function weighted(metric, ir) {
+    let sum=0,ok=false;
+    ETF_TYPES.forEach(e => {
+      const w = BP_BM_WEIGHTS[e.type][ir];
+      const v = (_bpEtfData[e.key]||{})[metric];
+      if (v!=null&&!isNaN(v)&&w>0) { sum+=w*v; ok=true; }
+    });
+    return ok ? sum : null;
+  }
+
+  const irCols = BP_IRS.map(ir => `<th style="text-align:right;padding:0 6px 8px;font-size:10px;font-weight:500;color:var(--text3)${ir==='IR3'?';background:var(--bg2)':''}">${ir}</th>`).join('');
+
+  let h = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+  <thead><tr><th style="text-align:left;width:22%;padding:0 6px 8px;font-size:10px;color:var(--text3)"></th><th style="text-align:left;font-size:10px;color:var(--text3);padding:0 6px 8px">ISIN</th><th style="text-align:left;font-size:10px;color:var(--text3);padding:0 6px 8px"></th>${irCols}</tr></thead><tbody>`;
+
+  // Benchmarks block
+  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Benchmarks</td></tr>`;
+  ETF_TYPES.forEach(e => {
+    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-weight:500;padding:6px 6px 1px">${e.key}</td><td style="font-size:10px;color:var(--text3);padding:6px 6px 1px">${ETF_ISINS[e.key]}</td><td style="font-size:10px;color:var(--text3);padding:6px 6px 1px">${ETF_NAMES[e.key]}</td>`;
+    BP_IRS.forEach(ir => {
+      const w = BP_BM_WEIGHTS[e.type][ir];
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      h += `<td style="text-align:right;padding:6px 6px 1px;${bg}">${w>0?(w*100).toFixed(0)+'%':'—'}</td>`;
+    });
+    h += '</tr>';
+  });
+  [{key:'ret1y',label:'1y return',isRet:true},{key:'ret3y',label:'3y return',isRet:true},
+   {key:'vol1y',label:'1y volatility',isRet:false},{key:'vol3y',label:'3y volatility',isRet:false}
+  ].forEach(m => {
+    h += `<tr><td style="font-size:11px;color:var(--text3);padding:2px 6px;padding-left:10px">${m.label}</td><td></td><td></td>`;
+    BP_IRS.forEach(ir => {
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      h += `<td style="text-align:right;padding:2px 6px;${bg}">${fmtV(weighted(m.key,ir),m.isRet)}</td>`;
+    });
+    h += '</tr>';
+  });
+
+  // Portfolio weights block
+  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Portfolio weights *</td></tr>`;
+  [{key:'eq',label:'Equities'},{key:'bd',label:'Bonds'},{key:'ca',label:'Cash'}].forEach(a => {
+    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-weight:500;padding:5px 6px">${a.label}</td><td></td><td></td>`;
+    BP_IRS.forEach(ir => {
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}">${fmtW(W[ir][a.key])}</td>`;
+    });
+    h += '</tr>';
+    h += `<tr><td style="font-size:10px;color:var(--text3);padding:1px 6px 4px;padding-left:10px">Benchmark</td><td></td><td></td>`;
+    BP_IRS.forEach(ir => {
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      h += `<td style="text-align:right;padding:1px 6px 4px;font-size:10px;color:var(--text3);${bg}">${(BP_BM_WEIGHTS[a.key][ir]*100).toFixed(0)}%</td>`;
+    });
+    h += '</tr>';
+  });
+
+  // Sectors block
+  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Equity sectors *</td></tr>`;
+  BP_SECTORS.forEach(s => {
+    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px">${s.label}</td><td></td><td></td>`;
+    BP_IRS.forEach(ir => {
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      h += `<td style="text-align:right;padding:4px 6px;${bg}">${fmtW(W[ir].eq*s.w)}</td>`;
+    });
+    h += '</tr>';
+  });
+  h += `<tr style="border-top:1px solid var(--border)"><td style="font-weight:500;padding:5px 6px">Total equities</td><td></td><td></td>`;
+  BP_IRS.forEach(ir => {
+    const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+    h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}">${fmtW(W[ir].eq)}</td>`;
+  });
+  h += '</tr>';
+
+  // Bond segments block
+  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Bond segments *</td></tr>`;
+  BP_BOND_SEGS.forEach(s => {
+    h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px">${s.label}</td><td></td><td></td>`;
+    BP_IRS.forEach(ir => {
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      h += `<td style="text-align:right;padding:4px 6px;${bg}">${fmtW(W[ir].bd*s.w)}</td>`;
+    });
+    h += '</tr>';
+  });
+  h += `<tr style="border-top:1px solid var(--border)"><td style="font-weight:500;padding:5px 6px">Total bonds</td><td></td><td></td>`;
+  BP_IRS.forEach(ir => {
+    const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+    h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}">${fmtW(W[ir].bd)}</td>`;
+  });
+  h += '</tr>';
+
+  // Cash
+  h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Cash</td></tr>`;
+  h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px">Cash</td><td></td><td></td>`;
+  BP_IRS.forEach(ir => {
+    const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+    h += `<td style="text-align:right;padding:4px 6px;${bg}">${fmtW(W[ir].ca)}</td>`;
+  });
+  h += '</tr>';
+
+  // Returns
+  [{key:'12M',label:'12-month return **'},{key:'5Y',label:'5-year return **'}].forEach(p => {
+    h += `<tr><td colspan="${3+BP_IRS.length}" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 6px 3px;background:var(--bg2);border-top:1px solid var(--border)">Indicative return — ${p.label}</td></tr>`;
+    [{key:'eq',label:'Equities **'},{key:'bd',label:'Bonds **'},{key:'ca',label:'Cash ***'}].forEach(a => {
+      h += `<tr style="border-top:0.5px solid var(--border)"><td style="font-size:11px;color:var(--text3);padding:4px 6px;padding-left:10px">${a.label}</td><td></td><td></td>`;
+      BP_IRS.forEach(ir => {
+        const w=W[ir][a.key], v=rets[a.key][p.key];
+        const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+        const col = w===0 ? 'color:var(--text3)' : v*w>=0?'color:#2e7d32':'color:#c62828';
+        h += `<td style="text-align:right;padding:4px 6px;${bg}${col}">${w===0?'—':fmtR(w*v)}</td>`;
+      });
+      h += '</tr>';
+    });
+    h += `<tr style="border-top:1px solid var(--border)"><td style="font-weight:500;padding:5px 6px">Portfolio total</td><td></td><td></td>`;
+    BP_IRS.forEach(ir => {
+      let t=0; ['eq','bd','ca'].forEach(k=>{t+=W[ir][k]*rets[k][p.key];});
+      const bg = ir==='IR3' ? 'background:var(--bg2);' : '';
+      const col = t>=0?'color:#2e7d32':'color:#c62828';
+      h += `<td style="text-align:right;padding:5px 6px;font-weight:500;${bg}${col}">${fmtR(t)}</td>`;
+    });
+    h += '</tr>';
+  });
+
+  h += '</tbody></table></div>';
+  out.innerHTML = h;
+
+  document.getElementById('bp-footnotes').innerHTML =
+    `* Sector and bond segment weights are based on BCA Research GAA benchmark proportions (${source}), scaled by each IR equity/bond allocation.<br>
+     ** Equity return: BCA Research Equity Allocation (Sectors) GAA. Bond return: BCA Research Bond Allocation GAA. Source: ${source}.<br>
+     *** Cash return: average US 1-Year Treasury Constant Maturity yield (GS1). Source: Federal Reserve H.15 via FRED. All returns are indicative only.`;
+}
+
+window.bpDownloadXlsx = function() {
+  const stored = localStorage.getItem('suitability-bp-data');
+  if (!stored) { alert('Generate table first.'); return; }
+  const bp = JSON.parse(stored);
+  const W = bp.W;
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: weights
+  const wData = [];
+  wData.push(['','Benchmarks']);
+  wData.push([]);
+  wData.push(['','tracked by:','','','','IR1','IR2','IR3','IR4','IR5','IR6']);
+  wData.push(['Equities','US4642882579','iShares MSCI ACWI ETF','','',0,0.20,0.60,0.80,0.90,1.00]);
+  wData.push(['Bonds','IE00BZ043R46','AGGU - iShares Core Global Aggregate Bond UCITS ETF USD Hedged','','',0.10,0.40,0.40,0.20,0.10,0]);
+  wData.push(['Cash','US78468R6633','SPDR® Bloomberg 1-3 Month T-Bill ETF','','',0.90,0.40,0,0,0,0]);
+  wData.push([]);
+  wData.push(['','Portfolios ' + new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})]);
+  wData.push([]);
+  wData.push(['','','','','','IR1','IR2','IR3','IR4','IR5','IR6']);
+  wData.push(['Equities','','','','',W.IR1.eq,W.IR2.eq,W.IR3.eq,W.IR4.eq,W.IR5.eq,W.IR6.eq]);
+  wData.push(['Bonds','','','','',W.IR1.bd,W.IR2.bd,W.IR3.bd,W.IR4.bd,W.IR5.bd,W.IR6.bd]);
+  wData.push(['Cash','','','','',W.IR1.ca,W.IR2.ca,W.IR3.ca,W.IR4.ca,W.IR5.ca,W.IR6.ca]);
+  wData.push([]);
+  wData.push(['','tracked by:']);
+  BP_SECTORS.forEach(s => {
+    wData.push([s.label,'','',s.w,'',
+      W.IR1.eq*s.w, W.IR2.eq*s.w, W.IR3.eq*s.w, W.IR4.eq*s.w, W.IR5.eq*s.w, W.IR6.eq*s.w]);
+  });
+  wData.push([]);
+  BP_BOND_SEGS.forEach(s => {
+    wData.push([s.label,'','',s.w,'',
+      W.IR1.bd*s.w, W.IR2.bd*s.w, W.IR3.bd*s.w, W.IR4.bd*s.w, W.IR5.bd*s.w, W.IR6.bd*s.w]);
+  });
+  wData.push([]);
+  wData.push(['Cash','US78468R6633','SPDR® Bloomberg 1-3 Month T-Bill ETF',1,'',
+    W.IR1.ca, W.IR2.ca, W.IR3.ca, W.IR4.ca, W.IR5.ca, W.IR6.ca]);
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wData), 'weights');
+
+  // Sheet 2: for reporting IR3
+  const ir3 = W.IR3;
+  const ir3Data = [
+    ['','','Asset classes'],['','','Equities',ir3.eq],['','','Bonds',ir3.bd],['','','Cash',ir3.ca],[],
+    ['','','Equities - sectors allocation'],
+    ...BP_SECTORS.map(s => ['','',s.label, ir3.eq*s.w]),
+    [],
+    ['','','Bond segments allocation'],
+    ...BP_BOND_SEGS.map(s => ['','',s.label, ir3.bd*s.w]),
+    [],['','','Cash'],['','','Cash',ir3.ca]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ir3Data), 'for reporting IR3');
+
+  // Sheet 3: for reporting IR6
+  const ir6 = W.IR6;
+  const ir6Data = BP_SECTORS.map(s => ['',s.label, ir6.eq*s.w]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ir6Data), 'for reporting IR6');
+
+  const month = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'}).replace(' ','_');
+  XLSX.writeFile(wb, `${month}_IR1-IR6_Benchmarks_and_Portfolios.xlsx`);
+};
+
+function bpUpdateSidebarStatus() {
+  const el = document.getElementById('basePortfoliosSidebarStatus');
+  if (!el) return;
+  const stored = localStorage.getItem('suitability-bp-data');
+  if (stored) {
+    const bp = JSON.parse(stored);
+    const d = new Date(bp.updatedAt);
+    el.innerHTML = `<span style="color:#3b6d11;font-weight:500">✓ Updated ${d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>`;
+  } else {
+    el.textContent = 'Not yet configured';
+  }
+}
+
+// Init on page load
+(function bpInit() {
+  // Load saved ETF data
+  try {
+    const s = localStorage.getItem('suitability-bp-etf');
+    if (s) _bpEtfData = JSON.parse(s);
+  } catch(e) {}
+  // Load saved BCA views
+  try {
+    const s = localStorage.getItem('suitability-bp-bca-views');
+    if (s) _bpBcaViews = JSON.parse(s);
+  } catch(e) {}
+  // If no _benchmark in storage but bp-data exists, restore it
+  try {
+    const bpStored = localStorage.getItem('suitability-bp-data');
+    const bmStored = localStorage.getItem('suitability-benchmark');
+    if (bpStored && !bmStored) {
+      const bp = JSON.parse(bpStored);
+      const W = bp.W;
+      _benchmark = {};
+      BP_IRS.forEach(ir => {
+        _benchmark[ir] = { equities:W[ir].eq, bonds:W[ir].bd, cash:W[ir].ca, sectors:{}, bondSegments:{} };
+        BP_SECTORS.forEach(s => { _benchmark[ir].sectors[s.label] = W[ir].eq*s.w; });
+        BP_BOND_SEGS.forEach(s => { _benchmark[ir].bondSegments[s.label] = W[ir].bd*s.w; });
+      });
+    }
+  } catch(e) {}
+
+  // Render BCA table when tab is opened
+  const origSwitch = window.switchTab;
+  if (origSwitch) {
+    window.switchTab = function(tab, el) {
+      origSwitch(tab, el);
+      if (tab === 'base') {
+        bpRenderBcaTable();
+        bpUpdateSidebarStatus();
+        // Restore saved inputs
+        try {
+          const s = localStorage.getItem('suitability-bp-data');
+          if (s) {
+            const bp = JSON.parse(s);
+            document.getElementById('bp-ir3-eq').value = (bp.ir3eq*100).toFixed(1);
+            document.getElementById('bp-ir3-bd').value = (bp.ir3bd*100).toFixed(1);
+            document.getElementById('bp-ir3-ca').value = (bp.ir3ca*100).toFixed(1);
+            document.getElementById('bp-ret-eq-12m').value = bp.rets.eq['12M'];
+            document.getElementById('bp-ret-eq-5y').value  = bp.rets.eq['5Y'];
+            document.getElementById('bp-ret-bd-12m').value = bp.rets.bd['12M'];
+            document.getElementById('bp-ret-bd-5y').value  = bp.rets.bd['5Y'];
+            document.getElementById('bp-ret-ca-12m').value = bp.rets.ca['12M'];
+            document.getElementById('bp-ret-ca-5y').value  = bp.rets.ca['5Y'];
+            if (bp.source) document.getElementById('bp-bca-source').value = bp.source;
+            bpRenderOutputTable(bp.W, bp.rets, bp.source);
+          }
+        } catch(e) {}
+        // Update ETF status
+        const keys = Object.keys(_bpEtfData);
+        if (keys.length > 0) {
+          const st = document.getElementById('bp-etf-status');
+          if (st) st.textContent = `Loaded: ${keys.join(', ')}`;
+        }
+      }
+    };
+  }
+
+  // Update sidebar status on load
+  setTimeout(bpUpdateSidebarStatus, 100);
+})();
