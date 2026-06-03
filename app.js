@@ -164,10 +164,8 @@ function loadReportState() {
   if (!s) { resetReportForm(); return; }
 
   // Dates
-  const rd = document.getElementById('r-reportDate');
-  if (rd) rd.value = s.reportDate || '';
-  const dd = document.getElementById('r-dataDate');
-  if (dd) dd.value = s.dataDate || '';
+    const reportDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const dataDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
   // IR rating
   if (s.ir) {
@@ -274,10 +272,8 @@ function resetReportForm() {
   if (brkPreview) brkPreview.style.display = 'none';
 
   // Reset dates
-  const rd = document.getElementById('r-reportDate');
-  if (rd) rd.value = '';
-  const dd = document.getElementById('r-dataDate');
-  if (dd) dd.value = '';
+    const reportDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const dataDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
   // Clear holding quotes (per-client, not persisted)
   window._holdingQuotesData = {};
@@ -1053,12 +1049,8 @@ window.runPortfolioReport = async function() {
 
     const analytics = calculatePortfolioAnalytics(portfolioData, irRatings, clientIR);
 
-    const reportDate = document.getElementById('r-reportDate').value
-      ? new Date(document.getElementById('r-reportDate').value).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})
-      : new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
-    const dataDate = document.getElementById('r-dataDate').value
-      ? new Date(document.getElementById('r-dataDate').value).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})
-      : reportDate;
+    const reportDate = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
+    const dataDate = reportDate;
 
     const chartSrc = document.getElementById('r-chartImg')?.src || '';
     const breakdownSrc = document.getElementById('r-breakdownImg')?.src || '';
