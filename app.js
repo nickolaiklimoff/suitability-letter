@@ -2211,11 +2211,9 @@ window.bpSaveAndGenerate = function() {
   _benchmark = {};
   BP_IRS.forEach(ir => {
     _benchmark[ir] = {
-      equities: W[ir].eq,
-      bonds:    W[ir].bd,
-      cash:     W[ir].ca,
-      sectors:  {},
-      bondSegments: {}
+      equities: W[ir].eq, bonds: W[ir].bd, cash: W[ir].ca,
+      equity:   W[ir].eq, bond:  W[ir].bd,  // aliases used in report.js
+      sectors:  {}, bondSegments: {}
     };
     BP_SECTORS.forEach(s => { _benchmark[ir].sectors[s.label] = W[ir].eq * s.w; });
     BP_BOND_SEGS.forEach(s => { _benchmark[ir].bondSegments[s.label] = W[ir].bd * s.w; });
@@ -2702,19 +2700,24 @@ function bpUpdateSidebarStatus() {
     const s = localStorage.getItem('suitability-bp-bca-views');
     if (s) _bpBcaViews = JSON.parse(s);
   } catch(e) {}
-  // Restore _benchmark from bp-data if needed
+  // Restore _benchmark from bp-data (always prefer bp-data over old xlsx)
   try {
     const bpStored = localStorage.getItem('suitability-bp-data');
-    const bmStored = localStorage.getItem('suitability-benchmark');
-    if (bpStored && !bmStored) {
+    if (bpStored) {
       const bp = JSON.parse(bpStored);
       const W = bp.W;
       _benchmark = {};
       BP_IRS.forEach(ir => {
-        _benchmark[ir] = { equities:W[ir].eq, bonds:W[ir].bd, cash:W[ir].ca, sectors:{}, bondSegments:{} };
-        BP_SECTORS.forEach(s => { _benchmark[ir].sectors[s.label] = W[ir].eq*s.w; });
-        BP_BOND_SEGS.forEach(s => { _benchmark[ir].bondSegments[s.label] = W[ir].bd*s.w; });
+        _benchmark[ir] = {
+          equities: W[ir].eq, bonds: W[ir].bd, cash: W[ir].ca,
+          equity: W[ir].eq, bond: W[ir].bd,  // aliases used in report.js
+          sectors: {}, bondSegments: {}
+        };
+        BP_SECTORS.forEach(s => { _benchmark[ir].sectors[s.label] = W[ir].eq * s.w; });
+        BP_BOND_SEGS.forEach(s => { _benchmark[ir].bondSegments[s.label] = W[ir].bd * s.w; });
       });
+      // Also save to suitability-benchmark for compatibility
+      localStorage.setItem('suitability-benchmark', JSON.stringify(_benchmark));
     }
   } catch(e) {}
   setTimeout(bpUpdateSidebarStatus, 100);
