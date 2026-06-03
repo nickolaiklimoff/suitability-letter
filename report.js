@@ -1431,7 +1431,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
   };
 
   const bm = benchmark[clientIR] || {};
-  const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics;
+  const analytics_ = analytics || { equityPct:0, bondPct:0, cashPct:0, sectors:{}, bondSegments:{}, waar:0, totalValue:0, classified:[] };
+  const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics_;
   // WAAR corridor assessment
   const waarAssessment = (typeof assessWAAR === 'function')
     ? assessWAAR(waar, clientIR)
