@@ -1030,6 +1030,9 @@ window.runPortfolioReport = async function() {
         _analytics: null,
       };
       const html = generatePortfolioReport(emptyPortfolio, null, _benchmark, clientIR, clients[currentClientId] || {name:'Client'}, reportDate, reportDate, null, null, showClientName, depositData);
+      window._lastPortfolioData = emptyPortfolio;
+      window._lastReportConfig  = { clientIR, client: clients[currentClientId] || {name:'Client'}, benchmark: _benchmark, reportDate, dataDate: reportDate, depositsOnly: true, depositData };
+      window._lastWaar = null;
       document.getElementById('r-reportContent').innerHTML = html;
       document.getElementById('r-reportOutput').classList.remove('hidden');
       document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
@@ -1346,6 +1349,65 @@ function buildCommentaryPrompt() {
   const clientIR = cfg.clientIR || 'IR3';
   const irNum = parseInt(clientIR.replace('IR','')) || 3;
   const maxWaar = irNum + 0.49;
+
+  // ── Deposits-only mode ──────────────────────────────────────────────────────
+  if (cfg.depositsOnly) {
+    const dd = cfg.depositData || {};
+    const ca = (dd.currentAccounts || []).map(r => `${r.ccy} ${r.amount.toLocaleString()}`).join(', ') || 'none';
+    const td = (dd.timeDeposits || []).map(r => `${r.ccy} ${r.amount.toLocaleString()}`).join(', ') || 'none';
+
+    // BCA context
+    let bcaContext = '';
+    try {
+      const views = _bpBcaViews && Object.keys(_bpBcaViews).length > 0 ? _bpBcaViews : null;
+      const bpData = JSON.parse(localStorage.getItem('suitability-bp-data') || '{}');
+      const source = bpData.source || 'BCA Research GAA';
+      if (views) {
+        const LABELS = {
+          gaa_eq:'Equities',gaa_fi:'Fixed Income',gaa_ca:'Cash',
+          eq_us:'US',eq_eu:'Euro Area',eq_jp:'Japan',eq_uk:'UK',eq_cn:'China',eq_em:'EM ex China',
+          fi_gov:'Government Bonds',fi_ig:'Investment Grade',fi_hy:'High Yield',fi_em:'EM Debt',
+          sec_fin:'Financials',sec_it:'Info Tech',sec_hc:'Health Care',sec_cs2:'Communication Services',
+          sec_ind:'Industrials',sec_cd:'Consumer Discretionary',sec_cst:'Consumer Staples',
+          sec_en:'Energy',sec_mat:'Materials',
+        };
+        const ow = [], uw = [], changed = [];
+        Object.entries(views).forEach(([k,v]) => {
+          if (!LABELS[k]) return;
+          if (v.curr==='overweight') ow.push(LABELS[k]);
+          if (v.curr==='underweight') uw.push(LABELS[k]);
+          if (v.prev!==v.curr) changed.push(`${LABELS[k]}: ${v.prev}→${v.curr}`);
+        });
+        bcaContext = `\nHOUSE VIEW (${source}):\nOverweight: ${ow.join(', ')||'none'}\nUnderweight: ${uw.join(', ')||'none'}\n${changed.length?'Changes: '+changed.join('; '):''}`;
+      }
+      const takeaway = localStorage.getItem('suitability-bp-takeaway');
+      if (takeaway) bcaContext += `\nTop takeaway: ${takeaway}`;
+      const reportText = document.getElementById('bp-report-text')?.value || localStorage.getItem('suitability-bp-alloc-text') || '';
+      if (reportText.length > 100) bcaContext += `\n\nBCA REPORT EXCERPT:\n${reportText.slice(0,2500)}`;
+    } catch(e) {}
+
+    const bm = (cfg.benchmark || {})[clientIR] || {};
+    const bmEq = ((bm.equities||0)*100).toFixed(0);
+    const bmBd = ((bm.bonds||0)*100).toFixed(0);
+    const bmCa = ((bm.cash||0)*100).toFixed(0);
+
+    return `You are writing a portfolio advisory commentary for an investment report at Orion Ridge Capital.
+
+The client currently holds NO securities portfolio — only cash and deposits:
+- Current accounts: ${ca}
+- Time deposits: ${td}
+
+CLIENT RISK PROFILE: ${clientIR}
+${clientIR} BENCHMARK ALLOCATION: Equities ${bmEq}%, Bonds ${bmBd}%, Cash ${bmCa}%
+${bcaContext}
+
+Write exactly 3 paragraphs (no headers, no bullets):
+1. Current position — describe the client's current holdings (cash and deposits). Note that the portfolio is entirely in cash/deposits with 0% allocation to equities and bonds, which represents a significant deviation from the ${clientIR} benchmark of ${bmEq}% equities and ${bmBd}% bonds.
+2. House view & market context — briefly summarise Orion Ridge Capital's current market outlook based on the BCA research context. Which asset classes, regions and sectors does the house favour?
+3. Recommended action — give specific, actionable recommendations on how to deploy the available capital to build a portfolio aligned with the ${clientIR} benchmark and current house view. Name specific asset classes, approximate target allocations, and priority areas based on overweight recommendations.
+
+Style: professional investment advisory. Do not mention the client's name. Third person ("the client", "the portfolio"). Concrete numbers and percentages.`;
+  }
   const waar = window._lastWaar;
   const waarBreached = typeof waar === 'number' && waar > maxWaar;
   const analytics = pd._analytics;
