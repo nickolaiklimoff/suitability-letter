@@ -657,6 +657,74 @@ function buildDividendsSection(divRows) {
 }
 
 // ─── Section 9: Trades ────────────────────────────────────────────────────────
+function buildDepositsSection(depositData, baseCcy) {
+  if (!depositData) return '';
+  const { currentAccounts = [], timeDeposits = [], depositsOnly = false } = depositData;
+  const hasAny = currentAccounts.length > 0 || timeDeposits.length > 0;
+  if (!hasAny) return '';
+
+  // FX rates (approximate, for display totals only)
+  const FX_TO_USD = { USD:1, EUR:1.08, GBP:1.27, CHF:1.10 };
+  const FX_FROM_BASE = FX_TO_USD[baseCcy] || 1;
+
+  function fmtAmt(ccy, amt) {
+    const sym = {USD:'$',EUR:'€',GBP:'£',CHF:'Fr '}[ccy] || '';
+    return sym + amt.toLocaleString('en-GB', {minimumFractionDigits:0, maximumFractionDigits:0});
+  }
+
+  function buildTable(rows, label) {
+    if (!rows.length) return '';
+    let total = 0;
+    const rowHtml = rows.map(r => {
+      const inBase = r.amount * (FX_TO_USD[r.ccy] || 1) / FX_FROM_BASE;
+      total += inBase;
+      return `<tr>
+        <td>${r.ccy}</td>
+        <td style="text-align:right">${fmtAmt(r.ccy, r.amount)}</td>
+        <td style="text-align:right;color:var(--text3);font-size:12px">${fmtAmt(baseCcy, Math.round(inBase))} equiv.</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:8px">${label}</div>
+        <table class="report-table">
+          <thead><tr>
+            <th>Currency</th>
+            <th style="text-align:right">Amount</th>
+            <th style="text-align:right">${baseCcy} Equivalent</th>
+          </tr></thead>
+          <tbody>
+            ${rowHtml}
+            <tr style="border-top:2px solid var(--border);font-weight:600">
+              <td colspan="2">Total</td>
+              <td style="text-align:right">${fmtAmt(baseCcy, Math.round(total))}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  const caTotal = currentAccounts.reduce((s,r) => s + r.amount*(FX_TO_USD[r.ccy]||1)/FX_FROM_BASE, 0);
+  const tdTotal = timeDeposits.reduce((s,r) => s + r.amount*(FX_TO_USD[r.ccy]||1)/FX_FROM_BASE, 0);
+  const grandTotal = caTotal + tdTotal;
+
+  return `
+    <div class="report-section report-section-numbered">
+      <div class="report-section-title">${depositsOnly ? '2' : '14'}. Cash &amp; Deposits</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;font-style:italic">
+        The following cash balances and deposits are held ${depositsOnly ? 'by the client' : 'in addition to the securities portfolio'} and are shown for informational purposes only.
+        ${depositsOnly ? 'No securities portfolio is held — asset allocation analysis is not applicable.' : 'They are not included in portfolio allocation or risk calculations.'}
+      </p>
+      ${buildTable(currentAccounts, 'Current Accounts')}
+      ${buildTable(timeDeposits, 'Time Deposits')}
+      ${grandTotal > 0 ? `
+      <div style="background:var(--bg2);border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span style="font-weight:600;color:var(--text1)">Total Cash &amp; Deposits</span>
+        <span style="font-weight:700;font-size:16px;color:var(--brand)">${fmtAmt(baseCcy, Math.round(grandTotal))}</span>
+      </div>` : ''}
+    </div>`;
+}
+
 function buildTradesSection(tradeRows) {
   if (!tradeRows || tradeRows.length === 0) return '';
 
@@ -1352,7 +1420,7 @@ function buildCommentarySection(commentaryText) {
     </div>`;
 }
 
-window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true) {
+window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
   // Persist for Word export
@@ -1741,6 +1809,8 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       ${buildTradesSection(portfolioData.tradeRows || [])}
 
       ${commentaryHtml}
+
+      ${buildDepositsSection(depositData, portfolioData.reportCcy || 'USD')}
 
       <div class="report-disclaimer" style="page-break-before:always;break-before:page">
         <div class="report-disclaimer-title">Important Disclaimer</div>

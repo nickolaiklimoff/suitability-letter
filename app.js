@@ -1082,7 +1082,8 @@ window.runPortfolioReport = async function() {
     window._lastPortfolioData = portfolioData;
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const showClientName = document.getElementById('r-showClientName')?.checked !== false;
-    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName);
+    const depositData = getDepositData();
+    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
     document.getElementById('r-reportContent').innerHTML = html;
     // Store key metrics for commentary generation
     window._lastWaar = analytics?.waar ?? null;
@@ -3118,3 +3119,53 @@ window.bpParseAllocText = function() {
 
   bpSaveAndGenerate();
 };
+
+// ─── Cash & Deposits ──────────────────────────────────────────────────────────
+
+window.addDepositRow = function(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'deposit-row';
+  row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
+  row.innerHTML = `
+    <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+      <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
+    </select>
+    <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
+    <button onclick="this.parentElement.remove()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);cursor:pointer">✕</button>`;
+  container.appendChild(row);
+};
+
+window.toggleDepositsOnly = function(checked) {
+  // Hide/show portfolio import sections
+  const importCard = document.querySelector('.form-card'); // first card = portfolio import
+  const analyticsCard = document.getElementById('analyticsFullInputs')?.closest('.form-card');
+  if (checked) {
+    // Grey out portfolio section visually
+    document.querySelectorAll('.form-card').forEach((c, i) => {
+      if (i < 3) c.style.opacity = '0.4';  // portfolio, chart, analytics
+    });
+  } else {
+    document.querySelectorAll('.form-card').forEach(c => { c.style.opacity = ''; });
+  }
+};
+
+function readDepositRows(containerId) {
+  const rows = document.querySelectorAll(`#${containerId} .deposit-row`);
+  const result = [];
+  rows.forEach(row => {
+    const ccy = row.querySelector('.deposit-ccy')?.value;
+    const amt = parseFloat(row.querySelector('.deposit-amount')?.value);
+    if (ccy && !isNaN(amt) && amt > 0) result.push({ ccy, amount: amt });
+  });
+  return result;
+}
+
+function getDepositData() {
+  return {
+    currentAccounts: readDepositRows('r-current-accounts'),
+    timeDeposits: readDepositRows('r-time-deposits'),
+    depositsOnly: document.getElementById('r-depositsOnly')?.checked || false,
+  };
+}

@@ -494,6 +494,54 @@
           </div>
         </div>
 
+        </div>
+
+        <!-- Cash & Deposits -->
+        <div class="form-card" style="margin-top:1rem">
+          <h3>Cash &amp; Deposits <span style="font-weight:400;color:var(--text3)">(optional)</span></h3>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:1rem">Included in report for information only — not counted in portfolio allocation or WAAR.</p>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+            <!-- Current accounts -->
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Current accounts</div>
+              <div id="r-current-accounts">
+                <div class="deposit-row" style="display:flex;gap:6px;margin-bottom:6px">
+                  <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+                    <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
+                  </select>
+                  <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
+                </div>
+              </div>
+              <button class="btn-secondary" onclick="addDepositRow('r-current-accounts')" style="font-size:11px;padding:3px 8px;margin-top:2px">+ Add currency</button>
+            </div>
+
+            <!-- Time deposits -->
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Time deposits</div>
+              <div id="r-time-deposits">
+                <div class="deposit-row" style="display:flex;gap:6px;margin-bottom:6px">
+                  <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+                    <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
+                  </select>
+                  <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
+                </div>
+              </div>
+              <button class="btn-secondary" onclick="addDepositRow('r-time-deposits')" style="font-size:11px;padding:3px 8px;margin-top:2px">+ Add currency</button>
+            </div>
+
+          </div>
+
+          <!-- Securities-only toggle -->
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text2)">
+              <input type="checkbox" id="r-depositsOnly" style="width:14px;height:14px" onchange="toggleDepositsOnly(this.checked)">
+              Client has <strong style="margin:0 3px">no securities portfolio</strong> — report on cash &amp; deposits only
+            </label>
+          </div>
+        </div>
+
         <div style="margin-top:1rem">
           <button class="btn-generate" onclick="runPortfolioReport()" style="display:inline-flex;align-items:center;gap:8px">
             Generate report ↗
