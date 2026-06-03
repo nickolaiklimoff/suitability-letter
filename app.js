@@ -2001,6 +2001,8 @@ window.bpSaveReportText = function() {
   const st = document.getElementById('bp-report-text-status');
   if (st) { st.textContent = '✓ Saved'; st.style.color = '#3b6d11'; setTimeout(()=>{ st.textContent=''; }, 2000); }
 };
+
+window.bpUpdateView = function(sel) {
   const key = sel.dataset.key, field = sel.dataset.field;
   if (!_bpBcaViews[key]) _bpBcaViews[key] = {};
   _bpBcaViews[key][field] = sel.value;
