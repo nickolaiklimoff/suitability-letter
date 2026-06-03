@@ -2393,7 +2393,13 @@ window.bpDownloadXlsx = async function() {
   const W = bp.W; const rets = bp.rets;
   const source = bp.source || 'BCA Research GAA';
   const etf = _bpEtfData || {};
-  const views = _bpBcaViews || {};
+  // Load views from localStorage (fresh, not stale module-level variable)
+  let views = {};
+  try {
+    const vStored = localStorage.getItem('suitability-bp-bca-views');
+    if (vStored) views = JSON.parse(vStored);
+    else views = _bpBcaViews || {};
+  } catch(e) { views = _bpBcaViews || {}; }
   const IRS = BP_IRS;
   const month = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
 
@@ -2647,13 +2653,7 @@ window.bpDownloadXlsx = async function() {
     wv.getRow(rv).height=16;rv++;
   });
 
-  // ── Sheet 3: for reporting IR3 ───────────────────────────────────────────
-  const ws3=wb2.addWorksheet('for reporting IR3');
-  [['Equities',W.IR3.eq],['Bonds',W.IR3.bd],['Cash',W.IR3.ca]].forEach(([l,v],i)=>{ws3.getCell(i+1,1).value=l;ws3.getCell(i+1,2).value=v;});
-  let rr=5;ws3.getCell(rr,1).value='Equity sectors';rr++;
-  BP_SECTORS.forEach(s=>{ws3.getCell(rr,1).value=s.label;ws3.getCell(rr,2).value=W.IR3.eq*s.w;rr++;});
-  rr++;ws3.getCell(rr,1).value='Bond segments';rr++;
-  BP_BOND_SEGS.forEach(s=>{ws3.getCell(rr,1).value=s.label;ws3.getCell(rr,2).value=W.IR3.bd*s.w;rr++;});
+  // Sheet 3 removed — system uses localStorage directly
 
   const buffer=await wb2.xlsx.writeBuffer();
   const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
