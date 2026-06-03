@@ -1354,7 +1354,6 @@ function buildCommentaryPrompt() {
     ].filter(Boolean).join(' | ');
   }
 
-  // Add full-mode specific metrics
   let fullModeText = '';
   if (analytics && analytics.mode === 'full') {
     const bm = analytics.benchmark;
@@ -1368,7 +1367,48 @@ function buildCommentaryPrompt() {
 
   const isFullMode = analytics?.mode === 'full';
 
-  return `You are writing a concise portfolio risk commentary for an investment advisory report at Orion Ridge Capital.
+  // ── BCA Research context ──
+  let bcaContext = '';
+  try {
+    // Views (from screenshot parse)
+    const views = _bpBcaViews && Object.keys(_bpBcaViews).length > 0 ? _bpBcaViews : null;
+    const bpData = JSON.parse(localStorage.getItem('suitability-bp-data') || '{}');
+    const bcaSource = bpData.source || 'BCA Research GAA';
+
+    if (views) {
+      const LABELS = {
+        gaa_eq:'Equities', gaa_fi:'Fixed Income', gaa_ca:'Cash',
+        eq_us:'US Equities', eq_eu:'Euro Area', eq_jp:'Japan', eq_uk:'UK', eq_cn:'China', eq_em:'EM ex China',
+        fi_gov:'Government Bonds', fi_ig:'Investment Grade', fi_hy:'High Yield', fi_em:'EM Debt',
+        sec_fin:'Financials', sec_it:'Info Tech', sec_hc:'Health Care', sec_cs2:'Communication Services',
+        sec_ind:'Industrials', sec_cd:'Consumer Discretionary', sec_cst:'Consumer Staples',
+        sec_en:'Energy', sec_mat:'Materials', sec_re:'Real Estate', sec_ut:'Utilities',
+        fx_usd:'USD', fx_eur:'EUR', fx_gbp:'GBP'
+      };
+      const ow = [], uw = [], changed = [];
+      Object.entries(views).forEach(([k, v]) => {
+        if (!LABELS[k]) return;
+        if (v.curr === 'overweight') ow.push(LABELS[k]);
+        if (v.curr === 'underweight') uw.push(LABELS[k]);
+        if (v.prev !== v.curr) changed.push(`${LABELS[k]}: ${v.prev} → ${v.curr}`);
+      });
+      bcaContext = `\nORION RIDGE CAPITAL HOUSE VIEW (source: ${bcaSource}):
+Overweight: ${ow.join(', ') || 'none'}
+Underweight: ${uw.join(', ') || 'none'}
+${changed.length ? 'Changes this month: ' + changed.join('; ') : 'No changes this month'}`;
+    }
+
+    // Full report text for additional context
+    const reportText = localStorage.getItem('suitability-bp-alloc-text');
+    if (reportText && reportText.length > 100) {
+      const takeaway = localStorage.getItem('suitability-bp-takeaway');
+      if (takeaway) bcaContext += `\nBCA Top Takeaway: ${takeaway}`;
+    }
+  } catch(e) {}
+
+  const hasBcaViews = bcaContext.length > 0;
+
+  return `You are writing a concise portfolio commentary for an investment advisory report at Orion Ridge Capital.
 
 CLIENT: ${cfg.client?.name || 'Client'}
 RISK PROFILE: ${clientIR} | MAX PERMITTED WAAR: ${maxWaar.toFixed(2)}
@@ -1379,15 +1419,16 @@ Equities: ${window._lastEquityPct || 'N/A'} vs ${window._lastBmEquity || 'N/A'} 
 
 TOP 5 POSITIONS: ${topPos}
 PERFORMANCE METRICS: ${metrics || 'N/A'}
-${fullModeText ? 'FULL ANALYTICS (daily price data): ' + fullModeText : ''}
+${fullModeText ? 'FULL ANALYTICS: ' + fullModeText : ''}
+${bcaContext}
 
 Write exactly ${isFullMode ? '4' : '3'} paragraphs (no headers, no bullets) covering:
-1. Suitability Assessment — WAAR status vs ${clientIR} maximum of ${maxWaar.toFixed(2)}, and allocation deviation from benchmark with exact numbers
-2. Portfolio Behaviour — volatility, max drawdown, recovery${isFullMode ? ', beta, alpha vs benchmark' : ''}
-3. Performance — total return, key contributors
-${isFullMode ? '4. Risk Concentration — based on risk contribution analysis, which positions drive the most portfolio risk and what this means for diversification' : ''}
+1. Suitability & Allocation — WAAR status, allocation vs ${clientIR} benchmark with exact numbers
+2. Portfolio Performance — return, volatility, max drawdown${isFullMode ? ', beta, alpha' : ''}
+3. ${hasBcaViews ? 'House View Alignment — how the portfolio aligns with Orion Ridge Capital current house view; which positions are consistent with overweight/underweight recommendations; what tactical adjustments could bring the portfolio closer to the recommended positioning' : 'Key Observations — notable characteristics of the portfolio composition'}
+${isFullMode ? '4. Risk Concentration — top risk contributors and diversification assessment' : ''}
 
-Style: factual, objective, professional investment advisory. No recommendations. No value judgements on specific holdings.`;
+Style: factual, professional investment advisory tone. Third person. Concrete numbers where available.${hasBcaViews ? ' The house view paragraph should be actionable and specific to this client\'s holdings.' : ''}`;
 }
 
 async function generateCommentaryText(extraInstruction) {
@@ -1413,7 +1454,7 @@ Additional instruction: ${extraInstruction}`
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 600,
+      max_tokens: 1000,
       messages: [{ role: 'user', content: userContent }]
     })
   });
