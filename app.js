@@ -1081,7 +1081,8 @@ window.runPortfolioReport = async function() {
 
     window._lastPortfolioData = portfolioData;
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
-    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
+    const showClientName = document.getElementById('r-showClientName')?.checked !== false;
+    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName);
     document.getElementById('r-reportContent').innerHTML = html;
     // Store key metrics for commentary generation
     window._lastWaar = analytics?.waar ?? null;
@@ -1102,7 +1103,8 @@ window.runPortfolioReport = async function() {
         if (fullA) {
           portfolioData._analytics = fullA;
           // Regenerate report with full analytics
-          const html2 = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc);
+          const showClientName2 = document.getElementById('r-showClientName')?.checked !== false;
+          const html2 = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2);
           document.getElementById('r-reportContent').innerHTML = html2;
         } else {
           console.warn('[analytics] full analytics returned null — check holding file matching');

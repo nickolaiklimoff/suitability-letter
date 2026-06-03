@@ -1352,7 +1352,7 @@ function buildCommentarySection(commentaryText) {
     </div>`;
 }
 
-window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc) {
+window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
   // Persist for Word export
@@ -1552,7 +1552,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
         <div class="report-subtitle">Investment Analysis &amp; Advisory</div>
         <div class="report-cover-divider"></div>
         <div class="report-cover-meta">
-          <div class="cover-row"><span class="label">Client</span><strong>${client.name}</strong></div>
+          ${showClientName ? `<div class="cover-row"><span class="label">Client</span><strong>${client.name}</strong></div>` : ''}
           <div class="cover-row"><span class="label">Risk Profile</span><strong>${clientIR}</strong></div>
           <div class="cover-row"><span class="label">Portfolio Value</span><strong class="portfolio-value">${fmtUSD(totalValue)}</strong></div>
           <div class="cover-row"><span class="label">Report Date</span><strong>${reportDate}</strong></div>
@@ -1570,7 +1570,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
       <div class="report-section report-section-numbered">
         <div class="report-section-title">1. Client Risk Profile</div>
         <table class="report-table profile-table">
-          <tr><td class="profile-label">Client</td><td>${client.name}</td></tr>
+          ${showClientName ? `<tr><td class="profile-label">Client</td><td>${client.name}</td></tr>` : ''}
           <tr><td class="profile-label">Risk Profile</td><td><strong>${clientIR}</strong></td></tr>
           <tr><td class="profile-label">Investment Horizon</td><td>${decodeHorizon(client.profile?.timeHorizon)}</td></tr>
           <tr><td class="profile-label">Primary Objective</td><td>${decodeObjective(client.profile?.investmentObjective)}</td></tr>
