@@ -2616,7 +2616,7 @@ window.bpDownloadXlsx = async function() {
 
   // ── Sheet 2: BCA Views ───────────────────────────────────────────────────
   const wv=wb2.addWorksheet('BCA Research Views');
-  wv.getColumn(1).width=28;wv.getColumn(2).width=16;wv.getColumn(3).width=16;
+  wv.getColumn(1).width=34;wv.getColumn(2).width=16;wv.getColumn(3).width=16;
   let rv=1;
   wv.mergeCells(rv,1,rv,3);
   Object.assign(wv.getCell(rv,1),{value:`BCA Research — Recommended Allocation  |  ${month}`,
@@ -2628,13 +2628,21 @@ window.bpDownloadXlsx = async function() {
     font:{name:'Arial',italic:true,color:{argb:'FF'+TGRAY},size:8},alignment:{horizontal:'left'}});
   wv.getRow(rv).height=14;rv++;
 
+  // Column header row (once)
+  for(let c=1;c<=3;c++){wv.getCell(rv,c).fill=bf(BRAND);wv.getCell(rv,c).border={bottom:med(BRAND)};}
+  wv.getCell(rv,1).value='';
+  wv.getCell(rv,2).value='Previous';wv.getCell(rv,2).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,2).alignment={horizontal:'center'};
+  wv.getCell(rv,3).value='Current'; wv.getCell(rv,3).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,3).alignment={horizontal:'center'};
+  wv.getRow(rv).height=18;rv++;
+
   BP_BCA_ITEMS.forEach(item=>{
     if(item.section){
-      for(let c=1;c<=3;c++){wv.getCell(rv,c).fill=bf(BRAND);wv.getCell(rv,c).border={top:med(BRAND),bottom:thin()};}
-      wv.getCell(rv,1).value=item.section;wv.getCell(rv,1).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,1).alignment={horizontal:'left',vertical:'middle'};
-      wv.getCell(rv,2).value='Previous';wv.getCell(rv,2).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,2).alignment={horizontal:'center'};
-      wv.getCell(rv,3).value='Current';wv.getCell(rv,3).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,3).alignment={horizontal:'center'};
-      wv.getRow(rv).height=18;rv++;return;
+      wv.mergeCells(rv,1,rv,3);
+      const sc=wv.getCell(rv,1);
+      sc.value=item.section;sc.font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};
+      sc.fill=bf(BRAND);sc.alignment={horizontal:'left',vertical:'middle'};
+      sc.border={top:{style:'thin',color:{argb:'FF'+MGRAY}},bottom:{style:'thin',color:{argb:'FF'+MGRAY}}};
+      wv.getRow(rv).height=16;rv++;return;
     }
     const v=views[item.key]||{prev:item.prev,curr:item.curr};
     const changed=v.prev!==v.curr;
@@ -2646,7 +2654,7 @@ window.bpDownloadXlsx = async function() {
     [[2,v.prev],[3,v.curr]].forEach(([col,view])=>{
       const cell=wv.getCell(rv,col);
       const s={overweight:{t:GREEN,bg:OW_BG,l:'Overweight',b:true},underweight:{t:RED,bg:UW_BG,l:'Underweight',b:true},neutral:{t:'777777',bg:NEU_BG,l:'Neutral',b:false}}[view]||{t:'777777',bg:NEU_BG,l:view,b:false};
-      cell.value=s.l;cell.font={name:'Arial',bold:s.b,color:{argb:'FF'+s.t},size:10};
+      cell.value=s.l;cell.font={name:'Arial',bold:s.b,color:{argb:'FF'+s.t},size:9};
       cell.fill=bf(s.bg.replace('#',''));cell.alignment={horizontal:'center',vertical:'middle'};
       cell.border={left:thin(),right:thin(),bottom:thin()};
     });
