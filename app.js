@@ -1030,8 +1030,9 @@ window.runPortfolioReport = async function() {
         _analytics: null,
       };
       const html = generatePortfolioReport(emptyPortfolio, null, _benchmark, clientIR, clients[currentClientId] || {name:'Client'}, reportDate, reportDate, null, null, showClientName, depositData);
+      document.getElementById('r-reportContent').innerHTML = html;
       document.getElementById('r-reportOutput').classList.remove('hidden');
-      document.getElementById('r-reportFrame').srcdoc = html;
+      document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
       btn.textContent = 'Generate report ↗';
       btn.disabled = false;
       return;
