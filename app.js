@@ -1407,8 +1407,7 @@ ${changed.length ? 'Changes this month: ' + changed.join('; ') : 'No changes thi
 
   return `You are writing a concise portfolio commentary for an investment advisory report at Orion Ridge Capital.
 
-CLIENT: ${cfg.client?.name || 'Client'}
-RISK PROFILE: ${clientIR} | MAX PERMITTED WAAR: ${maxWaar.toFixed(2)}
+CLIENT RISK PROFILE: ${clientIR} | MAX PERMITTED WAAR: ${maxWaar.toFixed(2)}
 CURRENT WAAR: ${waar != null ? waar.toFixed(2) : 'N/A'} ${waarBreached ? '— BREACH (+' + (waar-maxWaar).toFixed(2) + ' points above ' + clientIR + ' maximum)' : '— within ' + clientIR + ' corridor'}
 
 ASSET ALLOCATION vs ${clientIR} benchmark:
@@ -1426,7 +1425,7 @@ Write exactly ${isFullMode ? '5' : '4'} paragraphs (no headers, no bullets) cove
 ${hasBcaViews ? `4. Tactical Recommendations — start a NEW paragraph (do not continue paragraph 3). Give 2-3 concrete, specific actions to better align the portfolio with the house view and restore ${clientIR} compliance. Each recommendation should name specific positions or asset classes with approximate target sizes.` : ''}
 ${isFullMode ? `${hasBcaViews ? '5' : '4'}. Risk Concentration — top risk contributors and diversification assessment` : ''}
 
-Style: factual, professional investment advisory. Third person. Concrete numbers. Paragraph 3 references the BCA market thesis. Paragraph 4 (recommendations) opens with a clear transition like "To improve alignment..." or "From a tactical standpoint..."`;
+Style: factual, professional investment advisory. Do NOT mention the client's name — refer to "the portfolio", "the client", or "the investor". Third person. Concrete numbers. Paragraph 3 references the BCA market thesis. Paragraph 4 (recommendations) opens with a clear transition like "To improve alignment..." or "From a tactical standpoint..."`;
 }
 
 async function generateCommentaryText(extraInstruction) {
