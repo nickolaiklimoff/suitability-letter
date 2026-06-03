@@ -1984,45 +1984,13 @@ window.exportReportToWord = async function() {
       continue;
     }
 
-    // ── Chart section ──
-    if (el.querySelector && el.querySelector('canvas,img')) {
-      const img = el.querySelector('img');
-      const canvas = el.querySelector('canvas');
-
-      // Section title
-      const titleEl = el.querySelector('.report-section-title');
-      if (titleEl) children.push(new D.Paragraph({
-        children: [new D.TextRun({ text: titleEl.innerText.trim(), bold: true, size: 22, color: BRAND, font: 'Georgia' })],
-        spacing: { before: pt(8), after: pt(4) },
-        border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: BRAND, space: 3 } },
-      }));
-
-      let src = img?.src || '';
-      if (!src && canvas) src = canvas.toDataURL('image/png');
-      if (src && src.startsWith('data:')) {
-        try {
-          const [meta, b64] = src.split(',');
-          const ext = meta.includes('png') ? 'png' : 'jpg';
-          children.push(new D.Paragraph({
-            children: [new D.ImageRun({
-              data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
-              transformation: { width: 680, height: 200 },
-              type: ext,
-            })],
-            spacing: { after: pt(6) },
-          }));
-        } catch(e) { /* skip */ }
-      }
-      continue;
-    }
-
-    // ── Report sections ──
+    // ── Report sections (numbered + unnumbered) ──
     if (el.classList.contains('report-section') || el.classList.contains('report-disclaimer')) {
       const isNumbered = el.classList.contains('report-section-numbered');
-      // Each numbered section starts on a new page (mirrors PDF @page-break-before)
+
+      // Section title with optional page break
       const titleEl = el.querySelector('.report-section-title');
       if (titleEl) {
-        // Page break merged INTO the title paragraph — prevents blank page between sections
         children.push(new D.Paragraph({
           children: [
             ...(isNumbered ? [new D.PageBreak()] : []),
@@ -2038,39 +2006,114 @@ window.exportReportToWord = async function() {
         }));
       }
 
-      // Walk direct children for sub-labels and tables
-      for (const child of el.children) {
-        if (child.classList.contains('report-section-title')) continue;
+      // Walk all descendant content
+      function processNode(node) {
+        if (!node) return;
 
-        // Sub-label (e.g. "Bonds", "Funds / ETFs")
-        const childText = (child.innerText || '').trim();
-        if (!child.querySelector('table') && !child.querySelector('img') && !child.querySelector('canvas') && childText && childText.length < 80) {
-          children.push(new D.Paragraph({
-            children: [new D.TextRun({ text: childText, bold: true, size: 19, color: BRAND, font: 'Georgia' })],
-            spacing: { before: pt(5), after: pt(2) },
-          }));
-          continue;
-        }
+        for (const child of node.children) {
+          if (child.classList.contains('report-section-title')) continue;
+          if (child.classList.contains('report-commentary-rewrite')) continue; // skip AI rewrite UI
 
-        // Tables (direct or nested in overflow div)
-        child.querySelectorAll('table').forEach(tbl => {
-          const t = domTableToDocx(tbl);
-          if (t) { children.push(t); children.push(spacer()); }
-        });
-        // Direct table
-        if (child.tagName === 'TABLE') {
-          const t = domTableToDocx(child);
-          if (t) { children.push(t); children.push(spacer()); }
+          // Sub-labels (bold headings like "Bonds", "Funds / ETFs")
+          if (!child.querySelector('table') && !child.querySelector('canvas') &&
+              !child.querySelector('img') && !child.querySelector('p') &&
+              !child.querySelector('h1,h2,h3') &&
+              (child.innerText||'').trim() && (child.innerText||'').trim().length < 100) {
+            const txt = (child.innerText||'').trim();
+            if (txt) {
+              children.push(new D.Paragraph({
+                children: [new D.TextRun({ text: txt, bold: true, size: 19, color: BRAND, font: 'Georgia' })],
+                spacing: { before: pt(5), after: pt(2) },
+              }));
+            }
+            continue;
+          }
+
+          // Paragraph text (commentary, disclaimers)
+          if (child.tagName === 'P' || child.classList.contains('report-commentary-text')) {
+            const txt = (child.innerText||'').trim();
+            if (txt) {
+              children.push(new D.Paragraph({
+                children: [new D.TextRun({ text: txt, size: 18, font: 'Georgia' })],
+                spacing: { after: pt(6) },
+              }));
+            }
+            continue;
+          }
+
+          // Canvas → image
+          const canvas = child.tagName === 'CANVAS' ? child : child.querySelector('canvas');
+          const img = child.tagName === 'IMG' ? child : child.querySelector('img');
+          if (canvas || img) {
+            let src = img?.src || '';
+            if (!src && canvas) src = canvas.toDataURL('image/png');
+            if (src && src.startsWith('data:')) {
+              try {
+                const [meta, b64] = src.split(',');
+                const ext = meta.includes('png') ? 'png' : 'jpg';
+                children.push(new D.Paragraph({
+                  children: [new D.ImageRun({
+                    data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
+                    transformation: { width: 680, height: 200 },
+                    type: ext,
+                  })],
+                  spacing: { after: pt(6) },
+                }));
+              } catch(e) { /* skip */ }
+            }
+            // Still process tables within this child
+          }
+
+          // Tables (direct or nested)
+          if (child.tagName === 'TABLE') {
+            const t = domTableToDocx(child);
+            if (t) { children.push(t); children.push(spacer()); }
+            continue;
+          }
+
+          child.querySelectorAll(':scope > table, :scope > div > table').forEach(tbl => {
+            const t = domTableToDocx(tbl);
+            if (t) { children.push(t); children.push(spacer()); }
+          });
+
+          // Recurse into divs that might have more content
+          if (child.tagName === 'DIV' && !child.querySelector('table') && !child.querySelector('canvas')) {
+            for (const p of child.querySelectorAll('p')) {
+              const txt = (p.innerText||'').trim();
+              if (txt) {
+                children.push(new D.Paragraph({
+                  children: [new D.TextRun({ text: txt, size: 18, font: 'Georgia' })],
+                  spacing: { after: pt(6) },
+                }));
+              }
+            }
+          }
         }
       }
 
-      // Disclaimer plain text
+      processNode(el);
+
+      // Disclaimer full text
       if (el.classList.contains('report-disclaimer')) {
-        children.push(new D.Paragraph({
-          children: [new D.TextRun({ text: el.innerText.trim(), size: 14, color: '9CA3AF', italics: true, font: 'Georgia' })],
-          spacing: { before: pt(12) },
-          border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 6 } },
-        }));
+        const parts = el.querySelectorAll('p, .report-disclaimer-title, strong');
+        if (parts.length) {
+          parts.forEach(p => {
+            const txt = (p.innerText||'').trim();
+            if (!txt) return;
+            const isTitle = p.classList.contains('report-disclaimer-title');
+            children.push(new D.Paragraph({
+              children: [new D.TextRun({ text: txt, size: isTitle ? 18 : 15, bold: isTitle, color: isTitle ? BRAND : '9CA3AF', italics: !isTitle, font: 'Georgia' })],
+              spacing: { after: pt(isTitle ? 4 : 2) },
+              ...(isTitle && { border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 4 } } }),
+            }));
+          });
+        } else {
+          children.push(new D.Paragraph({
+            children: [new D.TextRun({ text: el.innerText.trim(), size: 14, color: '9CA3AF', italics: true, font: 'Georgia' })],
+            spacing: { before: pt(12) },
+            border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 6 } },
+          }));
+        }
       }
     }
   }
