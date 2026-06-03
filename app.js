@@ -1399,7 +1399,8 @@ ${changed.length ? 'Changes this month: ' + changed.join('; ') : 'No changes thi
     }
 
     // Full report text for additional context
-    const reportText = localStorage.getItem('suitability-bp-alloc-text');
+    const reportText = document.getElementById('bp-report-text')?.value ||
+                       localStorage.getItem('suitability-bp-alloc-text') || '';
     if (reportText && reportText.length > 100) {
       const takeaway = localStorage.getItem('suitability-bp-takeaway');
       if (takeaway) bcaContext += `\nBCA Top Takeaway: ${takeaway}`;
@@ -1954,12 +1955,11 @@ function bpRenderBcaTable() {
   const wrap = document.getElementById('bp-bca-table-wrap');
   if (!wrap) return;
 
+  // Show the views section
+  const section = document.getElementById('bp-views-section');
+  if (section) section.style.display = 'block';
+
   const VIEWS = ['overweight','neutral','underweight'];
-  const pillCss = {
-    overweight: 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600',
-    neutral:    'background:#f5f5f5;color:#666;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600',
-    underweight:'background:#ffebee;color:#c62828;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600'
-  };
 
   let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr>
@@ -1995,7 +1995,12 @@ function bpRenderBcaTable() {
   wrap.innerHTML = html;
 }
 
-window.bpUpdateView = function(sel) {
+window.bpSaveReportText = function() {
+  const text = document.getElementById('bp-report-text')?.value || '';
+  try { localStorage.setItem('suitability-bp-alloc-text', text); } catch(e) {}
+  const st = document.getElementById('bp-report-text-status');
+  if (st) { st.textContent = '✓ Saved'; st.style.color = '#3b6d11'; setTimeout(()=>{ st.textContent=''; }, 2000); }
+};
   const key = sel.dataset.key, field = sel.dataset.field;
   if (!_bpBcaViews[key]) _bpBcaViews[key] = {};
   _bpBcaViews[key][field] = sel.value;
@@ -2568,9 +2573,10 @@ window.bpOpen = function() {
   document.getElementById('appContent').classList.add('hidden');
   document.getElementById('basePortfoliosPanel').classList.remove('hidden');
   bpRestoreState();
+
+  // ETF status
   const st = document.getElementById('bp-etf-status');
   const etfKeys = Object.keys(_bpEtfData).filter(k => k !== 'BIL');
-  // Auto-fetch FRED if BIL missing or stale
   if (!_bpEtfData['BIL'] || _bpEtfData['BIL'].ret1y == null) {
     if (st) st.textContent = `${etfKeys.length ? 'Loaded: '+etfKeys.join(', ')+' · ' : ''}Fetching cash rates from FRED...`;
     bpFetchFredGS1(st);
@@ -2580,12 +2586,31 @@ window.bpOpen = function() {
       st.style.color = '#3b6d11';
     }
   }
+
+  // Show views table if we have any views
+  if (Object.keys(_bpBcaViews).length > 0) {
+    bpRenderBcaTable();
+    try {
+      const bpData = JSON.parse(localStorage.getItem('suitability-bp-data') || '{}');
+      const srcEl = document.getElementById('bp-views-source');
+      if (srcEl && bpData.source) srcEl.textContent = bpData.source;
+    } catch(e) {}
+  }
+
+  // Restore PDF status
   try {
     const t = localStorage.getItem('suitability-bp-takeaway');
     if (t) {
       const pst = document.getElementById('bp-pdf-status');
-      if (pst) { pst.textContent = '✓ Views loaded from previous session'; pst.style.color = '#3b6d11'; }
+      if (pst) { pst.textContent = '✓ Views extracted from previous session'; pst.style.color = '#3b6d11'; }
     }
+  } catch(e) {}
+
+  // Restore report text
+  try {
+    const txt = localStorage.getItem('suitability-bp-alloc-text');
+    const el = document.getElementById('bp-report-text');
+    if (el && txt) el.value = txt;
   } catch(e) {}
 };
 
@@ -2762,14 +2787,18 @@ Use ONLY: overweight, neutral, underweight. If a category is not visible, use ne
       }
       if (parsed.source) {
         document.getElementById('bp-bca-source').value = parsed.source;
+        const srcEl = document.getElementById('bp-views-source');
+        if (srcEl) srcEl.textContent = parsed.source;
       }
-      // Store top takeaway for use in commentary
       if (parsed.topTakeaway) {
         try { localStorage.setItem('suitability-bp-takeaway', parsed.topTakeaway); } catch(e) {}
       }
 
       status.textContent = `✓ ${parsed.reportDate || file.name} — views extracted`;
       status.style.color = '#3b6d11';
+
+      // Show views table
+      bpRenderBcaTable();
 
       // Show preview
       const preview = document.getElementById('bp-parsed-preview');

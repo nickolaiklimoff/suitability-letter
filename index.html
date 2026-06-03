@@ -594,11 +594,24 @@
 
     </div>
 
-    <div id="bp-parsed-preview" style="display:none;margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:12px;font-weight:600;color:var(--text2)">Parsed data</span>
-        <button class="btn-secondary" onclick="document.getElementById('bp-parsed-detail').classList.toggle('hidden')" style="font-size:11px;padding:2px 8px">Toggle detail</button>
+    <!-- BCA Views table (populated after screenshot parse) -->
+    <div id="bp-views-section" style="display:none;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:600;color:var(--text1)">BCA Research — recommended allocation views</span>
+        <span id="bp-views-source" style="font-size:11px;color:var(--text3)"></span>
       </div>
+      <div id="bp-bca-table-wrap"></div>
+    </div>
+
+    <!-- Full BCA report text for AI commentary -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:6px">BCA report text <span style="font-size:11px;font-weight:400;color:var(--text3)">(paste full report text — used for AI commentary in portfolio reports)</span></div>
+      <textarea id="bp-report-text" rows="6" placeholder="Paste the full BCA GAA report text here..." style="width:100%;font-size:11px;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);resize:vertical"></textarea>
+      <button class="btn-secondary" onclick="bpSaveReportText()" style="font-size:12px;padding:4px 10px;margin-top:6px">Save text</button>
+      <span id="bp-report-text-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
+    </div>
+
+    <div id="bp-parsed-preview" style="display:none;margin-bottom:16px">
       <div id="bp-parsed-detail" class="hidden"></div>
       <div id="bp-parsed-summary" style="font-size:12px;color:var(--text3)"></div>
     </div>
