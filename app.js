@@ -1425,13 +1425,14 @@ PERFORMANCE METRICS: ${metrics || 'N/A'}
 ${fullModeText ? 'FULL ANALYTICS: ' + fullModeText : ''}
 ${bcaContext}
 
-Write exactly ${isFullMode ? '4' : '3'} paragraphs (no headers, no bullets) covering:
+Write exactly ${isFullMode ? '5' : '4'} paragraphs (no headers, no bullets) covering:
 1. Suitability & Allocation — WAAR status, allocation vs ${clientIR} benchmark with exact numbers
 2. Portfolio Performance — return, volatility, max drawdown${isFullMode ? ', beta, alpha' : ''}
-3. ${hasBcaViews ? `House View & Positioning — briefly state Orion Ridge Capital's current market outlook (key overweights, underweights, and any changes this month based on the BCA report context). Then assess how this client's portfolio aligns with or diverges from that view, naming specific positions. End with 2-3 concrete tactical suggestions to better align the portfolio with the house view.` : 'Key Observations — notable characteristics of the portfolio composition'}
-${isFullMode ? '4. Risk Concentration — top risk contributors and diversification assessment' : ''}
+3. ${hasBcaViews ? `House View & Positioning — briefly state Orion Ridge Capital's current market outlook (key overweights, underweights, and any changes this month based on the BCA report context). Then assess how this client's portfolio aligns with or diverges from that view, naming specific positions.` : 'Key Observations — notable characteristics of the portfolio composition'}
+${hasBcaViews ? `4. Tactical Recommendations — start a NEW paragraph (do not continue paragraph 3). Give 2-3 concrete, specific actions to better align the portfolio with the house view and restore ${clientIR} compliance. Each recommendation should name specific positions or asset classes with approximate target sizes.` : ''}
+${isFullMode ? `${hasBcaViews ? '5' : '4'}. Risk Concentration — top risk contributors and diversification assessment` : ''}
 
-Style: factual, professional investment advisory. Third person. Concrete numbers. Paragraph 3 must reference the BCA market thesis, not just list overweights.${hasBcaViews ? '' : ''}`;
+Style: factual, professional investment advisory. Third person. Concrete numbers. Paragraph 3 references the BCA market thesis. Paragraph 4 (recommendations) opens with a clear transition like "To improve alignment..." or "From a tactical standpoint..."`;
 }
 
 async function generateCommentaryText(extraInstruction) {
