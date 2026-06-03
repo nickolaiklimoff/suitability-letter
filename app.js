@@ -999,7 +999,8 @@ window.loadBenchmarkFile = async function(input) {
 
 window.runPortfolioReport = async function() {
   const portfolioInput = document.getElementById('r-portfolioFile');
-  if (!portfolioInput.files[0]) { alert('Please upload the cbonds portfolio export.'); return; }
+  const depositsOnly = document.getElementById('r-depositsOnly')?.checked;
+  if (!portfolioInput.files[0] && !depositsOnly) { alert('Please upload the cbonds portfolio export.'); return; }
 
   // Try to load benchmark from localStorage if not in memory
   if (!_benchmark) {
@@ -1009,13 +1010,33 @@ window.runPortfolioReport = async function() {
     } catch(e) {}
   }
 
-  if (!_benchmark) { alert('Please upload the IR benchmark file first.'); return; }
+  if (!_benchmark) { alert('Please upload the IR benchmark file first (or generate Base Portfolios).'); return; }
 
   const btn = document.querySelector('.btn-generate');
   btn.textContent = 'Generating...';
   btn.disabled = true;
 
   try {
+    // ── Deposits-only mode: build empty portfolio ──
+    if (depositsOnly && !portfolioInput.files[0]) {
+      const clientIR = document.querySelector('input[name="r-clientIR"]:checked')?.value || 'IR3';
+      const showClientName = document.getElementById('r-showClientName')?.checked !== false;
+      const depositData = getDepositData();
+      const reportDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+      const emptyPortfolio = {
+        stocks:[], funds:[], bonds:[], totalValue:0,
+        reportCcy:'USD', reportCcySym:'$',
+        couponRows:[], divRows:[], tradeRows:[],
+        _analytics: null,
+      };
+      const html = generatePortfolioReport(emptyPortfolio, null, _benchmark, clientIR, clients[currentClientId] || {name:'Client'}, reportDate, reportDate, null, null, showClientName, depositData);
+      document.getElementById('r-reportOutput').classList.remove('hidden');
+      document.getElementById('r-reportFrame').srcdoc = html;
+      btn.textContent = 'Generate report ↗';
+      btn.disabled = false;
+      return;
+    }
+
     const portfolioData = await parseCbondsExport(portfolioInput.files[0]);
 
     // Portfolio base currency: auto-detected from xlsx, UI dropdown as manual override
