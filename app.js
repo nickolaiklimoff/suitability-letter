@@ -230,16 +230,19 @@ function loadReportState() {
 }
 
 function selectClient(id) {
-  saveReportState();  // save current client state before switching
+  saveReportState();
   currentClientId = id;
   renderClientList();
+  // Hide Base Portfolios panel if open
+  const bpPanel = document.getElementById('basePortfoliosPanel');
+  if (bpPanel) bpPanel.classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('appContent').classList.remove('hidden');
   switchTab('report', document.querySelector('.tab'));
   loadProfileForm();
   loadClientTab();
   resetLetterForm();
-  loadReportState();  // restore new client state
+  loadReportState();
 }
 
 function resetReportForm() {
