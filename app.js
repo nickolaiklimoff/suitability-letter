@@ -142,8 +142,8 @@ function saveReportState() {
   const c = clients[currentClientId];
   if (!c) return;
   c.reportState = {
-    reportDate:    document.getElementById('r-reportDate')?.value || '',
-    dataDate:      document.getElementById('r-dataDate')?.value || '',
+    reportDate:    new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'}),
+    dataDate:      new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'}),
     ir:            document.querySelector('input[name="r-ir"]:checked')?.value || 'IR3',
     portCcy:       document.getElementById('r-portfolioCcy')?.value || 'USD',
     portfolioFileName: document.getElementById('r-portfolioFileName')?.textContent || '',
