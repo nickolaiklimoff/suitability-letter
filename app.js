@@ -1401,9 +1401,11 @@ ${changed.length ? 'Changes this month: ' + changed.join('; ') : 'No changes thi
     // Full report text for additional context
     const reportText = document.getElementById('bp-report-text')?.value ||
                        localStorage.getItem('suitability-bp-alloc-text') || '';
+    const takeaway = localStorage.getItem('suitability-bp-takeaway') || '';
+    if (takeaway) bcaContext += `\nBCA Top Takeaway: ${takeaway}`;
     if (reportText && reportText.length > 100) {
-      const takeaway = localStorage.getItem('suitability-bp-takeaway');
-      if (takeaway) bcaContext += `\nBCA Top Takeaway: ${takeaway}`;
+      // Include first 3000 chars of report for market context
+      bcaContext += `\n\nBCA REPORT CONTEXT (excerpt):\n${reportText.slice(0, 3000)}`;
     }
   } catch(e) {}
 
@@ -1426,10 +1428,10 @@ ${bcaContext}
 Write exactly ${isFullMode ? '4' : '3'} paragraphs (no headers, no bullets) covering:
 1. Suitability & Allocation — WAAR status, allocation vs ${clientIR} benchmark with exact numbers
 2. Portfolio Performance — return, volatility, max drawdown${isFullMode ? ', beta, alpha' : ''}
-3. ${hasBcaViews ? 'House View Alignment — how the portfolio aligns with Orion Ridge Capital current house view; which positions are consistent with overweight/underweight recommendations; what tactical adjustments could bring the portfolio closer to the recommended positioning' : 'Key Observations — notable characteristics of the portfolio composition'}
+3. ${hasBcaViews ? `House View & Positioning — briefly state Orion Ridge Capital's current market outlook (key overweights, underweights, and any changes this month based on the BCA report context). Then assess how this client's portfolio aligns with or diverges from that view, naming specific positions. End with 2-3 concrete tactical suggestions to better align the portfolio with the house view.` : 'Key Observations — notable characteristics of the portfolio composition'}
 ${isFullMode ? '4. Risk Concentration — top risk contributors and diversification assessment' : ''}
 
-Style: factual, professional investment advisory tone. Third person. Concrete numbers where available.${hasBcaViews ? ' The house view paragraph should be actionable and specific to this client\'s holdings.' : ''}`;
+Style: factual, professional investment advisory. Third person. Concrete numbers. Paragraph 3 must reference the BCA market thesis, not just list overweights.${hasBcaViews ? '' : ''}`;
 }
 
 async function generateCommentaryText(extraInstruction) {
@@ -1455,7 +1457,7 @@ Additional instruction: ${extraInstruction}`
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 1000,
+      max_tokens: 1400,
       messages: [{ role: 'user', content: userContent }]
     })
   });
