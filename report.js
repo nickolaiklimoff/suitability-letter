@@ -1742,7 +1742,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
       ${commentaryHtml}
 
-      <div class="report-disclaimer">
+      <div class="report-disclaimer" style="page-break-before:always;break-before:page">
         <div class="report-disclaimer-title">Important Disclaimer</div>
         <p>This report is indicative and has been compiled solely on the basis of information provided by or on behalf of the client. The holdings, valuations, performance figures, and allocations shown are approximate and aggregated for informational purposes only. Accurate and authoritative data can only be found in official statements issued by the relevant broker (Interactive Brokers). This report does not replace or supersede any official custodian reporting.</p>
         <p>This report does not constitute investment advice, a solicitation, or an offer to buy or sell any security or financial instrument. Orion Ridge Capital Ltd makes no representation or warranty, express or implied, as to the accuracy, completeness, or timeliness of the information contained herein. Past performance is not a reliable indicator of future results.</p>
