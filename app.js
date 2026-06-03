@@ -1038,6 +1038,7 @@ window.runPortfolioReport = async function() {
       document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
       btn.textContent = 'Generate report ↗';
       btn.disabled = false;
+      autoGenerateCommentary();
       return;
     }
 
