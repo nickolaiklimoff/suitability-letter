@@ -2385,138 +2385,283 @@ function bpRenderOutputTable(W, rets, source) {
     `<span style="color:${BRAND};font-weight:500">Source:</span> ${source}. Sector/segment weights based on BCA Research GAA benchmark proportions, scaled by IR equity/bond allocation. Equity return: BCA Equity Allocation (Sectors) GAA performance. Bond return: BCA Bond Allocation GAA performance. Cash return: avg US 1-Year Treasury CMT (GS1), Federal Reserve H.15 via FRED. All returns are indicative only and do not constitute investment advice.`;
 }
 
-window.bpDownloadXlsx = function() {
+window.bpDownloadXlsx = async function() {
   const stored = localStorage.getItem('suitability-bp-data');
   if (!stored) { alert('Generate table first.'); return; }
+  if (typeof ExcelJS === 'undefined') { alert('ExcelJS library not loaded yet, please wait and try again.'); return; }
   const bp = JSON.parse(stored);
-  const W = bp.W;
-  const rets = bp.rets;
+  const W = bp.W; const rets = bp.rets;
   const source = bp.source || 'BCA Research GAA';
   const etf = _bpEtfData || {};
+  const views = _bpBcaViews || {};
+  const IRS = BP_IRS;
+  const month = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
 
-  const IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
-  const wb = XLSX.utils.book_new();
+  const BRAND='5A7259',BRAND_DARK='3D4F3C',BRAND_HDR='EAF0EA',BRAND_MED='C8DAC8';
+  const LGRAY='F7F6F4',MGRAY='D8D4CC',TGRAY='999999';
+  const GREEN='2E7D32',RED='C62828',BLUE_TXT='1565C0',BLUE_BG='E8F0FE';
+  const OW_BG='E8F5E9',UW_BG='FFEBEE',NEU_BG='F2F2F2';
 
-  // ── Sheet 1: Base Portfolios (mirrors the on-screen table) ──
-  const d = [];
-  const fmtPct = v => v == null ? '—' : parseFloat((v*100).toFixed(4));
-  const fmtRet = v => v == null ? '—' : parseFloat(v.toFixed(2));
+  const wb2 = new ExcelJS.Workbook();
+  wb2.creator = 'Orion Ridge Capital'; wb2.created = new Date();
 
-  const header = ['', 'ISIN', 'Name / description', ...IRS];
-
-  // BENCHMARKS
-  d.push(['BENCHMARKS', '', '', ...IRS.map(ir => ir)]);
-  d.push(header);
-
-  const ETF_META = [
-    {label:'ACWI', isin:'US4642882579', name:'iShares MSCI ACWI ETF', type:'eq'},
-    {label:'AGGU', isin:'IE00BZ043R46', name:'AGGU – iShares Core Global Aggregate Bond UCITS ETF USD Hedged', type:'bd'},
-    {label:'BIL',  isin:'GS1',          name:'US 1-Year Treasury CMT – avg yield (FRED GS1)', type:'ca'},
-  ];
-
-  ETF_META.forEach(e => {
-    d.push([e.label, e.isin, e.name, ...IRS.map(ir => {
-      const w = BP_BM_WEIGHTS[e.type][ir];
-      return w > 0 ? fmtPct(w) : '—';
-    })]);
+  const bf = hex => ({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}});
+  const med = c => ({style:'medium',color:{argb:'FF'+c}});
+  const thin = c => ({style:'thin',color:{argb:'FF'+(c||MGRAY)}});
+  const border = (b={}) => ({
+    left:b.l||thin(),right:b.r||thin(),
+    top:b.t||thin(),bottom:b.b||thin()
   });
 
-  // Weighted benchmark metrics
-  function weightedMetric(metric, ir) {
-    let sum = 0, ok = false;
-    ETF_META.forEach(e => {
-      const w = BP_BM_WEIGHTS[e.type][ir];
-      const v = (etf[e.label] || {})[metric];
-      if (v != null && !isNaN(v) && w > 0) { sum += w * v; ok = true; }
+  function etfMetric(metric,ir){
+    let s=0,ok=false;
+    [{k:'ACWI',t:'eq'},{k:'AGGU',t:'bd'},{k:'BIL',t:'ca'}].forEach(e=>{
+      const w=BP_BM_WEIGHTS[e.t][ir],v=(etf[e.k]||{})[metric];
+      if(v!=null&&!isNaN(v)&&w>0){s+=w*v;ok=true;}
     });
-    return ok ? parseFloat(sum.toFixed(2)) : '—';
+    return ok?s:null;
   }
 
-  d.push(['1y return (ann.)', '', '', ...IRS.map(ir => weightedMetric('ret1y', ir))]);
-  d.push(['3y return (ann.)', '', '', ...IRS.map(ir => weightedMetric('ret3y', ir))]);
-  d.push(['1y volatility', '', '', ...IRS.map(ir => weightedMetric('vol1y', ir))]);
-  d.push(['3y volatility', '', '', ...IRS.map(ir => weightedMetric('vol3y', ir))]);
-  d.push([]);
+  // ── Sheet 1 ──────────────────────────────────────────────────────────────
+  const ws = wb2.addWorksheet('Base Portfolios');
+  ws.views=[{state:'frozen',xSplit:0,ySplit:4}];
+  ws.getColumn(1).width=52;
+  IRS.forEach((_,i)=>{ws.getColumn(i+2).width=11;});
 
-  // PORTFOLIO WEIGHTS
-  d.push(['PORTFOLIO WEIGHTS *']);
-  d.push(['', '', '', ...IRS]);
-  d.push(['Equities', '', '', ...IRS.map(ir => fmtPct(W[ir].eq))]);
-  d.push(['  Benchmark', '', '', ...IRS.map(ir => fmtPct(BP_BM_WEIGHTS.eq[ir]))]);
-  d.push(['Bonds', '', '', ...IRS.map(ir => fmtPct(W[ir].bd))]);
-  d.push(['  Benchmark', '', '', ...IRS.map(ir => fmtPct(BP_BM_WEIGHTS.bd[ir]))]);
-  d.push(['Cash', '', '', ...IRS.map(ir => fmtPct(W[ir].ca))]);
-  d.push(['  Benchmark', '', '', ...IRS.map(ir => fmtPct(BP_BM_WEIGHTS.ca[ir]))]);
-  d.push([]);
+  let r=1;
 
-  // EQUITY SECTORS
-  d.push(['EQUITY SECTORS *']);
-  d.push(['', '', '', ...IRS]);
-  BP_SECTORS.forEach(s => {
-    d.push([s.label, '', '', ...IRS.map(ir => fmtPct(W[ir].eq * s.w))]);
+  function title(row,txt,bg){
+    ws.mergeCells(row,1,row,7);
+    const c=ws.getCell(row,1);
+    c.value=txt;c.font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:13};
+    c.fill=bf(bg);c.alignment={horizontal:'left',vertical:'middle'};
+    c.border={bottom:med(BRAND_DARK)};ws.getRow(row).height=30;
+  }
+  function secHdr(row,label,sub=''){
+    ws.mergeCells(row,1,row,7);
+    const c=ws.getCell(row,1);
+    c.value=label+(sub?'   —   '+sub:'');
+    c.font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:11};
+    c.fill=bf(BRAND);c.alignment={horizontal:'left',vertical:'middle'};
+    c.border={top:med(BRAND_DARK),bottom:med(BRAND)};ws.getRow(row).height=22;return row+1;
+  }
+  function irHdr(row){
+    ws.getCell(row,1).fill=bf(BRAND);ws.getCell(row,1).border={bottom:med(BRAND)};
+    IRS.forEach((ir,i)=>{
+      const c=ws.getCell(row,i+2);
+      c.value=ir;c.font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};
+      c.fill=bf(ir==='IR3'?BRAND_DARK:BRAND);c.alignment={horizontal:'center',vertical:'middle'};
+      c.border={left:thin(),right:thin(),bottom:med(BRAND)};
+    });
+    ws.getRow(row).height=18;return row+1;
+  }
+  function lbl(cell,txt,opts={}){
+    const{bold=false,color='222222',size=10,italic=false,bg='FFFFFF',indent=0}=opts;
+    cell.value='  '.repeat(indent)+txt;
+    cell.font={name:'Arial',bold,color:{argb:'FF'+color},size,italic};
+    cell.fill=bf(bg);cell.alignment={horizontal:'left',vertical:'middle'};
+    cell.border={right:thin(),bottom:thin()};
+  }
+  function val(cell,v,opts={}){
+    const{pct=true,bold=false,color=null,ir='',fmt=null}=opts;
+    const bg=ir==='IR3'?BRAND_HDR:opts.bg||'FFFFFF';
+    cell.fill=bf(bg);cell.alignment={horizontal:'right',vertical:'middle'};
+    cell.border={left:thin(),right:thin(),bottom:thin()};
+    if(v===null||v===undefined||(pct&&typeof v==='number'&&Math.abs(v)<0.00001)){
+      cell.value='—';cell.font={name:'Arial',color:{argb:'FF'+TGRAY},size:10};return;
+    }
+    if(pct){cell.value=v/100;cell.numFmt=fmt||'0.00%';}
+    else{cell.value=v/100;cell.numFmt=fmt||'+0.0%;-0.0%;"-"';}
+    const col=color||(v>0?GREEN:v<0?RED:'333333');
+    cell.font={name:'Arial',bold,color:{argb:'FF'+col},size:10};
+  }
+  function totRow(row,label,vals,pct=true){
+    const c=ws.getCell(row,1);
+    c.value=label;c.font={name:'Arial',bold:true,color:{argb:'FF'+BRAND_DARK},size:10};
+    c.fill=bf(BRAND_HDR);c.alignment={horizontal:'left',vertical:'middle'};
+    c.border={top:med(BRAND),bottom:med(BRAND),right:thin()};
+    IRS.forEach((ir,i)=>{
+      const cell=ws.getCell(row,i+2);const v=vals[ir];
+      cell.fill=bf(ir==='IR3'?BRAND_MED:BRAND_HDR);
+      cell.alignment={horizontal:'right',vertical:'middle'};
+      cell.border={left:thin(),right:thin(),top:med(BRAND),bottom:med(BRAND)};
+      if(v===null||v===undefined){cell.value='—';cell.font={name:'Arial',color:{argb:'FF'+TGRAY},size:10,bold:true};return;}
+      if(pct){cell.value=v/100;cell.numFmt='0.00%';}else{cell.value=v/100;cell.numFmt='+0.0%;-0.0%;"-"';}
+      const col=v>0?GREEN:v<0?RED:BRAND_DARK;
+      cell.font={name:'Arial',bold:true,color:{argb:'FF'+col},size:10};
+    });
+    ws.getRow(row).height=18;
+  }
+  function subHdr(row,label){
+    const c=ws.getCell(row,1);
+    c.value=label.toUpperCase();c.font={name:'Arial',bold:true,color:{argb:'FF'+BRAND},size:9};
+    c.fill=bf(BRAND_HDR);c.alignment={horizontal:'left',vertical:'middle'};
+    c.border={top:med(BRAND),bottom:thin(),right:thin()};
+    IRS.forEach((_,i)=>{
+      const cell=ws.getCell(row,i+2);cell.fill=bf(BRAND_HDR);
+      cell.border={left:thin(),right:thin(),top:med(BRAND),bottom:thin()};
+    });
+    ws.getRow(row).height=16;
+  }
+
+  title(r,`Orion Ridge Capital  —  Base Portfolios  |  ${month}`,BRAND_DARK);r++;
+  r=secHdr(r,'Benchmarks');r=irHdr(r);
+
+  [{label:'Equities',tracker:'ACWI  ·  US4642882579  ·  iShares MSCI ACWI ETF',type:'eq'},
+   {label:'Bonds',  tracker:'AGGU  ·  IE00BZ043R46  ·  iShares Core Global Aggregate Bond ETF (USD Hdg)',type:'bd'},
+   {label:'Cash',   tracker:'GS1  ·  US 1-Year Treasury CMT — avg yield (FRED)',type:'ca'}
+  ].forEach(e=>{
+    const c=ws.getCell(r,1);
+    c.value=e.label;c.font={name:'Arial',bold:true,color:{argb:'FF'+BRAND_DARK},size:11};
+    c.fill=bf('FFFFFF');c.alignment={horizontal:'left',vertical:'middle'};
+    c.border={right:thin(),bottom:thin()};
+    IRS.forEach((ir,i)=>{
+      const w=BP_BM_WEIGHTS[e.type][ir];const cell=ws.getCell(r,i+2);
+      cell.fill=bf(ir==='IR3'?BRAND_HDR:'FFFFFF');cell.alignment={horizontal:'center',vertical:'middle'};
+      cell.border={left:thin(),right:thin(),bottom:thin()};
+      if(w>0){cell.value=w;cell.numFmt='0%';cell.font={name:'Arial',bold:true,color:{argb:'FF'+BRAND_DARK},size:11};}
+      else{cell.value='—';cell.font={name:'Arial',color:{argb:'FF'+TGRAY},size:11};}
+    });
+    ws.getRow(r).height=20;r++;
+    const tc=ws.getCell(r,1);
+    tc.value='    '+e.tracker;tc.font={name:'Arial',italic:true,color:{argb:'FF'+TGRAY},size:8};
+    tc.fill=bf(LGRAY);tc.alignment={horizontal:'left',vertical:'middle'};tc.border={right:thin(),bottom:med(BRAND)};
+    IRS.forEach((ir,i)=>{const cell=ws.getCell(r,i+2);cell.fill=bf(ir==='IR3'?BRAND_HDR:LGRAY);cell.border={left:thin(),right:thin(),bottom:med(BRAND)};});
+    ws.getRow(r).height=12;r++;
   });
-  d.push(['Total equities', '', '', ...IRS.map(ir => fmtPct(W[ir].eq))]);
-  d.push([]);
 
-  // BOND SEGMENTS
-  d.push(['BOND SEGMENTS *']);
-  d.push(['', '', '', ...IRS]);
-  BP_BOND_SEGS.forEach(s => {
-    d.push([s.label, '', '', ...IRS.map(ir => fmtPct(W[ir].bd * s.w))]);
+  [['1y return (ann.)','ret1y',true],['3y return (ann.)','ret3y',true],
+   ['1y volatility','vol1y',false],['3y volatility (ann.)','vol3y',false]].forEach(([label,key,isRet])=>{
+    lbl(ws.getCell(r,1),'  '+label,{color:'666666',size:9,italic:true,bg:LGRAY});
+    IRS.forEach((ir,i)=>{
+      const v=etfMetric(key,ir);const cell=ws.getCell(r,i+2);
+      cell.fill=bf(ir==='IR3'?BRAND_HDR:LGRAY);cell.alignment={horizontal:'right',vertical:'middle'};
+      cell.border={left:thin(),right:thin(),bottom:thin()};
+      if(v===null){cell.value='—';cell.font={name:'Arial',color:{argb:'FF'+TGRAY},size:9};}
+      else{cell.value=v/100;cell.numFmt='0.00%';cell.font={name:'Arial',color:{argb:'FF'+(isRet?(v>=0?GREEN:RED):'555555')},size:9};}
+    });
+    ws.getRow(r).height=14;r++;
   });
-  d.push(['Total bonds', '', '', ...IRS.map(ir => fmtPct(W[ir].bd))]);
-  d.push([]);
+  r++;
 
-  // CASH
-  d.push(['CASH']);
-  d.push(['Cash', '', '', ...IRS.map(ir => fmtPct(W[ir].ca))]);
-  d.push([]);
+  r=secHdr(r,'Portfolio weights',`based on ${source}`);r=irHdr(r);
+  [['eq','Equities'],['bd','Bonds'],['ca','Cash']].forEach(([typ,label])=>{
+    lbl(ws.getCell(r,1),label,{bold:true,color:BRAND_DARK,size:11});
+    IRS.forEach((ir,i)=>{
+      val(ws.getCell(r,i+2),W[ir][typ]>0?W[ir][typ]*100:null,{pct:true,bold:true,color:BRAND_DARK,ir});
+    });
+    ws.getRow(r).height=20;r++;
+    lbl(ws.getCell(r,1),'    Benchmark',{color:TGRAY,size:8,italic:true,bg:LGRAY});
+    IRS.forEach((ir,i)=>{
+      const cell=ws.getCell(r,i+2);
+      cell.fill=bf(ir==='IR3'?BRAND_HDR:LGRAY);cell.alignment={horizontal:'center',vertical:'middle'};
+      cell.border={left:thin(),right:thin(),bottom:med(BRAND)};
+      cell.value=BP_BM_WEIGHTS[typ][ir];cell.numFmt='0%';cell.font={name:'Arial',italic:true,color:{argb:'FF'+TGRAY},size:8};
+    });
+    ws.getRow(r).height=12;r++;
+  });
+  r++;
 
-  // INDICATIVE RETURNS
-  [['12M', '12-month return'], ['5Y', '5-year return']].forEach(([key, label]) => {
-    d.push([`INDICATIVE RETURN — ${label} **`]);
-    d.push(['', '', '', ...IRS]);
-    d.push(['Equities **', '', '', ...IRS.map(ir => W[ir].eq === 0 ? '—' : fmtRet(W[ir].eq * rets.eq[key]))]);
-    d.push(['Bonds **', '', '', ...IRS.map(ir => W[ir].bd === 0 ? '—' : fmtRet(W[ir].bd * rets.bd[key]))]);
-    d.push(['Cash ***', '', '', ...IRS.map(ir => W[ir].ca === 0 ? '—' : fmtRet(W[ir].ca * rets.ca[key]))]);
-    d.push(['Portfolio total', '', '', ...IRS.map(ir => {
-      let t = 0;
-      ['eq','bd','ca'].forEach(k => { t += W[ir][k] * rets[k][key]; });
-      return fmtRet(t);
-    })]);
-    d.push([]);
+  subHdr(r,'Equity sectors');r++;
+  BP_SECTORS.forEach(s=>{
+    lbl(ws.getCell(r,1),'  '+s.label,{color:'333333',size:10});
+    IRS.forEach((ir,i)=>{val(ws.getCell(r,i+2),W[ir].eq*s.w>0?W[ir].eq*s.w*100:null,{pct:true,color:BRAND_DARK,ir});});
+    ws.getRow(r).height=15;r++;
+  });
+  totRow(r,'Total equities',Object.fromEntries(IRS.map(ir=>[ir,W[ir].eq*100])));r++;r++;
+
+  subHdr(r,'Bond segments');r++;
+  BP_BOND_SEGS.forEach(s=>{
+    lbl(ws.getCell(r,1),'  '+s.label,{color:'333333',size:10});
+    IRS.forEach((ir,i)=>{val(ws.getCell(r,i+2),W[ir].bd*s.w>0?W[ir].bd*s.w*100:null,{pct:true,color:BRAND_DARK,ir});});
+    ws.getRow(r).height=15;r++;
+  });
+  totRow(r,'Total bonds',Object.fromEntries(IRS.map(ir=>[ir,W[ir].bd>0?W[ir].bd*100:null])));r++;r++;
+
+  lbl(ws.getCell(r,1),'Cash',{bold:true,color:BRAND_DARK,size:11});
+  IRS.forEach((ir,i)=>{val(ws.getCell(r,i+2),W[ir].ca>0?W[ir].ca*100:null,{pct:true,bold:true,color:BRAND_DARK,ir});});
+  ws.getRow(r).height=20;r++;r++;
+
+  [['12M','12-month return'],['5Y','5-year return']].forEach(([key,label])=>{
+    r=secHdr(r,`Indicative returns — ${label}`);r=irHdr(r);
+    [['eq','Equities'],['bd','Bonds'],['ca','Cash']].forEach(([asset,lbl2])=>{
+      lbl(ws.getCell(r,1),'  '+lbl2,{color:'444444',size:9,bg:LGRAY});
+      IRS.forEach((ir,i)=>{
+        const w=W[ir][asset];const v=w>0?w*rets[asset][key]:null;
+        const cell=ws.getCell(r,i+2);
+        cell.fill=bf(ir==='IR3'?BRAND_HDR:LGRAY);cell.alignment={horizontal:'right',vertical:'middle'};
+        cell.border={left:thin(),right:thin(),bottom:thin()};
+        if(v===null){cell.value='—';cell.font={name:'Arial',color:{argb:'FF'+TGRAY},size:9};}
+        else{cell.value=v/100;cell.numFmt='+0.0%;-0.0%;"-"';cell.font={name:'Arial',color:{argb:'FF'+(v>=0?GREEN:RED)},size:9};}
+      });
+      ws.getRow(r).height=14;r++;
+    });
+    totRow(r,'Portfolio total',Object.fromEntries(IRS.map(ir=>[ir,['eq','bd','ca'].reduce((s,a)=>s+W[ir][a]*rets[a][key],0)])),false);r++;r++;
   });
 
-  // Footnotes
-  d.push([`* Sector/segment weights based on BCA Research GAA benchmark proportions (${source}), scaled by IR equity/bond allocation.`]);
-  d.push([`** Equity: BCA Equity Allocation (Sectors) GAA. Bond: BCA Bond Allocation GAA. Source: ${source}.`]);
-  d.push([`*** Cash: avg US 1-Year Treasury CMT (GS1). Source: Federal Reserve H.15 via FRED. Returns are indicative only.`]);
+  ['* Sector/segment weights based on BCA Research GAA benchmark proportions, scaled by IR equity/bond allocation.',
+   `** Equity return: BCA Equity Allocation (Sectors) GAA. Bond return: BCA Bond Allocation GAA. Source: ${source}.`,
+   '*** Cash: avg US 1-Year Treasury CMT (GS1). Source: Federal Reserve H.15 via FRED. Returns are indicative only.'
+  ].forEach(note=>{
+    ws.mergeCells(r,1,r,7);const c=ws.getCell(r,1);
+    c.value=note;c.font={name:'Arial',italic:true,color:{argb:'FF'+TGRAY},size:8};
+    c.alignment={horizontal:'left',wrapText:true};ws.getRow(r).height=13;r++;
+  });
 
-  const ws = XLSX.utils.aoa_to_sheet(d);
-  // Set column widths
-  ws['!cols'] = [{wch:32},{wch:14},{wch:52},{wch:9},{wch:9},{wch:9},{wch:9},{wch:9},{wch:9}];
-  XLSX.utils.book_append_sheet(wb, ws, 'Base Portfolios');
+  // ── Sheet 2: BCA Views ───────────────────────────────────────────────────
+  const wv=wb2.addWorksheet('BCA Research Views');
+  wv.getColumn(1).width=28;wv.getColumn(2).width=16;wv.getColumn(3).width=16;
+  let rv=1;
+  wv.mergeCells(rv,1,rv,3);
+  Object.assign(wv.getCell(rv,1),{value:`BCA Research — Recommended Allocation  |  ${month}`,
+    font:{name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:12},fill:bf(BRAND_DARK),
+    alignment:{horizontal:'left',vertical:'middle'},border:{bottom:med(BRAND_DARK)}});
+  wv.getRow(rv).height=26;rv++;
+  wv.mergeCells(rv,1,rv,3);
+  Object.assign(wv.getCell(rv,1),{value:`Source: ${source}. For informational purposes only.`,
+    font:{name:'Arial',italic:true,color:{argb:'FF'+TGRAY},size:8},alignment:{horizontal:'left'}});
+  wv.getRow(rv).height=14;rv++;
 
-  // ── Sheet 2: for reporting IR3 (kept for app compatibility) ──
-  const ir3 = W.IR3;
-  const ir3Data = [
-    ['','','Asset classes'],['','','Equities',ir3.eq],['','','Bonds',ir3.bd],['','','Cash',ir3.ca],[],
-    ['','','Equities - sectors allocation'],
-    ...BP_SECTORS.map(s => ['','',s.label, ir3.eq*s.w]),
-    [],
-    ['','','Bond segments allocation'],
-    ...BP_BOND_SEGS.map(s => ['','',s.label, ir3.bd*s.w]),
-    [],['','','Cash'],['','','Cash',ir3.ca]
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ir3Data), 'for reporting IR3');
+  BP_BCA_ITEMS.forEach(item=>{
+    if(item.section){
+      for(let c=1;c<=3;c++){wv.getCell(rv,c).fill=bf(BRAND);wv.getCell(rv,c).border={top:med(BRAND),bottom:thin()};}
+      wv.getCell(rv,1).value=item.section;wv.getCell(rv,1).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,1).alignment={horizontal:'left',vertical:'middle'};
+      wv.getCell(rv,2).value='Previous';wv.getCell(rv,2).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,2).alignment={horizontal:'center'};
+      wv.getCell(rv,3).value='Current';wv.getCell(rv,3).font={name:'Arial',bold:true,color:{argb:'FFFFFFFF'},size:10};wv.getCell(rv,3).alignment={horizontal:'center'};
+      wv.getRow(rv).height=18;rv++;return;
+    }
+    const v=views[item.key]||{prev:item.prev,curr:item.curr};
+    const changed=v.prev!==v.curr;
+    const lc=wv.getCell(rv,1);
+    lc.value=(changed?'↑ ':'   ')+item.label;
+    lc.font={name:'Arial',bold:changed,color:{argb:'FF'+(changed?BLUE_TXT:'222222')},size:10};
+    lc.fill=bf(changed?BLUE_BG:'FFFFFF');lc.alignment={horizontal:'left',vertical:'middle'};
+    lc.border={right:thin(),bottom:thin()};
+    [[2,v.prev],[3,v.curr]].forEach(([col,view])=>{
+      const cell=wv.getCell(rv,col);
+      const s={overweight:{t:GREEN,bg:OW_BG,l:'Overweight',b:true},underweight:{t:RED,bg:UW_BG,l:'Underweight',b:true},neutral:{t:'777777',bg:NEU_BG,l:'Neutral',b:false}}[view]||{t:'777777',bg:NEU_BG,l:view,b:false};
+      cell.value=s.l;cell.font={name:'Arial',bold:s.b,color:{argb:'FF'+s.t},size:10};
+      cell.fill=bf(s.bg.replace('#',''));cell.alignment={horizontal:'center',vertical:'middle'};
+      cell.border={left:thin(),right:thin(),bottom:thin()};
+    });
+    wv.getRow(rv).height=16;rv++;
+  });
 
-  // ── Sheet 3: for reporting IR6 ──
-  const ir6Data = BP_SECTORS.map(s => ['',s.label, W.IR6.eq*s.w]);
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ir6Data), 'for reporting IR6');
+  // ── Sheet 3: for reporting IR3 ───────────────────────────────────────────
+  const ws3=wb2.addWorksheet('for reporting IR3');
+  [['Equities',W.IR3.eq],['Bonds',W.IR3.bd],['Cash',W.IR3.ca]].forEach(([l,v],i)=>{ws3.getCell(i+1,1).value=l;ws3.getCell(i+1,2).value=v;});
+  let rr=5;ws3.getCell(rr,1).value='Equity sectors';rr++;
+  BP_SECTORS.forEach(s=>{ws3.getCell(rr,1).value=s.label;ws3.getCell(rr,2).value=W.IR3.eq*s.w;rr++;});
+  rr++;ws3.getCell(rr,1).value='Bond segments';rr++;
+  BP_BOND_SEGS.forEach(s=>{ws3.getCell(rr,1).value=s.label;ws3.getCell(rr,2).value=W.IR3.bd*s.w;rr++;});
 
-  const month = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'}).replace(' ','_');
-  XLSX.writeFile(wb, `${month}_Base_Portfolios.xlsx`);
+  const buffer=await wb2.xlsx.writeBuffer();
+  const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download=`${month.replace(' ','_')}_Base_Portfolios.xlsx`;a.click();
+  URL.revokeObjectURL(url);
 };
+
 
 function bpUpdateSidebarStatus() {
   const el = document.getElementById('basePortfoliosSidebarStatus');
