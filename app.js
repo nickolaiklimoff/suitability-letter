@@ -2283,7 +2283,7 @@ function bpRenderOutputTable(W, rets, source) {
   h += `<tr><td colspan="7" style="${SEC_HDR}">Benchmarks</td></tr>`;
   ETF_META.forEach(e => {
     h += `<tr style="background:white">
-      <td colspan="1" style="padding:6px 10px;border-bottom:0.5px solid #e8e5e0">
+      <td style="padding:6px 10px;border-bottom:0.5px solid #e8e5e0">
         <span style="font-weight:600;font-size:13px;color:${BRAND_DARK}">${e.label}</span>
         <span style="font-size:11px;color:#888;font-weight:400;margin-left:6px">(${e.key} · ${e.isin} · ${e.name})</span>
       </td>`;
@@ -2297,7 +2297,7 @@ function bpRenderOutputTable(W, rets, source) {
   [{key:'ret1y',label:'1y return',isRet:true},{key:'ret3y',label:'3y return (ann.)',isRet:true},
    {key:'vol1y',label:'1y volatility',isRet:false},{key:'vol3y',label:'3y volatility (ann.)',isRet:false}
   ].forEach(m => {
-    h += `<tr style="background:#fafaf8"><td style="padding:3px 10px 3px 18px;font-size:11px;color:#777;border-bottom:0.5px solid #ece9e3">${m.label}</td><td style="border-bottom:0.5px solid #ece9e3"></td><td style="border-bottom:0.5px solid #ece9e3"></td>`;
+    h += `<tr style="background:#fafaf8"><td style="padding:3px 10px 3px 18px;font-size:11px;color:#777;border-bottom:0.5px solid #ece9e3">${m.label}</td>`;
     BP_IRS.forEach(ir => {
       const bg = ir==='IR3' ? 'background:#f5f8f5;' : 'background:#fafaf8;';
       h += `<td style="text-align:right;padding:3px 8px;border-bottom:0.5px solid #ece9e3;${bg}">${fmtV(weighted(m.key,ir),m.isRet)}</td>`;
