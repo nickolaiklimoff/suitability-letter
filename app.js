@@ -1955,15 +1955,23 @@ function bpRenderBcaTable() {
   const wrap = document.getElementById('bp-bca-table-wrap');
   if (!wrap) return;
 
-  // Show the views section
   const section = document.getElementById('bp-views-section');
   if (section) section.style.display = 'block';
 
-  const VIEWS = ['overweight','neutral','underweight'];
+  function pill(v) {
+    if (!v) return '';
+    const styles = {
+      overweight:  'background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;display:inline-block',
+      underweight: 'background:#ffebee;color:#c62828;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;display:inline-block',
+      neutral:     'background:#f0f0f0;color:#666;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;display:inline-block'
+    };
+    const label = v.charAt(0).toUpperCase() + v.slice(1);
+    return `<span style="${styles[v] || styles.neutral}">${label}</span>`;
+  }
 
   let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr>
-      <th style="text-align:left;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500;width:44%"></th>
+      <th style="text-align:left;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500;width:50%"></th>
       <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Previous</th>
       <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Current</th>
     </tr></thead><tbody>`;
@@ -1975,19 +1983,11 @@ function bpRenderBcaTable() {
     }
     const view = _bpBcaViews[item.key] || {prev: item.prev, curr: item.curr};
     const changed = view.prev !== view.curr;
-    const changedBadge = changed ? `<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600">changed</span>` : '';
-
-    const prevOpts = VIEWS.map(v => `<option value="${v}"${view.prev===v?' selected':''}>${v.charAt(0).toUpperCase()+v.slice(1)}</option>`).join('');
-    const currOpts = VIEWS.map(v => `<option value="${v}"${view.curr===v?' selected':''}>${v.charAt(0).toUpperCase()+v.slice(1)}</option>`).join('');
-
+    const changedBadge = changed ? `<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:600">changed</span>` : '';
     html += `<tr style="border-top:0.5px solid var(--border)">
-      <td style="padding:4px 8px">${item.label}${changedBadge}</td>
-      <td style="text-align:center;padding:4px 8px">
-        <select data-key="${item.key}" data-field="prev" onchange="bpUpdateView(this)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">${prevOpts}</select>
-      </td>
-      <td style="text-align:center;padding:4px 8px">
-        <select data-key="${item.key}" data-field="curr" onchange="bpUpdateView(this)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">${currOpts}</select>
-      </td>
+      <td style="padding:5px 8px">${item.label}${changedBadge}</td>
+      <td style="text-align:center;padding:5px 8px">${pill(view.prev)}</td>
+      <td style="text-align:center;padding:5px 8px">${pill(view.curr)}</td>
     </tr>`;
   });
 
