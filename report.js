@@ -106,9 +106,9 @@ function buildBenchmarkSection(a, clientIR, benchmark) {
   const bm = a.benchmark;
   if (!bm) return '';
   const bmDef = benchmark[clientIR] || {};
-  const wEq   = Math.round((bmDef.equity || 0.515)*100);
-  const wBond = Math.round((bmDef.bond   || 0.475)*100);
-  const wCash = Math.round((bmDef.cash   || 0.010)*100);
+  const wEq   = Math.round((bmDef.eq   || bmDef.equity || 0)*100);
+  const wBond = Math.round((bmDef.bd   || bmDef.bond   || 0)*100);
+  const wCash = Math.round((bmDef.cash || 0)*100);
   const alphaColor = bm.alpha >= 0 ? '#3b6d11' : '#a32d2d';
   const betaColor  = bm.beta  > 1.5 ? '#a32d2d' : bm.beta > 1.0 ? '#8B7A68' : '#3b6d11';
 
@@ -1896,11 +1896,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
       ${analyticsHtml}
 
-      ${benchmarkHtml}
-
       ${buildBondAnalysisSection(portfolioData.bonds || [], analytics?.securitiesTotalValue || analytics_?.securitiesTotalValue || totalValue)}
 
       ${riskAnalysisHtml}
+
+      ${benchmarkHtml}
 
       ${buildCouponsSection(portfolioData.couponRows || [])}
 
