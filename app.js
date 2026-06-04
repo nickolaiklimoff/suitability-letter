@@ -1078,6 +1078,10 @@ window.runPortfolioReport = async function() {
       irRatings = await assignPortfolioRatings(portfolioData.holdings, apiKey);
     }
 
+    // Set depositData BEFORE analytics so computeAnalytics can read window._lastDepositData
+    const depositData = getDepositData();
+    window._lastDepositData = depositData;
+
     const analytics = calculatePortfolioAnalytics(portfolioData, irRatings, clientIR);
 
     const reportDate = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
@@ -1113,8 +1117,6 @@ window.runPortfolioReport = async function() {
     window._lastPortfolioData = portfolioData;
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const showClientName = document.getElementById('r-showClientName')?.checked !== false;
-    const depositData = getDepositData();
-    window._lastDepositData = depositData;
     const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
     document.getElementById('r-reportContent').innerHTML = html;
     // Store key metrics for commentary generation
