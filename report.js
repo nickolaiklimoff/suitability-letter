@@ -544,7 +544,7 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
 
   // Benchmark sector weights for distributing broad ETFs
   const BM_SECTORS = window.BP_SECTORS || [
-    {label:'Info Tech',0.287},{label:'Financials',w:0.164},{label:'Health Care',w:0.096},
+    {label:'Info Tech',w:0.287},{label:'Financials',w:0.164},{label:'Health Care',w:0.096},
     {label:'Consumer Discretionary',w:0.068},{label:'Industrials',w:0.120},
     {label:'Communication Services',w:0.098},{label:'Consumer Staples',w:0.026},
     {label:'Energy',w:0.051},{label:'Materials',w:0.047},
@@ -2310,3 +2310,4 @@ window.exportReportToWord = async function() {
   a.click();
   URL.revokeObjectURL(url);
 };
+
