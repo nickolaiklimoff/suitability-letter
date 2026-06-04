@@ -1967,7 +1967,7 @@ const BP_SECTORS = [
   {label:'Energy',w:0.051},{label:'Materials',w:0.047},{label:'Utilities',w:0.027},{label:'Real Estate',w:0.017}
 ];
 const BP_BOND_SEGS = [
-  {label:'Government',w:0.755},{label:'Investment Grade',w:0.195},{label:'High-Yield',w:0.018},{label:'EM Debt',w:0.031}
+  {label:'Government',w:0.755},{label:'Investment Grade',w:0.195},{label:'High Yield',w:0.018},{label:'EM Debt',w:0.031}
 ];
 
 const BP_BCA_ITEMS = [
