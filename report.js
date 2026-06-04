@@ -565,7 +565,7 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
     }
   });
 
-  // Include deposits in cash if available
+  // Deposits: added to cover page total only — do NOT affect allocation % or analytics
   const depositCash = window._lastDepositData ? (() => {
     const dd = window._lastDepositData;
     const FX = window._liveEurUsd ? {USD:1,EUR:window._liveEurUsd,GBP:1.34,CHF:1.12} : {USD:1,EUR:1.16,GBP:1.34,CHF:1.12};
@@ -577,30 +577,22 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
     return total;
   })() : 0;
 
-  const totalWithDeposits = totalValue + depositCash;
-  const cashValueWithDeposits = cashValue + depositCash;
-
+  // All analytics (allocation %, sectors, bond segments, WAAR) use securities-only totalValue
   const bondSegments = {};
   classified.filter(h=>h.assetClass==='bond'&&h.bondSegment).forEach(h => {
     bondSegments[h.bondSegment] = (bondSegments[h.bondSegment]||0) + h.convertedHoldingValue/totalValue;
   });
 
-  const equityPctFinal = totalWithDeposits > 0 ? equityValue/totalWithDeposits : equityPct;
-  const bondPctFinal   = totalWithDeposits > 0 ? bondValue/totalWithDeposits : bondPct;
-  const cashPctFinal   = totalWithDeposits > 0 ? cashValueWithDeposits/totalWithDeposits : cashPct;
-
-  // Rescale sector weights if deposits added
-  if (depositCash > 0 && totalWithDeposits > 0) {
-    const scale = totalValue / totalWithDeposits;
-    Object.keys(sectors).forEach(k => { sectors[k] *= scale; });
-  }
-
   const waarNum = classified.reduce((s,h)=>s+h.irRating*h.convertedHoldingValue,0);
-  const waar = totalWithDeposits > 0 ? waarNum/totalWithDeposits : 0;
+  const waar = totalValue > 0 ? waarNum/totalValue : 0;
 
-  return { classified, equityValue, bondValue, cashValue: cashValueWithDeposits,
-           equityPct: equityPctFinal, bondPct: bondPctFinal, cashPct: cashPctFinal,
-           sectors, bondSegments, waar, totalValue: totalWithDeposits };
+  // totalValue for cover page includes deposits; analytics percentages stay securities-only
+  const totalWithDeposits = totalValue + depositCash;
+
+  return { classified, equityValue, bondValue, cashValue,
+           equityPct, bondPct, cashPct,
+           sectors, bondSegments, waar,
+           totalValue: totalWithDeposits, securitiesTotalValue: totalValue };
 };
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
