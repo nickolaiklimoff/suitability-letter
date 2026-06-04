@@ -973,7 +973,7 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     for (const prices of Object.values(priceMap)) {
       for (const d of Object.keys(prices)) allDates.add(d);
     }
-    const sortedDates = [...allDates].filter(d => d >= '2025-09-01').sort();
+    const sortedDates = [...allDates].sort();
 
     const tradeDateSet = new Set(tradeRows.map(r => {
       if (!r[0]) return null;
