@@ -457,8 +457,8 @@ function classifyHolding(h) {
     return { assetClass: 'equity', sector: 'Other' };
   }
   if (h.type === 'bond') return { assetClass: 'bond', bondSegment: 'Investment Grade' };
-  // Funds not matched above: default to equity (broad market ETF)
-  if (h.type === 'fund') return { assetClass: 'equity', sector: 'Other' };
+  // ETFs and funds not matched above → equity (broad market)
+  if (h.type === 'etf' || h.type === 'fund') return { assetClass: 'equity', sector: 'Other' };
   return { assetClass: 'other' };
 }
 
