@@ -1896,11 +1896,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
       ${analyticsHtml}
 
-      ${riskAnalysisHtml}
-
       ${benchmarkHtml}
 
       ${buildBondAnalysisSection(portfolioData.bonds || [], analytics?.securitiesTotalValue || analytics_?.securitiesTotalValue || totalValue)}
+
+      ${riskAnalysisHtml}
 
       ${buildCouponsSection(portfolioData.couponRows || [])}
 
