@@ -280,7 +280,11 @@ function resetReportForm() {
     const reportDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   const dataDate = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
-  // Clear holding quotes (per-client, not persisted)
+  // Save current holding quotes to in-memory cache before switching client
+  if (currentClientId && window._holdingQuotesData && Object.keys(window._holdingQuotesData).length > 0) {
+    if (!window._holdingQuotesCache) window._holdingQuotesCache = {};
+    window._holdingQuotesCache[currentClientId] = window._holdingQuotesData;
+  }
   window._holdingQuotesData = {};
   const hqStatus = document.getElementById('r-holdingQuotesStatus');
   if (hqStatus) hqStatus.textContent = '';
@@ -304,12 +308,28 @@ function loadClientTab() {
   if (!currentClientId) return;
   const el = document.getElementById('c-name');
   if (el) el.value = clients[currentClientId].name || '';
-  // Restore holding quotes from localStorage
+  // Restore holding quotes from localStorage / memory cache
   loadHoldingQuotesFromStorage();
+  // If quotes available, restore full analytics mode
+  if (window._holdingQuotesData && Object.keys(window._holdingQuotesData).length > 0) {
+    window._analyticsMode = 'full';
+    document.querySelectorAll('input[name="analyticsMode"]').forEach(r => r.checked = r.value === 'full');
+    const aInputs = document.getElementById('analyticsFullInputs');
+    if (aInputs) aInputs.style.display = 'block';
+  }
 }
 
 function loadHoldingQuotesFromStorage() {
   if (!currentClientId) return;
+  // Check in-memory cache first (survives Tracking Prevention blocking localStorage)
+  if (window._holdingQuotesCache && window._holdingQuotesCache[currentClientId]) {
+    window._holdingQuotesData = window._holdingQuotesCache[currentClientId];
+    const count = Object.keys(window._holdingQuotesData).length;
+    const statusEl = document.getElementById('r-holdingQuotesStatus');
+    if (statusEl && count > 0) statusEl.textContent = count + ' files (cached)';
+    console.log('[holdingQuotes] restored', count, 'files from memory cache');
+    return;
+  }
   try {
     const key = 'suitability-holding-quotes-' + currentClientId;
     const stored = localStorage.getItem(key);
