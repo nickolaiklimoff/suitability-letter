@@ -1033,7 +1033,7 @@ window.runPortfolioReport = async function() {
         couponRows:[], divRows:[], tradeRows:[],
         _analytics: null,
       };
-      const html = generatePortfolioReport(emptyPortfolio, null, _benchmark, clientIR, clients[currentClientId] || {name:'Client'}, reportDate, reportDate, null, null, showClientName, depositData);
+      const html = await generatePortfolioReport(emptyPortfolio, null, _benchmark, clientIR, clients[currentClientId] || {name:'Client'}, reportDate, reportDate, null, null, showClientName, depositData);
       window._lastPortfolioData = emptyPortfolio;
       window._lastReportConfig  = { clientIR, client: clients[currentClientId] || {name:'Client'}, benchmark: _benchmark, reportDate, dataDate: reportDate, depositsOnly: true, depositData };
       window._lastWaar = null;
@@ -1113,7 +1113,7 @@ window.runPortfolioReport = async function() {
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const showClientName = document.getElementById('r-showClientName')?.checked !== false;
     const depositData = getDepositData();
-    const html = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
+    const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
     document.getElementById('r-reportContent').innerHTML = html;
     // Store key metrics for commentary generation
     window._lastWaar = analytics?.waar ?? null;
@@ -1135,7 +1135,7 @@ window.runPortfolioReport = async function() {
           portfolioData._analytics = fullA;
           // Regenerate report with full analytics
           const showClientName2 = document.getElementById('r-showClientName')?.checked !== false;
-          const html2 = generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2);
+          const html2 = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2);
           document.getElementById('r-reportContent').innerHTML = html2;
         } else {
           console.warn('[analytics] full analytics returned null — check holding file matching');

@@ -657,14 +657,28 @@ function buildDividendsSection(divRows) {
 }
 
 // ─── Section 9: Trades ────────────────────────────────────────────────────────
-function buildDepositsSection(depositData, baseCcy) {
+async function buildDepositsSection(depositData, baseCcy) {
   if (!depositData) return '';
   const { currentAccounts = [], timeDeposits = [], depositsOnly = false } = depositData;
   const hasAny = currentAccounts.length > 0 || timeDeposits.length > 0;
   if (!hasAny) return '';
 
-  // FX rates (approximate, for display totals only)
-  const FX_TO_USD = { USD:1, EUR:1.08, GBP:1.27, CHF:1.10 };
+  // Fetch live FX rates (base = USD)
+  let FX_TO_USD = { USD:1, EUR:1.08, GBP:1.27, CHF:1.10 };
+  try {
+    const resp = await fetch('https://api.frankfurter.app/latest?base=USD&symbols=EUR,GBP,CHF,USD');
+    if (resp.ok) {
+      const data = await resp.json();
+      // data.rates = { EUR: 0.926, GBP: 0.789, CHF: 0.905 } (units of EUR/GBP/CHF per 1 USD)
+      // We need USD per unit of each currency, so invert
+      FX_TO_USD = { USD: 1 };
+      Object.entries(data.rates).forEach(([ccy, rate]) => {
+        FX_TO_USD[ccy] = 1 / rate;
+      });
+      if (data.rates.EUR) window._liveEurUsd = FX_TO_USD['EUR'];
+    }
+  } catch(e) { /* fallback to hardcoded */ }
+
   const FX_FROM_BASE = FX_TO_USD[baseCcy] || 1;
 
   function fmtAmt(ccy, amt) {
@@ -896,7 +910,7 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     }).filter(Boolean));
 
     const weightedRets = [];
-    const EUR_USD = 1.08;
+    const EUR_USD = window._liveEurUsd || 1.08; // updated by FX fetch if available
 
     for (let i = 1; i < sortedDates.length; i++) {
       const dPrev = sortedDates[i-1];
@@ -1420,7 +1434,7 @@ function buildCommentarySection(commentaryText) {
     </div>`;
 }
 
-window.generatePortfolioReport = function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null) {
+window.generatePortfolioReport = async function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
   // Persist for Word export
@@ -1811,7 +1825,7 @@ window.generatePortfolioReport = function(portfolioData, analytics, benchmark, c
 
       ${commentaryHtml}
 
-      ${buildDepositsSection(depositData, portfolioData.reportCcy || 'USD')}
+      ${await buildDepositsSection(depositData, portfolioData.reportCcy || 'USD')}
 
       <div class="report-disclaimer" style="page-break-before:always;break-before:page">
         <div class="report-disclaimer-title">Important Disclaimer</div>
