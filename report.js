@@ -1898,9 +1898,9 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         <img src="${breakdownSrc}" style="max-width:100%;height:auto;display:block;border-radius:6px;margin-top:0.5rem" />
       </div>` : ''}
 
-      ${analyticsHtml}
-
       ${buildBondAnalysisSection(portfolioData.bonds || [], analytics?.securitiesTotalValue || analytics_?.securitiesTotalValue || totalValue)}
+
+      ${analyticsHtml}
 
       ${riskAnalysisHtml}
 
