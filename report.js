@@ -92,7 +92,7 @@ function buildRiskAnalysisSection(a, portfolioData) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">7. Risk Analysis</div>
+      <div class="report-section-title">8. Risk Analysis</div>
       ${corrHtml}
       ${rcHtml}
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.8rem">
@@ -114,7 +114,7 @@ function buildBenchmarkSection(a, clientIR, benchmark) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">8. Benchmark Comparison</div>
+      <div class="report-section-title">9. Benchmark Comparison</div>
       <div style="font-size:12px;color:#8B7A68;margin-bottom:1rem">
         Benchmark: ${wEq}% MSCI ACWI + ${wBond}% Global Aggregate Bond + ${wCash}% T-Bills (${clientIR})
       </div>
@@ -902,7 +902,7 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
 
   return `
     <div class="report-section report-section-numbered">
-      <div class="report-section-title">9. Bond Analysis</div>
+      <div class="report-section-title">7. Bond Analysis</div>
       <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
@@ -995,11 +995,15 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
       const dCurr = sortedDates[i];
       if (tradeDateSet.has(dCurr)) continue; // skip capital inflow days
 
-      const pos = getSnapshotOn(snapshots, dCurr);
-      if (!pos) continue;
+      const posSnap = getSnapshotOn(snapshots, dCurr) || {};
+      // Supplement snapshot with all matched holdings (funds/ETFs may not appear in trades)
+      const allH2 = [...(portfolioData.stocks||[]),...(portfolioData.funds||[]),...(portfolioData.bonds||[])];
+      const pos = { ...posSnap };
+      for (const h of allH2) {
+        if (priceMap[h.name] && !pos[h.name]) pos[h.name] = h.quantity || 1;
+      }
 
       // Use only positions that exist in priceMap (matched holdings)
-      // This handles changing composition gracefully
       const activeAssets = Object.entries(pos).filter(([asset, qty]) =>
         qty > 0 && priceMap[asset] && priceMap[asset][dPrev] && priceMap[asset][dCurr]
       );
