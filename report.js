@@ -973,7 +973,16 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     for (const prices of Object.values(priceMap)) {
       for (const d of Object.keys(prices)) allDates.add(d);
     }
-    const sortedDates = [...allDates].sort();
+    // Filter dates to start from first trade date (portfolio inception)
+    const firstTradeDate = tradeRows.reduce((min, r) => {
+      if (!r[0]) return min;
+      let d = r[0];
+      if (d instanceof Date) d = d.toISOString().slice(0,10);
+      else if (typeof d === 'number') d = new Date(Math.round((d-25569)*86400*1000)).toISOString().slice(0,10);
+      else { const m = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (m) d = `${m[3]}-${m[2]}-${m[1]}`; else d = String(d).slice(0,10); }
+      return (!min || d < min) ? d : min;
+    }, null);
+    const sortedDates = [...allDates].filter(d => !firstTradeDate || d >= firstTradeDate).sort();
 
     const tradeDateSet = new Set(tradeRows.map(r => {
       if (!r[0]) return null;
