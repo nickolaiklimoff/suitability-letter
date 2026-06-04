@@ -515,12 +515,22 @@
             <!-- Time deposits -->
             <div>
               <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Time deposits</div>
+              <div style="display:flex;gap:5px;margin-bottom:4px;flex-wrap:wrap">
+                <span style="font-size:10px;color:var(--text3);width:68px">CCY</span>
+                <span style="font-size:10px;color:var(--text3);flex:1;min-width:100px">Amount</span>
+                <span style="font-size:10px;color:var(--text3);width:110px">Start date</span>
+                <span style="font-size:10px;color:var(--text3);width:110px">Maturity</span>
+                <span style="font-size:10px;color:var(--text3);width:72px">Rate p.a.</span>
+              </div>
               <div id="r-time-deposits">
-                <div class="deposit-row" style="display:flex;gap:6px;margin-bottom:6px">
-                  <select class="deposit-ccy" onchange="saveDepositData()" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
-                    <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
+                <div class="deposit-row" style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+                  <select class="deposit-ccy" onchange="saveDepositData()" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:68px">
+                    <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option>
                   </select>
-                  <input type="number" class="deposit-amount" placeholder="Amount" oninput="saveDepositData()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
+                  <input type="number" class="deposit-amount" placeholder="Amount" oninput="saveDepositData()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:100px">
+                  <input type="date" class="deposit-date-start" title="Start date" oninput="saveDepositData()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:110px">
+                  <input type="date" class="deposit-date-end" title="Maturity date" oninput="saveDepositData()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:110px">
+                  <input type="number" class="deposit-rate" placeholder="Rate %" step="0.01" min="0" oninput="saveDepositData()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:72px">
                 </div>
               </div>
               <button class="btn-secondary" onclick="addDepositRow('r-time-deposits')" style="font-size:11px;padding:3px 8px;margin-top:2px">+ Add currency</button>

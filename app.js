@@ -3236,80 +3236,114 @@ window.saveDepositData = function() {
   try { localStorage.setItem(`suitability-deposits-${currentClientId}`, JSON.stringify(data)); } catch(e) {}
 };
 
+function makeEmptyRow(isDeposit) {
+  const ccyOpts = ['USD','EUR','GBP','CHF'].map(c=>`<option>${c}</option>`).join('');
+  const extraFields = isDeposit ? `
+    <input type="date" class="deposit-date-start" title="Start date" oninput="saveDepositData()"
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:110px">
+    <input type="date" class="deposit-date-end" title="Maturity date" oninput="saveDepositData()"
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:110px">
+    <input type="number" class="deposit-rate" placeholder="Rate %" step="0.01" min="0" oninput="saveDepositData()"
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:72px">` : '';
+  const row = document.createElement('div');
+  row.className = 'deposit-row';
+  row.style.cssText = 'display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;align-items:center';
+  row.innerHTML = `
+    <select class="deposit-ccy" onchange="saveDepositData()"
+      style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:68px">${ccyOpts}</select>
+    <input type="number" class="deposit-amount" placeholder="Amount" oninput="saveDepositData()"
+      style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:100px">
+    ${extraFields}
+    <button onclick="this.parentElement.remove();saveDepositData()"
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);cursor:pointer">✕</button>`;
+  return row;
+}
+
+window.addDepositRow = function(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const isDeposit = containerId === 'r-time-deposits';
+  container.appendChild(makeEmptyRow(isDeposit));
+};
+
 window.loadDepositData = function() {
   if (!currentClientId) return;
+
+  function clearToEmpty(containerId, isDeposit) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    container.appendChild(makeEmptyRow(isDeposit));
+  }
+
+  function renderRows(containerId, rows, isDeposit) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    if (!rows.length) { container.appendChild(makeEmptyRow(isDeposit)); return; }
+    rows.forEach(r => {
+      const row = makeEmptyRow(isDeposit);
+      const ccySel = row.querySelector('.deposit-ccy');
+      if (ccySel) ccySel.value = r.ccy || 'USD';
+      const amtEl = row.querySelector('.deposit-amount');
+      if (amtEl && r.amount) amtEl.value = r.amount;
+      if (isDeposit) {
+        const ds = row.querySelector('.deposit-date-start');
+        const de = row.querySelector('.deposit-date-end');
+        const dr = row.querySelector('.deposit-rate');
+        if (ds && r.dateStart) ds.value = r.dateStart;
+        if (de && r.dateEnd)   de.value = r.dateEnd;
+        if (dr && r.rate)      dr.value = r.rate;
+      }
+      container.appendChild(row);
+    });
+  }
+
   try {
     const stored = localStorage.getItem(`suitability-deposits-${currentClientId}`);
-    if (!stored) return;
-    const data = JSON.parse(stored);
-
-    function renderRows(containerId, rows) {
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      container.innerHTML = '';
-      rows.forEach(r => {
-        const row = document.createElement('div');
-        row.className = 'deposit-row';
-        row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
-        row.innerHTML = `
-          <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
-            <option${r.ccy==='USD'?' selected':''}>USD</option>
-            <option${r.ccy==='EUR'?' selected':''}>EUR</option>
-            <option${r.ccy==='GBP'?' selected':''}>GBP</option>
-            <option${r.ccy==='CHF'?' selected':''}>CHF</option>
-            <option${!['USD','EUR','GBP','CHF'].includes(r.ccy)?' selected':''}>Other</option>
-          </select>
-          <input type="number" class="deposit-amount" value="${r.amount}" placeholder="Amount"
-            style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0"
-            oninput="saveDepositData()">
-          <button onclick="this.parentElement.remove();saveDepositData()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);cursor:pointer">✕</button>`;
-        row.querySelector('.deposit-ccy').addEventListener('change', saveDepositData);
-        container.appendChild(row);
-      });
-      // Always keep at least one empty row
-      if (!rows.length) {
-        const empty = document.createElement('div');
-        empty.className = 'deposit-row';
-        empty.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
-        empty.innerHTML = `
-          <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
-            <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
-          </select>
-          <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0"
-            oninput="saveDepositData()">`;
-        empty.querySelector('.deposit-ccy').addEventListener('change', saveDepositData);
-        container.appendChild(empty);
-      }
+    if (!stored) {
+      // No data for this client — clear fields
+      clearToEmpty('r-current-accounts', false);
+      clearToEmpty('r-time-deposits', true);
+      const cb = document.getElementById('r-depositsOnly');
+      if (cb) cb.checked = false;
+      return;
     }
-
-    renderRows('r-current-accounts', data.currentAccounts || []);
-    renderRows('r-time-deposits', data.timeDeposits || []);
+    const data = JSON.parse(stored);
+    renderRows('r-current-accounts', data.currentAccounts || [], false);
+    renderRows('r-time-deposits',    data.timeDeposits    || [], true);
     const cb = document.getElementById('r-depositsOnly');
     if (cb) cb.checked = data.depositsOnly || false;
-  } catch(e) {}
+  } catch(e) {
+    clearToEmpty('r-current-accounts', false);
+    clearToEmpty('r-time-deposits', true);
+  }
 };
 
 window.toggleDepositsOnly = function(checked) {
-  // Hide/show portfolio import sections
-  const importCard = document.querySelector('.form-card'); // first card = portfolio import
-  const analyticsCard = document.getElementById('analyticsFullInputs')?.closest('.form-card');
-  if (checked) {
-    // Grey out portfolio section visually
-    document.querySelectorAll('.form-card').forEach((c, i) => {
-      if (i < 3) c.style.opacity = '0.4';  // portfolio, chart, analytics
-    });
-  } else {
-    document.querySelectorAll('.form-card').forEach(c => { c.style.opacity = ''; });
-  }
+  document.querySelectorAll('.form-card').forEach((c, i) => {
+    if (i < 3) c.style.opacity = checked ? '0.4' : '';
+  });
 };
 
 function readDepositRows(containerId) {
   const rows = document.querySelectorAll(`#${containerId} .deposit-row`);
+  const isDeposit = containerId === 'r-time-deposits';
   const result = [];
   rows.forEach(row => {
     const ccy = row.querySelector('.deposit-ccy')?.value;
     const amt = parseFloat(row.querySelector('.deposit-amount')?.value);
-    if (ccy && !isNaN(amt) && amt > 0) result.push({ ccy, amount: amt });
+    if (!ccy || isNaN(amt) || amt <= 0) return;
+    const entry = { ccy, amount: amt };
+    if (isDeposit) {
+      const ds = row.querySelector('.deposit-date-start')?.value;
+      const de = row.querySelector('.deposit-date-end')?.value;
+      const dr = row.querySelector('.deposit-rate')?.value;
+      if (ds) entry.dateStart = ds;
+      if (de) entry.dateEnd = de;
+      if (dr) entry.rate = parseFloat(dr);
+    }
+    result.push(entry);
   });
   return result;
 }
@@ -3317,8 +3351,8 @@ function readDepositRows(containerId) {
 function getDepositData() {
   return {
     currentAccounts: readDepositRows('r-current-accounts'),
-    timeDeposits: readDepositRows('r-time-deposits'),
-    depositsOnly: document.getElementById('r-depositsOnly')?.checked || false,
+    timeDeposits:    readDepositRows('r-time-deposits'),
+    depositsOnly:    document.getElementById('r-depositsOnly')?.checked || false,
   };
 }
 

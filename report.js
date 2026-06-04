@@ -684,18 +684,28 @@ async function buildDepositsSection(depositData, baseCcy) {
     return sym + amt.toLocaleString('en-GB', {minimumFractionDigits:0, maximumFractionDigits:0});
   }
 
-  function buildTable(rows, label) {
+  function buildTable(rows, label, isDeposit) {
     if (!rows.length) return '';
     let total = 0;
+    const showExtra = isDeposit && rows.some(r => r.dateStart || r.dateEnd || r.rate);
     const rowHtml = rows.map(r => {
       const inBase = r.amount * (FX_TO_USD[r.ccy] || 1) / FX_FROM_BASE;
       total += inBase;
+      const extra = showExtra ? `
+        <td style="text-align:center;color:var(--text3);font-size:11px">${r.dateStart ? new Date(r.dateStart).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
+        <td style="text-align:center;color:var(--text3);font-size:11px">${r.dateEnd ? new Date(r.dateEnd).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
+        <td style="text-align:right;font-weight:500;color:var(--brand)">${r.rate ? r.rate.toFixed(2)+'%' : '—'}</td>` : '';
       return `<tr>
         <td>${r.ccy}</td>
         <td style="text-align:right">${fmtAmt(r.ccy, r.amount)}</td>
         <td style="text-align:right;color:var(--text3);font-size:12px">${fmtAmt(baseCcy, Math.round(inBase))} equiv.</td>
+        ${extra}
       </tr>`;
     }).join('');
+    const extraHeaders = showExtra ? `
+      <th style="text-align:center">Start date</th>
+      <th style="text-align:center">Maturity</th>
+      <th style="text-align:right">Rate p.a.</th>` : '';
     return `
       <div style="margin-bottom:20px">
         <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:8px">${label}</div>
@@ -704,11 +714,12 @@ async function buildDepositsSection(depositData, baseCcy) {
             <th>Currency</th>
             <th style="text-align:right">Amount</th>
             <th style="text-align:right">${baseCcy} Equivalent</th>
+            ${extraHeaders}
           </tr></thead>
           <tbody>
             ${rowHtml}
             <tr style="border-top:2px solid var(--border);font-weight:600">
-              <td colspan="2">Total</td>
+              <td colspan="${showExtra ? 5 : 2}">Total</td>
               <td style="text-align:right">${fmtAmt(baseCcy, Math.round(total))}</td>
             </tr>
           </tbody>
@@ -727,8 +738,8 @@ async function buildDepositsSection(depositData, baseCcy) {
         The following cash balances and deposits are held ${depositsOnly ? 'by the client' : 'in addition to the securities portfolio'} and are shown for informational purposes only.
         ${depositsOnly ? 'No securities portfolio is held — asset allocation analysis is not applicable.' : 'They are not included in portfolio allocation or risk calculations.'}
       </p>
-      ${buildTable(currentAccounts, 'Current Accounts')}
-      ${buildTable(timeDeposits, 'Time Deposits')}
+      ${buildTable(currentAccounts, 'Current Accounts', false)}
+      ${buildTable(timeDeposits, 'Time Deposits', true)}
       ${grandTotal > 0 ? `
       <div style="background:var(--bg2);border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
         <span style="font-weight:600;color:var(--text1)">Total Cash &amp; Deposits</span>
