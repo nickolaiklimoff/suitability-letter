@@ -503,10 +503,10 @@
               <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Current accounts</div>
               <div id="r-current-accounts">
                 <div class="deposit-row" style="display:flex;gap:6px;margin-bottom:6px">
-                  <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+                  <select class="deposit-ccy" onchange="saveDepositData()" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
                     <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
                   </select>
-                  <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
+                  <input type="number" class="deposit-amount" placeholder="Amount" oninput="saveDepositData()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
                 </div>
               </div>
               <button class="btn-secondary" onclick="addDepositRow('r-current-accounts')" style="font-size:11px;padding:3px 8px;margin-top:2px">+ Add currency</button>
@@ -517,10 +517,10 @@
               <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Time deposits</div>
               <div id="r-time-deposits">
                 <div class="deposit-row" style="display:flex;gap:6px;margin-bottom:6px">
-                  <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+                  <select class="deposit-ccy" onchange="saveDepositData()" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
                     <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
                   </select>
-                  <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
+                  <input type="number" class="deposit-amount" placeholder="Amount" oninput="saveDepositData()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
                 </div>
               </div>
               <button class="btn-secondary" onclick="addDepositRow('r-time-deposits')" style="font-size:11px;padding:3px 8px;margin-top:2px">+ Add currency</button>

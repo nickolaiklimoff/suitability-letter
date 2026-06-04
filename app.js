@@ -244,6 +244,7 @@ function selectClient(id) {
   loadClientTab();
   resetLetterForm();
   loadReportState();
+  loadDepositData();
 }
 
 function resetReportForm() {
@@ -3221,9 +3222,71 @@ window.addDepositRow = function(containerId) {
     <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
       <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
     </select>
-    <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0">
-    <button onclick="this.parentElement.remove()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);cursor:pointer">✕</button>`;
+    <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0"
+      oninput="saveDepositData()">
+    <button onclick="this.parentElement.remove();saveDepositData()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);cursor:pointer">✕</button>`;
   container.appendChild(row);
+  // Add auto-save to existing select
+  row.querySelector('.deposit-ccy').addEventListener('change', saveDepositData);
+};
+
+window.saveDepositData = function() {
+  if (!currentClientId) return;
+  const data = getDepositData();
+  try { localStorage.setItem(`suitability-deposits-${currentClientId}`, JSON.stringify(data)); } catch(e) {}
+};
+
+window.loadDepositData = function() {
+  if (!currentClientId) return;
+  try {
+    const stored = localStorage.getItem(`suitability-deposits-${currentClientId}`);
+    if (!stored) return;
+    const data = JSON.parse(stored);
+
+    function renderRows(containerId, rows) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+      rows.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'deposit-row';
+        row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
+        row.innerHTML = `
+          <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+            <option${r.ccy==='USD'?' selected':''}>USD</option>
+            <option${r.ccy==='EUR'?' selected':''}>EUR</option>
+            <option${r.ccy==='GBP'?' selected':''}>GBP</option>
+            <option${r.ccy==='CHF'?' selected':''}>CHF</option>
+            <option${!['USD','EUR','GBP','CHF'].includes(r.ccy)?' selected':''}>Other</option>
+          </select>
+          <input type="number" class="deposit-amount" value="${r.amount}" placeholder="Amount"
+            style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0"
+            oninput="saveDepositData()">
+          <button onclick="this.parentElement.remove();saveDepositData()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);cursor:pointer">✕</button>`;
+        row.querySelector('.deposit-ccy').addEventListener('change', saveDepositData);
+        container.appendChild(row);
+      });
+      // Always keep at least one empty row
+      if (!rows.length) {
+        const empty = document.createElement('div');
+        empty.className = 'deposit-row';
+        empty.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
+        empty.innerHTML = `
+          <select class="deposit-ccy" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:70px">
+            <option>USD</option><option>EUR</option><option>GBP</option><option>CHF</option><option>Other</option>
+          </select>
+          <input type="number" class="deposit-amount" placeholder="Amount" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);flex:1;min-width:0"
+            oninput="saveDepositData()">`;
+        empty.querySelector('.deposit-ccy').addEventListener('change', saveDepositData);
+        container.appendChild(empty);
+      }
+    }
+
+    renderRows('r-current-accounts', data.currentAccounts || []);
+    renderRows('r-time-deposits', data.timeDeposits || []);
+    const cb = document.getElementById('r-depositsOnly');
+    if (cb) cb.checked = data.depositsOnly || false;
+  } catch(e) {}
 };
 
 window.toggleDepositsOnly = function(checked) {
