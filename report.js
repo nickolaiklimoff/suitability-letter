@@ -664,13 +664,11 @@ async function buildDepositsSection(depositData, baseCcy) {
   if (!hasAny) return '';
 
   // Fetch live FX rates (base = USD)
-  let FX_TO_USD = { USD:1, EUR:1.08, GBP:1.27, CHF:1.10 };
+  let FX_TO_USD = { USD:1, EUR:1.16, GBP:1.34, CHF:1.12 };
   try {
-    const resp = await fetch('https://api.frankfurter.app/latest?base=USD&symbols=EUR,GBP,CHF,USD');
+    const resp = await fetch('https://open.er-api.com/v6/latest/USD');
     if (resp.ok) {
       const data = await resp.json();
-      // data.rates = { EUR: 0.926, GBP: 0.789, CHF: 0.905 } (units of EUR/GBP/CHF per 1 USD)
-      // We need USD per unit of each currency, so invert
       FX_TO_USD = { USD: 1 };
       Object.entries(data.rates).forEach(([ccy, rate]) => {
         FX_TO_USD[ccy] = 1 / rate;
