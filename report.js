@@ -392,6 +392,13 @@ const SECTOR_MAP = {
   'Materials Select': 'Materials', 'XLB': 'Materials',
   'Utilities Select': 'Utilities', 'XLU': 'Utilities',
   'Real Estate Select': 'Real Estate', 'XLRE': 'Real Estate',
+  // Broad equity ETFs
+  'MSCI ACWI': 'Info Tech', 'MSCI World': 'Info Tech', 'MSCI EM': 'Info Tech',
+  'S&P 500': 'Info Tech', 'S&P500': 'Info Tech', 'SPY': 'Info Tech',
+  'iShares Core': 'Info Tech', 'Vanguard Total': 'Info Tech',
+  'Equal Weight': 'Info Tech', 'QQQ': 'Info Tech', 'Invesco QQQ': 'Info Tech',
+  'MSCI USA': 'Info Tech', 'MSCI Europe': 'Info Tech', 'MSCI Japan': 'Info Tech',
+  'MSCI Emerging': 'Info Tech', 'STOXX': 'Info Tech', 'DAX': 'Info Tech',
 };
 
 const BOND_SEGMENT_MAP = {
@@ -450,6 +457,8 @@ function classifyHolding(h) {
     return { assetClass: 'equity', sector: 'Other' };
   }
   if (h.type === 'bond') return { assetClass: 'bond', bondSegment: 'Investment Grade' };
+  // Funds not matched above: default to equity (broad market ETF)
+  if (h.type === 'fund') return { assetClass: 'equity', sector: 'Other' };
   return { assetClass: 'other' };
 }
 
