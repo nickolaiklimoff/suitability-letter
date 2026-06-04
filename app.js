@@ -236,6 +236,9 @@ function selectClient(id) {
   // Hide Base Portfolios panel if open
   const bpPanel = document.getElementById('basePortfoliosPanel');
   if (bpPanel) bpPanel.classList.add('hidden');
+  // Hide Daily Brief panel if open
+  const dbPanel = document.getElementById('dailyBriefPanel');
+  if (dbPanel) dbPanel.classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('appContent').classList.remove('hidden');
   switchTab('report', document.querySelector('.tab'));
@@ -3257,3 +3260,202 @@ function getDepositData() {
     depositsOnly: document.getElementById('r-depositsOnly')?.checked || false,
   };
 }
+
+// ─── DAILY BRIEF ─────────────────────────────────────────────────────────────
+
+window.dbOpen = function() {
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('appContent').classList.add('hidden');
+  document.getElementById('basePortfoliosPanel').classList.add('hidden');
+  document.getElementById('dailyBriefPanel').classList.remove('hidden');
+  dbRenderHistory();
+  // Restore TG settings
+  const tok = localStorage.getItem('suitability-tg-token');
+  const cid = localStorage.getItem('suitability-tg-chat');
+  if (tok) document.getElementById('tgBotToken').value = tok;
+  if (cid) document.getElementById('tgChatId').value = cid;
+};
+
+window.dbClose = function() {
+  document.getElementById('dailyBriefPanel').classList.add('hidden');
+  if (window.currentClientId) {
+    document.getElementById('appContent').classList.remove('hidden');
+  } else {
+    document.getElementById('emptyState').classList.remove('hidden');
+  }
+};
+
+window.dbFormat = async function() {
+  const text = document.getElementById('db-source-text').value.trim();
+  if (!text) { alert('Paste source text first.'); return; }
+  const apiKey = localStorage.getItem('suitability-api-key');
+  if (!apiKey) { alert('Add Anthropic API key in Settings first.'); return; }
+
+  const status = document.getElementById('db-format-status');
+  status.textContent = 'Formatting...';
+  status.style.color = '#854f0b';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: `Перефразируй следующий текст на профессиональном русском языке для публикации в Telegram канале об инвестициях.
+
+Правила:
+- Не меняй факты, цифры, названия компаний и индексов
+- В начале каждого абзаца добавь подходящий эмодзи
+- В конце добавь строку "Источники: Bloomberg, Reuters" (или другие источники из текста)
+- Используй профессиональный финансовый язык — не дословный перевод
+- Вместо "липкая инфляция" пиши "устойчивая инфляция"
+- Вместо "ястребиный" пиши "жёсткий" применительно к ДКП
+- Вместо "голубиный" пиши "мягкий" применительно к ДКП
+- Вместо "бычий/медвежий" пиши "позитивный/негативный настрой"
+- Пиши живо и по делу, избегай канцелярита
+- Общий объём не более 3500 символов
+
+Текст:
+${text}`
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error?.message || resp.status);
+    const result = data.content?.[0]?.text?.trim() || '';
+
+    document.getElementById('db-result-text').value = result;
+    document.getElementById('db-result-card').classList.remove('hidden');
+    dbUpdateCharCount();
+    status.textContent = '✓ Done';
+    status.style.color = '#3b6d11';
+    setTimeout(() => { status.textContent = ''; }, 2000);
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#a32d2d';
+  }
+};
+
+window.dbReformat = function() {
+  document.getElementById('db-format-status').textContent = '';
+  dbFormat();
+};
+
+window.dbUpdateCharCount = function() {
+  const text = document.getElementById('db-result-text').value;
+  const el = document.getElementById('db-char-count');
+  const n = text.length;
+  el.textContent = `${n} chars`;
+  el.style.color = n > 4000 ? '#c62828' : n > 3500 ? '#854f0b' : '#3b6d11';
+};
+
+window.dbCopy = function() {
+  const text = document.getElementById('db-result-text').value;
+  navigator.clipboard.writeText(text).then(() => {
+    const st = document.getElementById('db-publish-status');
+    st.textContent = '✓ Copied'; st.style.color = '#3b6d11';
+    setTimeout(() => { st.textContent = ''; }, 2000);
+  });
+};
+
+window.dbPublish = async function() {
+  const text = document.getElementById('db-result-text').value.trim();
+  if (!text) { alert('No formatted text to publish.'); return; }
+
+  const token = localStorage.getItem('suitability-tg-token');
+  const chatId = localStorage.getItem('suitability-tg-chat');
+  if (!token || !chatId) { alert('Add Telegram Bot Token and Chat ID in Settings.'); return; }
+
+  const status = document.getElementById('db-publish-status');
+  status.textContent = 'Publishing...';
+  status.style.color = '#854f0b';
+
+  // Split into parts if too long
+  const MAX = 4000;
+  const parts = [];
+  if (text.length <= MAX) {
+    parts.push(text);
+  } else {
+    const paras = text.split('\n\n');
+    let current = '';
+    paras.forEach(p => {
+      if ((current + '\n\n' + p).length <= MAX) {
+        current += (current ? '\n\n' : '') + p;
+      } else {
+        if (current) parts.push(current);
+        current = p;
+      }
+    });
+    if (current) parts.push(current);
+  }
+
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      const msg = parts.length > 1 ? `(${i+1}/${parts.length})\n\n${parts[i]}` : parts[i];
+      const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' })
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.description || 'Telegram error');
+      if (i < parts.length - 1) await new Promise(r => setTimeout(r, 2000));
+    }
+
+    status.textContent = `✓ Published (${parts.length} part${parts.length>1?'s':''})`;
+    status.style.color = '#3b6d11';
+
+    // Save to history
+    const history = JSON.parse(localStorage.getItem('suitability-db-history') || '[]');
+    history.unshift({
+      date: new Date().toLocaleDateString('ru-RU', {day:'numeric',month:'long',year:'numeric'}),
+      preview: text.slice(0, 120) + '...',
+      length: text.length,
+    });
+    localStorage.setItem('suitability-db-history', JSON.stringify(history.slice(0, 20)));
+    dbRenderHistory();
+    dbUpdateSidebarStatus();
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#a32d2d';
+  }
+};
+
+function dbRenderHistory() {
+  const el = document.getElementById('db-history-list');
+  if (!el) return;
+  const history = JSON.parse(localStorage.getItem('suitability-db-history') || '[]');
+  if (!history.length) { el.innerHTML = '<span style="color:var(--text3)">No posts yet</span>'; return; }
+  el.innerHTML = history.map(h => `
+    <div style="padding:8px 0;border-bottom:0.5px solid var(--border)">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:3px">${h.date} · ${h.length} chars</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.4">${h.preview}</div>
+    </div>`).join('');
+}
+
+function dbUpdateSidebarStatus() {
+  const el = document.getElementById('dailyBriefSidebarStatus');
+  if (!el) return;
+  const history = JSON.parse(localStorage.getItem('suitability-db-history') || '[]');
+  if (history.length) {
+    el.innerHTML = `<span style="color:var(--text-success)">✓ Last: ${history[0].date}</span>`;
+  }
+}
+
+// Init on load
+document.addEventListener('DOMContentLoaded', () => {
+  dbUpdateSidebarStatus();
+  const tok = localStorage.getItem('suitability-tg-token');
+  const cid = localStorage.getItem('suitability-tg-chat');
+  if (tok) { const el = document.getElementById('tgBotToken'); if(el) el.value = tok; }
+  if (cid) { const el = document.getElementById('tgChatId');   if(el) el.value = cid; }
+});
