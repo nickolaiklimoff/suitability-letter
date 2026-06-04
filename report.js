@@ -1100,9 +1100,16 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     }
 
     // ── Correlation matrix ───────────────────────────────────────────────────
-    const finalPos = getSnapshotOn(snapshots, sortedDates[sortedDates.length-1]);
+    let finalPos = getSnapshotOn(snapshots, sortedDates[sortedDates.length-1]) || {};
+    // Supplement finalPos with all matched holdings (trades sheet may miss funds/ETFs)
+    const allH = [...(portfolioData.stocks||[]),...(portfolioData.funds||[]),...(portfolioData.bonds||[])];
+    for (const h of allH) {
+      if (priceMap[h.name] && !finalPos[h.name]) {
+        finalPos[h.name] = h.quantity || 1;
+      }
+    }
     const assetRetsMap = {};
-    if (finalPos) {
+    if (Object.keys(finalPos).length > 0) {
       for (const asset of Object.keys(finalPos)) {
         if (!priceMap[asset]) continue;
         const ar = [];
@@ -1117,7 +1124,7 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
 
     // ── Risk contribution ────────────────────────────────────────────────────
     let riskContrib = null;
-    if (finalPos) {
+    if (Object.keys(finalPos).length > 0) {
       riskContrib = computeRiskContribution(finalPos, assetRetsMap, portfolioData, EUR_USD);
     }
 
