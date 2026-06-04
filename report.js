@@ -380,8 +380,9 @@ window.parseBenchmarkExcel = function(file) {
 
 // ─── Classify holdings ────────────────────────────────────────────────────────
 const SECTOR_MAP = {
+  // Sector ETFs — specific
   'Magnificent Seven': 'Info Tech', 'MAGS': 'Info Tech', 'Roundhill Magnificent': 'Info Tech',
-  'Technology Select': 'Info Tech', 'XLK': 'Info Tech',
+  'Technology Select': 'Info Tech', 'XLK': 'Info Tech', 'QQQ': 'Info Tech', 'Invesco QQQ': 'Info Tech',
   'Financial Select': 'Financials', 'XLF': 'Financials',
   'Health Care Select': 'Health Care', 'XLV': 'Health Care',
   'Consumer Discretionary Select': 'Consumer Discretionary', 'XLY': 'Consumer Discretionary',
@@ -392,14 +393,15 @@ const SECTOR_MAP = {
   'Materials Select': 'Materials', 'XLB': 'Materials',
   'Utilities Select': 'Utilities', 'XLU': 'Utilities',
   'Real Estate Select': 'Real Estate', 'XLRE': 'Real Estate',
-  // Broad equity ETFs
-  'MSCI ACWI': 'Info Tech', 'MSCI World': 'Info Tech', 'MSCI EM': 'Info Tech',
-  'S&P 500': 'Info Tech', 'S&P500': 'Info Tech', 'SPY': 'Info Tech',
-  'iShares Core': 'Info Tech', 'Vanguard Total': 'Info Tech',
-  'Equal Weight': 'Info Tech', 'QQQ': 'Info Tech', 'Invesco QQQ': 'Info Tech',
-  'MSCI USA': 'Info Tech', 'MSCI Europe': 'Info Tech', 'MSCI Japan': 'Info Tech',
-  'MSCI Emerging': 'Info Tech', 'STOXX': 'Info Tech', 'DAX': 'Info Tech',
 };
+
+// Broad equity ETFs → distribute across sectors using benchmark weights
+const BROAD_ETF_KEYWORDS = [
+  'MSCI ACWI', 'MSCI World', 'MSCI EM', 'MSCI Emerging', 'MSCI USA', 'MSCI Europe', 'MSCI Japan',
+  'S&P 500', 'S&P500', 'SPY', 'iShares Core S&P', 'Vanguard Total', 'Equal Weight',
+  'STOXX', 'DAX', 'FTSE', 'Nikkei', 'All Country', 'All-Country',
+  'iShares MSCI', 'SPDR S&P',
+];
 
 const BOND_SEGMENT_MAP = {
   '7-10 Year Treasury': 'Government', 'IEF': 'Government', 'Treasury Bond ETF': 'Government',
@@ -411,7 +413,7 @@ const BOND_SEGMENT_MAP = {
 };
 
 function classifyHolding(h) {
-  // ETF/Fund sector map (name-based)
+  // ETF/Fund specific sector map (name-based)
   for (const [key, sector] of Object.entries(SECTOR_MAP)) {
     if (h.name.includes(key)) return { assetClass: 'equity', sector };
   }
@@ -419,7 +421,12 @@ function classifyHolding(h) {
   for (const [key, seg] of Object.entries(BOND_SEGMENT_MAP)) {
     if (h.name.includes(key)) return { assetClass: 'bond', bondSegment: seg };
   }
-  // Individual stock sector classification by ticker or name keywords
+  // Broad equity ETF → distribute across sectors proportionally
+  if (h.type === 'etf' || h.type === 'fund') {
+    const isBroad = BROAD_ETF_KEYWORDS.some(k => h.name.includes(k));
+    if (isBroad) return { assetClass: 'equity', sector: '__broad__' };
+    return { assetClass: 'equity', sector: 'Other' };
+  }
   if (h.type === 'equity') {
     const ticker = (h.ticker || '').toUpperCase();
     const name   = (h.name  || '').toLowerCase();
@@ -456,7 +463,23 @@ function classifyHolding(h) {
     // Fallback for unmatched stocks
     return { assetClass: 'equity', sector: 'Other' };
   }
-  if (h.type === 'bond') return { assetClass: 'bond', bondSegment: 'Investment Grade' };
+  if (h.type === 'bond') {
+    const name = h.name.toLowerCase();
+    const isin = (h.isin || '').toUpperCase();
+    // US Treasuries and Government bonds
+    if (name.includes('usa,') || name.includes('u.s.') || name.includes('us treasury') ||
+        name.includes('treasury') || name.includes('t-note') || name.includes('t-bond') ||
+        name.includes('bund') || name.includes('gilt') || name.includes('oat ') ||
+        name.includes('btps') || name.includes('jgb') || name.includes('government') ||
+        isin.startsWith('US912') || isin.startsWith('US91282') || isin.startsWith('DE000') ||
+        isin.startsWith('GB00') || isin.startsWith('FR00'))
+      return { assetClass: 'bond', bondSegment: 'Government' };
+    if (name.includes('high yield') || name.includes('junk') || name.includes('sub-') || name.includes('subordinated'))
+      return { assetClass: 'bond', bondSegment: 'High Yield' };
+    if (name.includes('emerging') || name.includes('em ') || isin.startsWith('XS') || isin.startsWith('RU'))
+      return { assetClass: 'bond', bondSegment: 'EM Debt' };
+    return { assetClass: 'bond', bondSegment: 'Investment Grade' };
+  }
   // ETFs and funds not matched above → equity (broad market)
   if (h.type === 'etf' || h.type === 'fund') return { assetClass: 'equity', sector: 'Other' };
   return { assetClass: 'other' };
@@ -519,20 +542,65 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
   const bondPct   = totalValue > 0 ? bondValue/totalValue : 0;
   const cashPct   = totalValue > 0 ? cashValue/totalValue : 0;
 
+  // Benchmark sector weights for distributing broad ETFs
+  const BM_SECTORS = window.BP_SECTORS || [
+    {label:'Info Tech',0.287},{label:'Financials',w:0.164},{label:'Health Care',w:0.096},
+    {label:'Consumer Discretionary',w:0.068},{label:'Industrials',w:0.120},
+    {label:'Communication Services',w:0.098},{label:'Consumer Staples',w:0.026},
+    {label:'Energy',w:0.051},{label:'Materials',w:0.047},
+    {label:'Utilities',w:0.027},{label:'Real Estate',w:0.017},
+  ];
+
   const sectors = {};
   classified.filter(h=>h.assetClass==='equity'&&h.sector).forEach(h => {
-    sectors[h.sector] = (sectors[h.sector]||0) + h.convertedHoldingValue/totalValue;
+    if (h.sector === '__broad__') {
+      // Distribute proportionally across all benchmark sectors
+      BM_SECTORS.forEach(s => {
+        const key = s.label;
+        const w = s.w || s[1] || 0;
+        sectors[key] = (sectors[key]||0) + (h.convertedHoldingValue/totalValue) * w;
+      });
+    } else {
+      sectors[h.sector] = (sectors[h.sector]||0) + h.convertedHoldingValue/totalValue;
+    }
   });
+
+  // Include deposits in cash if available
+  const depositCash = window._lastDepositData ? (() => {
+    const dd = window._lastDepositData;
+    const FX = window._liveEurUsd ? {USD:1,EUR:window._liveEurUsd,GBP:1.34,CHF:1.12} : {USD:1,EUR:1.16,GBP:1.34,CHF:1.12};
+    const portFx = FX[portfolioData.reportCcy || 'USD'] || 1;
+    let total = 0;
+    [...(dd.currentAccounts||[]),...(dd.timeDeposits||[])].forEach(r => {
+      total += r.amount * (FX[r.ccy]||1) / portFx;
+    });
+    return total;
+  })() : 0;
+
+  const totalWithDeposits = totalValue + depositCash;
+  const cashValueWithDeposits = cashValue + depositCash;
 
   const bondSegments = {};
   classified.filter(h=>h.assetClass==='bond'&&h.bondSegment).forEach(h => {
     bondSegments[h.bondSegment] = (bondSegments[h.bondSegment]||0) + h.convertedHoldingValue/totalValue;
   });
 
-  const waarNum = classified.reduce((s,h)=>s+h.irRating*h.convertedHoldingValue,0);
-  const waar = totalValue > 0 ? waarNum/totalValue : 0;
+  const equityPctFinal = totalWithDeposits > 0 ? equityValue/totalWithDeposits : equityPct;
+  const bondPctFinal   = totalWithDeposits > 0 ? bondValue/totalWithDeposits : bondPct;
+  const cashPctFinal   = totalWithDeposits > 0 ? cashValueWithDeposits/totalWithDeposits : cashPct;
 
-  return { classified, equityValue, bondValue, cashValue, equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue };
+  // Rescale sector weights if deposits added
+  if (depositCash > 0 && totalWithDeposits > 0) {
+    const scale = totalValue / totalWithDeposits;
+    Object.keys(sectors).forEach(k => { sectors[k] *= scale; });
+  }
+
+  const waarNum = classified.reduce((s,h)=>s+h.irRating*h.convertedHoldingValue,0);
+  const waar = totalWithDeposits > 0 ? waarNum/totalWithDeposits : 0;
+
+  return { classified, equityValue, bondValue, cashValue: cashValueWithDeposits,
+           equityPct: equityPctFinal, bondPct: bondPctFinal, cashPct: cashPctFinal,
+           sectors, bondSegments, waar, totalValue: totalWithDeposits };
 };
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
