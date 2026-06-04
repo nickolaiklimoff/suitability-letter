@@ -233,12 +233,10 @@ function selectClient(id) {
   saveReportState();
   currentClientId = id;
   renderClientList();
-  // Hide Base Portfolios panel if open
-  const bpPanel = document.getElementById('basePortfoliosPanel');
-  if (bpPanel) bpPanel.classList.add('hidden');
-  // Hide Daily Brief panel if open
-  const dbPanel = document.getElementById('dailyBriefPanel');
-  if (dbPanel) dbPanel.classList.add('hidden');
+  // Hide all panels
+  ['basePortfoliosPanel','dailyBriefPanel','settingsPanel'].forEach(id => {
+    document.getElementById(id)?.classList.add('hidden');
+  });
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('appContent').classList.remove('hidden');
   switchTab('report', document.querySelector('.tab'));
@@ -1073,7 +1071,7 @@ window.runPortfolioReport = async function() {
     const client = clients[currentClientId] || { name: 'Client', profile: {} };
 
     // Get IR ratings from Claude for each holding
-    const apiKey = document.getElementById('apiKey').value.trim();
+    const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
     let irRatings = {};
     if (apiKey) {
       irRatings = await assignPortfolioRatings(portfolioData.holdings, apiKey);
@@ -1521,7 +1519,7 @@ Style: factual, professional investment advisory. Do NOT mention the client's na
 }
 
 async function generateCommentaryText(extraInstruction) {
-  const apiKey = document.getElementById('apiKey').value.trim();
+  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
   if (!apiKey) return null;
 
   const basePrompt = buildCommentaryPrompt();
@@ -1553,7 +1551,7 @@ Additional instruction: ${extraInstruction}`
 
 // Auto-generate commentary after report is rendered
 async function autoGenerateCommentary() {
-  const apiKey = document.getElementById('apiKey').value.trim();
+  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
   if (!apiKey || !window._lastPortfolioData) return;
 
   const bodyEl = document.getElementById('r-commentary-body');
@@ -1579,7 +1577,7 @@ async function autoGenerateCommentary() {
 
 // Rewrite with instruction from the inline widget
 window.rewriteCommentary = async function() {
-  const apiKey = document.getElementById('apiKey').value.trim();
+  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
   if (!apiKey) { alert('Please enter API key in Settings.'); return; }
 
   const instruction = document.getElementById('r-rewrite-instruction')?.value?.trim();
@@ -3459,3 +3457,27 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tok) { const el = document.getElementById('tgBotToken'); if(el) el.value = tok; }
   if (cid) { const el = document.getElementById('tgChatId');   if(el) el.value = cid; }
 });
+
+// ─── SETTINGS PANEL ──────────────────────────────────────────────────────────
+window.settingsOpen = function() {
+  ['emptyState','appContent','basePortfoliosPanel','dailyBriefPanel'].forEach(id => {
+    document.getElementById(id)?.classList.add('hidden');
+  });
+  document.getElementById('settingsPanel').classList.remove('hidden');
+  // Restore saved values
+  const apiKey = localStorage.getItem('suitability-api-key');
+  const tok    = localStorage.getItem('suitability-tg-token');
+  const chat   = localStorage.getItem('suitability-tg-chat');
+  if (apiKey) document.getElementById('apiKey').value = apiKey;
+  if (tok)    document.getElementById('tgBotToken').value = tok;
+  if (chat)   document.getElementById('tgChatId').value = chat;
+};
+
+window.settingsClose = function() {
+  document.getElementById('settingsPanel').classList.add('hidden');
+  if (window.currentClientId) {
+    document.getElementById('appContent').classList.remove('hidden');
+  } else {
+    document.getElementById('emptyState').classList.remove('hidden');
+  }
+};

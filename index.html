@@ -23,24 +23,12 @@
         onblur="saveClientName()" onkeydown="if(event.key==='Enter')this.blur()" />
     </div>
     <div class="sidebar-divider"></div>
-    <div class="sidebar-section-label">Settings</div>
-    <div class="sidebar-setting">
-      <label>Anthropic API Key</label>
-      <input type="password" id="apiKey" placeholder="sk-ant-api03-..." oninput="localStorage.setItem('suitability-api-key', this.value)" />
-    </div>
-    <div class="sidebar-setting">
-      <label>Telegram Bot Token</label>
-      <input type="password" id="tgBotToken" placeholder="1234567890:ABC..." oninput="localStorage.setItem('suitability-tg-token', this.value)" />
-    </div>
-    <div class="sidebar-setting">
-      <label>Telegram Chat ID</label>
-      <input type="text" id="tgChatId" placeholder="@channel or -100..." oninput="localStorage.setItem('suitability-tg-chat', this.value)" />
-    </div>
-    <div class="sidebar-setting" style="display:flex;flex-direction:column;gap:4px;padding-top:8px">
+    <div style="padding:8px 12px;display:flex;flex-direction:column;gap:5px">
       <div id="basePortfoliosSidebarStatus" style="font-size:11px;color:var(--text3)"></div>
-      <button class="btn-secondary" style="font-size:11px;padding:4px 8px;text-align:left;cursor:pointer;width:100%" onclick="bpOpen()">→ Base Portfolios</button>
-      <div id="dailyBriefSidebarStatus" style="font-size:11px;color:var(--text3);margin-top:2px"></div>
-      <button class="btn-secondary" style="font-size:11px;padding:4px 8px;text-align:left;cursor:pointer;width:100%" onclick="dbOpen()">→ Daily Brief</button>
+      <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="bpOpen()">→ Base Portfolios</button>
+      <div id="dailyBriefSidebarStatus" style="font-size:11px;color:var(--text3)"></div>
+      <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="dbOpen()">→ Daily Brief</button>
+      <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="settingsOpen()">⚙ Settings</button>
     </div>
   </aside>
 
@@ -687,6 +675,45 @@
   </div>
 
   </main>
+
+  <!-- Settings panel -->
+  <div id="settingsPanel" class="hidden" style="padding:2rem;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:4px">Orion Ridge Capital</div>
+        <h2 style="font-size:20px;font-weight:600;color:var(--text1)">Settings</h2>
+      </div>
+      <button class="btn-secondary" onclick="settingsClose()" style="font-size:13px;padding:6px 14px">← Back</button>
+    </div>
+
+    <div class="form-card" style="max-width:520px">
+      <h3 style="margin-bottom:16px">API Keys</h3>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Anthropic API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-api03-..."
+          style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text1)"
+          oninput="localStorage.setItem('suitability-api-key', this.value)" />
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Used for report commentary and BCA view extraction</div>
+      </div>
+    </div>
+
+    <div class="form-card" style="max-width:520px;margin-top:14px">
+      <h3 style="margin-bottom:16px">Telegram</h3>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Bot Token</label>
+        <input type="password" id="tgBotToken" placeholder="1234567890:ABC..."
+          style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text1)"
+          oninput="localStorage.setItem('suitability-tg-token', this.value)" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Chat ID</label>
+        <input type="text" id="tgChatId" placeholder="@channel or -100..."
+          style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text1)"
+          oninput="localStorage.setItem('suitability-tg-chat', this.value)" />
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Used for Daily Brief publishing</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Daily Brief panel -->
   <div id="dailyBriefPanel" class="hidden" style="padding:2rem;overflow-y:auto">
