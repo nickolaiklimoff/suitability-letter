@@ -3604,10 +3604,8 @@ window.settingsClose = function() {
 
 
 // ─── Rebalancing Tab ──────────────────────────────────────────────────────────
-let _rbPortfolioData = null;
 let _rbClassified = [];
 
-// Classify a holding into equity/bond/cash + sector/bondSeg
 function rbClassify(h) {
   const name = (h.name||'').toLowerCase();
   let sector = null, bondSeg = null;
@@ -3619,64 +3617,79 @@ function rbClassify(h) {
     }
   }
 
-  if (name.includes('gilt') || name.includes('gov') || name.includes('treasur') || name.includes('bund')) bondSeg = 'Government';
-  else if (name.includes('corporate') || name.includes('ig corp') || name.includes('aggregate') || name.includes('investment grade')) bondSeg = 'Investment Grade';
-  else if (name.includes('high yield') || name.includes('hy')) bondSeg = 'High Yield';
-  else if (name.includes('em debt') || name.includes('emerging market') || (name.includes('em') && name.includes('bond'))) bondSeg = 'EM Debt';
+  if (name.includes('gilt') || name.includes('gov') || name.includes('treasur') || name.includes('bund') || name.includes('sovereign')) bondSeg = 'Government';
+  else if (name.includes('corporate') || name.includes('ig corp') || name.includes('investment grade') || (name.includes('aggregate') && !name.includes('high yield'))) bondSeg = 'Investment Grade';
+  else if (name.includes('high yield') || name.includes(' hy ') || name.includes('hy bond') || name.includes('junk')) bondSeg = 'High Yield';
+  else if (name.includes('em debt') || name.includes('emerging market bond') || name.includes('em bond')) bondSeg = 'EM Debt';
 
-  const isBond = !!(bondSeg || h.maturityDate || (name.includes('bond') && !name.includes('equity')));
-  const isEquity = !isBond && !!(sector || name.includes('equity') || name.includes('msci') || name.includes('acwi') || name.includes('world') || name.includes('s&p') || name.includes('stoxx'));
+  const isBond = !!(bondSeg || h.maturityDate || (name.includes('bond') && !sector));
+  const isEquity = !isBond && !!(sector || name.includes('equity') || name.includes('msci') || name.includes('acwi') || name.includes('world') || name.includes('s&p') || name.includes('stoxx') || name.includes('ftse'));
   const type = isBond ? 'bond' : isEquity ? 'equity' : 'other';
   return { ...h, type, sector, bondSeg };
 }
 
-async function onRebalanceFileChange(input) {
-  if (!input.files || !input.files[0]) return;
-  const statusEl = document.getElementById('rb-fileStatus');
-  statusEl.textContent = 'Parsing...';
-  try {
-    _rbPortfolioData = await parseCbondsExport(input.files[0]);
-    const allH = [...(_rbPortfolioData.funds||[]),...(_rbPortfolioData.stocks||[]),...(_rbPortfolioData.bonds||[])];
-    _rbClassified = allH.map(rbClassify);
-    statusEl.textContent = `✓ ${allH.length} holdings loaded`;
-    renderHoldingsList();
-    document.getElementById('rb-step2').style.display = 'block';
-    document.getElementById('rb-empty').style.display = 'none';
-    document.getElementById('rb-output').style.display = 'none';
-  } catch(e) {
-    statusEl.textContent = 'Error: ' + e.message;
-  }
-}
+function rbInit() {
+  const pd = window._lastPortfolioData;
+  const statusEl = document.getElementById('rb-portfolioStatus');
+  const step2 = document.getElementById('rb-step2');
+  const emptyEl = document.getElementById('rb-empty');
+  const outputEl = document.getElementById('rb-output');
 
-function renderHoldingsList() {
-  const ir = (clients[currentClientId]?.ir) || 'IR3';
+  if (!pd) {
+    statusEl.textContent = 'No portfolio loaded — go to Portfolio Report tab and load a file first.';
+    step2.style.display = 'none';
+    emptyEl.style.display = 'block';
+    return;
+  }
+
+  // Set IR selector to client's IR
+  const clientIR = clients[currentClientId]?.ir || 'IR3';
+  const sel = document.getElementById('rb-irSelect');
+  if (sel && !sel._userChanged) sel.value = clientIR;
+
+  const allH = [...(pd.funds||[]),...(pd.stocks||[]),...(pd.bonds||[])];
+  _rbClassified = allH.map(rbClassify);
+
+  const mode = document.querySelector('input[name="rbMode"]:checked')?.value || 'equity';
   const eqCount = _rbClassified.filter(h => h.type === 'equity').length;
   const bdCount = _rbClassified.filter(h => h.type === 'bond').length;
-  document.getElementById('rb-modeDesc').textContent = `${ir} — equity ${eqCount} holdings, bonds ${bdCount} holdings`;
+  statusEl.textContent = `✓ ${allH.length} holdings loaded (${eqCount} equity, ${bdCount} bonds)`;
 
+  renderHoldingsList(mode);
+  step2.style.display = 'block';
+  emptyEl.style.display = 'none';
+  outputEl.style.display = 'none';
+}
+
+// Auto-init when switching to rebalance tab
+const _origSwitchTab = window.switchTab;
+
+function renderHoldingsList(mode) {
   const typeLabel = { equity: '📈 Equity', bond: '📊 Bond', other: '💰 Other' };
   const typeOrder = { equity: 0, bond: 1, other: 2 };
   const sorted = [..._rbClassified].sort((a,b) => typeOrder[a.type] - typeOrder[b.type] || (a.name||'').localeCompare(b.name||''));
 
   let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:var(--bg3);position:sticky;top:0">';
+  html += '<thead><tr style="background:var(--bg3);position:sticky;top:0;z-index:1">';
   html += '<th style="padding:7px 12px;text-align:left;font-weight:600">Holding</th>';
-  html += '<th style="padding:7px 12px;text-align:left;font-weight:500;color:var(--text3)">Type / Segment</th>';
-  html += '<th style="padding:7px 12px;text-align:right;font-weight:500;color:var(--text3)">Value (USD)</th>';
-  html += '<th style="padding:7px 12px;text-align:center;font-weight:500;color:var(--text3)">Include</th>';
+  html += '<th style="padding:7px 12px;text-align:left;font-weight:500;color:var(--text3)">Type · Segment</th>';
+  html += '<th style="padding:7px 12px;text-align:right;font-weight:500;color:var(--text3)">Value</th>';
+  html += '<th style="padding:7px 12px;text-align:center;font-weight:500;color:var(--text3)">✓</th>';
   html += '</tr></thead><tbody>';
 
   sorted.forEach((h, idx) => {
-    const segLabel = h.type === 'equity' ? (h.sector || 'Equity') : h.type === 'bond' ? (h.bondSeg || 'Bond') : 'Other';
-    const typeColor = h.type === 'equity' ? 'color:#2e7d52' : h.type === 'bond' ? 'color:#1a5276' : 'color:var(--text3)';
-    const bg = idx % 2 === 0 ? 'background:var(--bg2)' : '';
+    const segLabel = h.type === 'equity' ? (h.sector || '—') : h.type === 'bond' ? (h.bondSeg || '—') : 'Other';
+    const typeColor = h.type === 'equity' ? '#2e7d52' : h.type === 'bond' ? '#1a5276' : 'var(--text3)';
+    const bg = idx % 2 === 0 ? 'var(--bg2)' : 'transparent';
     const val = h.convertedHoldingValue || 0;
-    html += `<tr style="${bg}">
+    // default checked: equity mode → only equity; full mode → equity+bond
+    const defaultChecked = mode === 'equity' ? h.type === 'equity' : h.type !== 'other';
+    html += `<tr style="background:${bg}">
       <td style="padding:7px 12px">${h.name}</td>
-      <td style="padding:7px 12px;font-size:12px;${typeColor}">${typeLabel[h.type]||''} · ${segLabel}</td>
-      <td style="padding:7px 12px;text-align:right">$${Math.round(val).toLocaleString('en-US')}</td>
+      <td style="padding:7px 12px;font-size:12px;color:${typeColor}">${typeLabel[h.type]||''} · ${segLabel}</td>
+      <td style="padding:7px 12px;text-align:right;font-size:12px">$${Math.round(val).toLocaleString('en-US')}</td>
       <td style="padding:7px 12px;text-align:center">
-        <input type="checkbox" class="rb-check" data-name="${h.name.replace(/"/g,'&quot;')}" checked style="width:16px;height:16px;cursor:pointer">
+        <input type="checkbox" class="rb-check" data-name="${h.name.replace(/"/g,'&quot;')}" ${defaultChecked?'checked':''} style="width:15px;height:15px;cursor:pointer">
       </td>
     </tr>`;
   });
@@ -3690,159 +3703,148 @@ function rbSelectAll(checked) {
 
 function rbSelectByType(type) {
   document.querySelectorAll('.rb-check').forEach(cb => {
-    const name = cb.dataset.name;
-    const h = _rbClassified.find(h => h.name === name);
+    const h = _rbClassified.find(h => h.name === cb.dataset.name);
     cb.checked = h?.type === type;
   });
 }
 
 function runRebalance() {
-  if (!_rbPortfolioData || !_rbClassified.length) return;
+  if (!_rbClassified.length) return;
 
-  // Get selected holding names
   const selected = new Set([...document.querySelectorAll('.rb-check:checked')].map(cb => cb.dataset.name));
   const subset = _rbClassified.filter(h => selected.has(h.name));
   if (!subset.length) return;
 
-  const ir = (clients[currentClientId]?.ir) || 'IR3';
-  const bpRaw = window._benchmark || {};
-  const bpDef = bpRaw[ir] || {};
+  const ir = document.getElementById('rb-irSelect')?.value || 'IR3';
+  const bpDef = (window._benchmark || {})[ir] || {};
   const W = {
     eq:   bpDef.eq   || bpDef.equity || 0.515,
     bd:   bpDef.bd   || bpDef.bond   || 0.475,
     cash: bpDef.cash || 0.010,
   };
 
-  const fmtPct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + 'pp';
   const fmtPctAbs = v => (v*100).toFixed(1) + '%';
-  const fmtUSD = v => (v >= 0 ? '+' : '−') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const fmtDev    = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + 'pp';
+  const fmtUSD    = v => (v >= 0 ? '+' : '−') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
   const fmtUSDabs = v => '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
-  const devCol = d => d > 0.001 ? '#2e7d52' : d < -0.001 ? '#c0392b' : 'var(--text2)';
+  const devCol    = d => d > 0.005 ? '#c0392b' : d < -0.005 ? '#2e7d52' : 'var(--text2)';
 
   const subsetValue = subset.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
   const eqHoldings  = subset.filter(h => h.type === 'equity');
   const bdHoldings  = subset.filter(h => h.type === 'bond');
   const eqValue     = eqHoldings.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
   const bdValue     = bdHoldings.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
-
-  const hasEquity = eqValue > 0;
-  const hasBond   = bdValue > 0;
+  const mode        = document.querySelector('input[name="rbMode"]:checked')?.value || 'equity';
 
   let html = '';
 
-  // ── Top-level allocation ──────────────────────────────────────────────────
-  if (hasEquity && hasBond) {
-    const curEqPct = eqValue / subsetValue;
-    const curBdPct = bdValue / subsetValue;
-    const tgtEqPct = W.eq / (W.eq + W.bd);
-    const tgtBdPct = W.bd / (W.eq + W.bd);
+  const th = (cols) => {
+    const ths = cols.map((c,i) => `<th style="padding:8px 12px;text-align:${i===0?'left':'right'};font-weight:600;white-space:nowrap">${c}</th>`).join('');
+    return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1.5rem"><thead><tr style="background:var(--green-dark);color:#fff">${ths}</tr></thead><tbody>`;
+  };
+  const tr = (cells, idx) => {
+    const bg = idx%2===0 ? 'background:var(--bg2)' : '';
+    const tds = cells.map((c,i) => `<td style="padding:7px 12px;text-align:${i===0?'left':'right'}">${c}</td>`).join('');
+    return `<tr style="${bg}">${tds}</tr>`;
+  };
+  const h3 = t => `<h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin:1.5rem 0 0.5rem">${t}</h3>`;
 
-    html += sectionHeader(`Asset Allocation — Selected Holdings vs ${ir}`);
-    html += tableStart(['Asset Class','Target','Current','Deviation','Trade (USD)']);
-    [
-      { label:'Equities', cur:curEqPct, tgt:tgtEqPct },
-      { label:'Bonds',    cur:curBdPct, tgt:tgtBdPct },
-    ].forEach((r,i) => {
+  // ── Asset allocation (full mode only) ──────────────────────────────────────
+  if (mode === 'full' && eqValue > 0 && bdValue > 0) {
+    const tgtEq = W.eq / (W.eq + W.bd);
+    const tgtBd = W.bd / (W.eq + W.bd);
+    const curEq = eqValue / subsetValue;
+    const curBd = bdValue / subsetValue;
+
+    html += h3(`Asset Allocation vs ${ir}`);
+    html += th(['Asset Class','Target','Current','Deviation','Trade (USD)']);
+    [{ label:'Equities', cur:curEq, tgt:tgtEq },
+     { label:'Bonds',    cur:curBd, tgt:tgtBd }].forEach((r,i) => {
       const dev = r.cur - r.tgt;
-      const trade = (r.tgt - r.cur) * subsetValue;
-      html += tableRow(i, [r.label, fmtPctAbs(r.tgt), fmtPctAbs(r.cur),
-        `<span style="color:${devCol(dev)}">${fmtPct(dev)}</span>`,
-        `<span style="color:${devCol(trade)}">${fmtUSD(trade)}</span>`]);
+      html += tr([r.label, fmtPctAbs(r.tgt), fmtPctAbs(r.cur),
+        `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
+        `<span style="color:${devCol(-dev)}">${fmtUSD((r.tgt-r.cur)*subsetValue)}</span>`], i);
     });
-    html += tableEnd();
+    html += '</tbody></table>';
   }
 
-  // ── Equity sector breakdown ───────────────────────────────────────────────
-  if (hasEquity && window.BP_SECTORS) {
+  // ── Equity sectors ─────────────────────────────────────────────────────────
+  if (eqValue > 0 && window.BP_SECTORS) {
     const wSum = window.BP_SECTORS.reduce((s,x) => s+x.w, 0);
-    html += sectionHeader(`Equity Sleeve — Sector Allocation vs ${ir}`);
-    html += tableStart(['Sector','Target % of port.','Current % of port.','Deviation','Trade (USD)']);
-    const sectorRows = window.BP_SECTORS.map(s => {
+    const base = mode === 'equity' ? eqValue : subsetValue;
+    const tgtBase = mode === 'equity' ? W.eq : W.eq; // always normalise to eq weight
+
+    html += h3(`Equity Sleeve — Sector Allocation vs ${ir}`);
+    html += th(['Sector','Target','Current','Deviation','Trade (USD)']);
+    window.BP_SECTORS.forEach((s,i) => {
       const curVal = eqHoldings.filter(h => h.sector === s.label).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      const tgtPct = W.eq * (s.w / wSum);  // % of total subset
-      const curPct = curVal / subsetValue;
-      return { label: s.label, curVal, curPct, tgtPct, trade: (tgtPct - curPct) * subsetValue };
+      const tgtPct = mode === 'equity' ? (s.w / wSum) : (W.eq * s.w / wSum);
+      const curPct = curVal / (mode === 'equity' ? eqValue : subsetValue);
+      const dev = curPct - tgtPct;
+      const tradeBase = mode === 'equity' ? eqValue : subsetValue;
+      html += tr([s.label, fmtPctAbs(tgtPct), fmtPctAbs(curPct),
+        `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
+        `<span style="color:${devCol(-dev)}">${fmtUSD((tgtPct-curPct)*tradeBase)}</span>`], i);
     });
-    sectorRows.forEach((r,i) => {
-      const dev = r.curPct - r.tgtPct;
-      html += tableRow(i, [r.label, fmtPctAbs(r.tgtPct), fmtPctAbs(r.curPct),
-        `<span style="color:${devCol(dev)}">${fmtPct(dev)}</span>`,
-        `<span style="color:${devCol(r.trade)}">${fmtUSD(r.trade)}</span>`]);
-    });
-    html += tableEnd();
+    html += '</tbody></table>';
   }
 
-  // ── Bond segment breakdown ────────────────────────────────────────────────
-  if (hasBond && window.BP_BOND_SEGS) {
+  // ── Bond segments ──────────────────────────────────────────────────────────
+  if (bdValue > 0 && window.BP_BOND_SEGS && mode === 'full') {
     const wSum = window.BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
-    html += sectionHeader(`Bond Sleeve — Segment Allocation vs ${ir}`);
-    html += tableStart(['Segment','Target % of port.','Current % of port.','Deviation','Trade (USD)']);
+    html += h3(`Bond Sleeve — Segment Allocation vs ${ir}`);
+    html += th(['Segment','Target','Current','Deviation','Trade (USD)']);
     window.BP_BOND_SEGS.forEach((s,i) => {
       const curVal = bdHoldings.filter(h => h.bondSeg === s.label).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
       const tgtPct = W.bd * (s.w / wSum);
       const curPct = curVal / subsetValue;
       const dev = curPct - tgtPct;
-      const trade = (tgtPct - curPct) * subsetValue;
-      html += tableRow(i, [s.label, fmtPctAbs(tgtPct), fmtPctAbs(curPct),
-        `<span style="color:${devCol(dev)}">${fmtPct(dev)}</span>`,
-        `<span style="color:${devCol(trade)}">${fmtUSD(trade)}</span>`]);
+      html += tr([s.label, fmtPctAbs(tgtPct), fmtPctAbs(curPct),
+        `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
+        `<span style="color:${devCol(-dev)}">${fmtUSD((tgtPct-curPct)*subsetValue)}</span>`], i);
     });
-    html += tableEnd();
+    html += '</tbody></table>';
   }
 
-  // ── Trade summary ─────────────────────────────────────────────────────────
+  // ── Trades summary ─────────────────────────────────────────────────────────
   const trades = [];
-  if (hasEquity && window.BP_SECTORS) {
+  if (eqValue > 0 && window.BP_SECTORS) {
     const wSum = window.BP_SECTORS.reduce((s,x) => s+x.w, 0);
     window.BP_SECTORS.forEach(s => {
       const curVal = eqHoldings.filter(h => h.sector === s.label).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      const tgt = W.eq * (s.w / wSum) * subsetValue;
-      const delta = tgt - curVal;
-      if (Math.abs(delta) > 500) trades.push({ label: s.label, delta, type: 'equity' });
+      const tradeBase = mode === 'equity' ? eqValue : subsetValue;
+      const tgtPct = mode === 'equity' ? (s.w / wSum) : (W.eq * s.w / wSum);
+      const delta = tgtPct * tradeBase - curVal;
+      if (Math.abs(delta) > 500) trades.push({ label: s.label, delta });
     });
   }
-  if (hasBond && window.BP_BOND_SEGS) {
+  if (bdValue > 0 && window.BP_BOND_SEGS && mode === 'full') {
     const wSum = window.BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
     window.BP_BOND_SEGS.forEach(s => {
       const curVal = bdHoldings.filter(h => h.bondSeg === s.label).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      const tgt = W.bd * (s.w / wSum) * subsetValue;
-      const delta = tgt - curVal;
-      if (Math.abs(delta) > 500) trades.push({ label: s.label, delta, type: 'bond' });
+      const delta = (W.bd * s.w / wSum) * subsetValue - curVal;
+      if (Math.abs(delta) > 500) trades.push({ label: s.label, delta });
     });
   }
 
   if (trades.length) {
-    html += sectionHeader('Required Trades');
-    html += tableStart(['Segment / Sector','Action','Amount (USD)','Δ Weight']);
-    trades.sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta)).forEach((r,i) => {
+    html += h3('Required Trades');
+    html += th(['Segment / Sector','Action','Amount (USD)','Δ Weight']);
+    trades.sort((a,b) => Math.abs(b.delta)-Math.abs(a.delta)).forEach((r,i) => {
       const action = r.delta > 0 ? 'BUY' : 'SELL';
       const col = r.delta > 0 ? '#2e7d52' : '#c0392b';
-      html += tableRow(i, [r.label,
+      const base = mode === 'equity' ? eqValue : subsetValue;
+      html += tr([r.label,
         `<span style="font-weight:700;color:${col}">${action}</span>`,
         `<span style="font-weight:600;color:${col}">${fmtUSDabs(r.delta)}</span>`,
-        `<span style="color:${col}">${fmtPct(r.delta/subsetValue)}</span>`]);
+        `<span style="color:${col}">${fmtDev(r.delta/base)}</span>`], i);
     });
-    html += tableEnd();
+    html += '</tbody></table>';
   }
 
   document.getElementById('rb-allocationTable').innerHTML = html;
-  document.getElementById('rb-tradesTable').innerHTML = '';
   document.getElementById('rb-output').style.display = 'block';
 }
 
-// ── Table helpers ─────────────────────────────────────────────────────────────
-function sectionHeader(title) {
-  return `<h3 style="font-size:14px;font-weight:600;margin:1.5rem 0 0.5rem;color:var(--text1)">${title}</h3>`;
-}
-function tableStart(cols) {
-  const ths = cols.map(c => `<th style="padding:8px 12px;text-align:${c.includes('Trade')||c.includes('USD')||c.includes('Target')||c.includes('Current')||c.includes('Deviation')||c.includes('Action')||c.includes('Δ')?'right':'left'};font-weight:600">${c}</th>`).join('');
-  return `<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--green-dark);color:#fff">${ths}</tr></thead><tbody>`;
-}
-function tableRow(idx, cells) {
-  const bg = idx % 2 === 0 ? 'background:var(--bg2)' : '';
-  const tds = cells.map((c,i) => `<td style="padding:7px 12px;text-align:${i>0?'right':'left'}">${c}</td>`).join('');
-  return `<tr style="${bg}">${tds}</tr>`;
-}
-function tableEnd() { return '</tbody></table>'; }
-
+function onRebalanceFileChange() {}  // kept for compatibility
 function buildRebalTable() {}
