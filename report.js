@@ -509,7 +509,14 @@ function classifyHolding(h) {
 
 // ─── Income map ───────────────────────────────────────────────────────────────
 function normName(s) {
-  return String(s||'').replace(/\s*\(USD\)\s*/gi,'').replace(/®/g,'').replace(/^The\s+/i,'').replace(/\s+/g,' ').trim().toLowerCase();
+  return String(s||'')
+    .replace(/®/g,'')
+    .replace(/\bBarclays\b\s*/gi,'')
+    .replace(/\s*\([^)]+\)\s*/g,' ')
+    .replace(/^The\s+/i,'')
+    .replace(/\s+/g,' ')
+    .trim()
+    .toLowerCase();
 }
 
 function buildIncomeMap(portfolioData) {
