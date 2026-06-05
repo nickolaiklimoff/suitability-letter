@@ -522,7 +522,8 @@ function buildIncomeMap(portfolioData) {
     const norm = normName(rawName);
     if (holdingByNorm[norm]) return holdingByNorm[norm];
     for (const [hn, hname] of Object.entries(holdingByNorm)) {
-      if (norm.length > 10 && hn.length > 10 && (norm.includes(hn.substring(0,15)) || hn.includes(norm.substring(0,15)))) return hname;
+      // Use longer prefix (20 chars) to avoid false matches between similar fund names
+      if (norm.length > 20 && hn.length > 20 && (norm.startsWith(hn.substring(0,20)) || hn.startsWith(norm.substring(0,20)))) return hname;
     }
     return null;
   };
