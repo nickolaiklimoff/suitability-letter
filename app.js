@@ -3674,6 +3674,8 @@ function renderHoldingsList(mode) {
   html += '<thead><tr style="background:var(--bg3);position:sticky;top:0;z-index:1">';
   html += '<th style="padding:7px 12px;text-align:left;font-weight:600">Holding</th>';
   html += '<th style="padding:7px 12px;text-align:left;font-weight:500;color:var(--text3)">Type · Segment</th>';
+  html += '<th style="padding:7px 12px;text-align:right;font-weight:500;color:var(--text3)">Qty</th>';
+  html += '<th style="padding:7px 12px;text-align:right;font-weight:500;color:var(--text3)">Price</th>';
   html += '<th style="padding:7px 12px;text-align:right;font-weight:500;color:var(--text3)">Value</th>';
   html += '<th style="padding:7px 12px;text-align:center;font-weight:500;color:var(--text3)">✓</th>';
   html += '</tr></thead><tbody>';
@@ -3685,9 +3687,13 @@ function renderHoldingsList(mode) {
     const val = h.convertedHoldingValue || 0;
     // default checked: equity mode → only equity; full mode → equity+bond
     const defaultChecked = mode === 'equity' ? h.type === 'equity' : h.type !== 'other';
+    const qty   = h.quantity || h.qty || 0;
+    const price = val > 0 && qty > 0 ? val / qty : (h.price || h.lastPrice || 0);
     html += `<tr style="background:${bg}">
       <td style="padding:7px 12px">${h.name}</td>
       <td style="padding:7px 12px;font-size:12px;color:${typeColor}">${typeLabel[h.type]||''} · ${segLabel}</td>
+      <td style="padding:7px 12px;text-align:right;font-size:12px">${qty ? qty.toLocaleString('en-US') : '—'}</td>
+      <td style="padding:7px 12px;text-align:right;font-size:12px">${price ? price.toFixed(2) : '—'}</td>
       <td style="padding:7px 12px;text-align:right;font-size:12px">$${Math.round(val).toLocaleString('en-US')}</td>
       <td style="padding:7px 12px;text-align:center">
         <input type="checkbox" class="rb-check" data-name="${h.name.replace(/"/g,'&quot;')}" ${defaultChecked?'checked':''} style="width:15px;height:15px;cursor:pointer">
