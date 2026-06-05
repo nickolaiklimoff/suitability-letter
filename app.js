@@ -421,6 +421,7 @@ function switchTab(name, btn) {
   if (name === 'history') renderHistory();
   if (name === 'report') initReportTab();
   if (name === 'client') loadClientTab();
+  if (name === 'rebalance') setTimeout(rbInit, 50);
 }
 
 // ─── Profile form ─────────────────────────────────────────────────────────────
