@@ -281,10 +281,14 @@ window.parseCbondsExport = function(file) {
         function getDivForHolding(h) {
           const norm = normFundName(h.name);
           if (divByAsset[norm]) return divByAsset[norm];
+          // Longest common prefix match (min 15 chars to avoid false positives)
+          let best = null, bestLen = 14;
           for (const [k, v] of Object.entries(divByAsset)) {
-            if (k.startsWith(norm) || norm.startsWith(k)) return v;
+            let i = 0;
+            while (i < norm.length && i < k.length && norm[i] === k[i]) i++;
+            if (i > bestLen) { bestLen = i; best = v; }
           }
-          return 0;
+          return best || 0;
         }
 
         // Attach dividends using normalised name matching
