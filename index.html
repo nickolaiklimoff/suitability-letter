@@ -48,6 +48,7 @@
         <button class="tab" onclick="switchTab('profile', this)">Profiling</button>
         <button class="tab" onclick="switchTab('client', this)">Client</button>
         <button class="tab" onclick="switchTab('history', this)">History</button>
+        <button class="tab" onclick="switchTab('rebalance', this)">Rebalancing</button>
       </div>
 
       <!-- Client Tab -->
@@ -587,6 +588,37 @@
       </div>
 
       <!-- Base Portfolios Tab - removed from here, now standalone below -->
+
+      <!-- Rebalancing Tab -->
+      <div id="tab-rebalance" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Rebalancing</h2>
+          <div class="section-sub">Current vs target allocation — trades required to rebalance to IR benchmark.</div>
+        </div>
+
+        <div class="form-card" style="max-width:600px;margin-bottom:1.5rem">
+          <div class="field" style="margin-bottom:1rem">
+            <label>Rebalancing mode</label>
+            <div class="radio-group" id="rb-modeGroup">
+              <label><input type="radio" name="rbMode" value="full" checked onchange="runRebalance()"> Full allocation (equity + bonds + cash)</label>
+              <label style="margin-left:1.5rem"><input type="radio" name="rbMode" value="equity" onchange="runRebalance()"> Equity sleeve only</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Portfolio file <span class="label-hint">(same cbonds xlsx as Portfolio Report)</span></label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="file" id="rb-file" accept=".xlsx" onchange="onRebalanceFileChange(this)">
+              <span id="rb-fileStatus" style="font-size:12px;color:var(--text3)"></span>
+            </div>
+          </div>
+        </div>
+
+        <div id="rb-output" style="display:none">
+          <div id="rb-allocationTable" style="margin-bottom:2rem"></div>
+          <div id="rb-tradesTable"></div>
+        </div>
+        <div id="rb-empty" style="color:var(--text3);font-size:13px">Upload a portfolio file to calculate rebalancing trades.</div>
+      </div>
 
     </div>
 
