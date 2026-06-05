@@ -258,24 +258,42 @@ window.parseCbondsExport = function(file) {
         const divRows  = getSheet('dividends').slice(1).filter(r => r[0]);
         const couponRows = getSheet('coupons').slice(1).filter(r => r[0]);
 
-        // Build per-asset dividend map (asset name → total converted amount)
+        // Normalise fund name for dividend matching
+        function normFundName(n) {
+          return String(n||'')
+            .replace(/®/g, '')
+            .replace(/Barclays\s*/gi, '')
+            .replace(/\s*\([^)]+\)\s*/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+
+        // Build per-asset dividend map (normalised name → total)
         const divByAsset = {};
         divRows.forEach(r => {
           const assetName = String(r[3]||'').trim();
           const amount = parseFloat(r[7]) || parseFloat(r[5]) || 0;
           if (!assetName) return;
-          // Strip exchange suffix like " (USD)" for matching
-          const key = assetName.replace(/\s*\([^)]+\)\s*$/, '').trim();
+          const key = normFundName(assetName);
           divByAsset[key] = (divByAsset[key] || 0) + amount;
         });
 
-        // Attach dividends to each holding
+        function getDivForHolding(h) {
+          const norm = normFundName(h.name);
+          if (divByAsset[norm]) return divByAsset[norm];
+          for (const [k, v] of Object.entries(divByAsset)) {
+            if (k.startsWith(norm) || norm.startsWith(k)) return v;
+          }
+          return 0;
+        }
+
+        // Attach dividends using normalised name matching
         stocks.forEach(h => {
-          h.dividendsPaid = divByAsset[h.name] || 0;
+          h.dividendsPaid = getDivForHolding(h);
           h.totalPnL = h.unrealizedPnL + h.realizedPnL + h.dividendsPaid;
         });
         funds.forEach(h => {
-          h.dividendsPaid = divByAsset[h.name] || 0;
+          h.dividendsPaid = getDivForHolding(h);
           h.totalPnL = h.unrealizedPnL + (h.realizedPnL||0) + h.dividendsPaid;
         });
 
