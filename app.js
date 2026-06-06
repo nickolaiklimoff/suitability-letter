@@ -3785,7 +3785,7 @@ function runRebalance() {
   const devCol    = d => Math.abs(d) < 0.005 ? 'var(--text2)' : d > 0 ? '#c0392b' : '#2e7d52';
 
   const h3  = t => `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin:1.5rem 0 0.5rem">${t}</div>`;
-  const thRow = cols => `<thead><tr style="background:var(--green-dark);color:#fff">${cols.map((c,i)=>`<th style="padding:8px 12px;text-align:${i===0?'left':'right'};font-weight:600;white-space:nowrap">${c}</th>`).join('')}</tr></thead>`;
+  const thRow = cols => `<thead><tr style="background:var(--green-dark);color:#fff">${cols.map((c,i)=>`<th style="padding:8px 12px;text-align:${i===0?'left':'right'};font-weight:700;font-size:12px;letter-spacing:0.03em;opacity:1;white-space:nowrap">${c}</th>`).join('')}</tr></thead>`;
   const tdRow = (cells, idx) => {
     const bg = idx%2===0 ? 'background:var(--bg2)' : '';
     return `<tr style="${bg}">${cells.map((c,i)=>`<td style="padding:7px 12px;text-align:${i===0?'left':'right'}">${c}</td>`).join('')}</tr>`;
@@ -3994,8 +3994,56 @@ function runRebalance() {
     }
   }
 
+  // Store trades for export
+  window._rbLastTrades = holdingTrades || [];
+  window._rbLastTradesMode = mode;
+
+  // Add export buttons
+  html += `<div style="display:flex;gap:10px;margin-top:1.5rem;flex-wrap:wrap">
+    <button class="btn-primary" onclick="rbExportXlsx()" style="display:flex;align-items:center;gap:6px">
+      ⬇ Export to Excel
+    </button>
+  </div>`;
+
   document.getElementById('rb-allocationTable').innerHTML = html;
   document.getElementById('rb-output').style.display = 'block';
+}
+
+function rbExportXlsx() {
+  const trades = window._rbLastTrades || [];
+  if (!trades.length) return;
+
+  // Build rows: Name, ISIN, Amount USD
+  const rows = [['Name', 'ISIN', 'Amount USD']];
+  trades.forEach(t => {
+    const qty   = t.h.quantity || t.h.qty || 0;
+    const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : (t.h.price||0);
+    const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
+    const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
+    if (amount > 0) rows.push([t.h.name, t.h.isin || '', amount]);
+  });
+
+  // Build xlsx using SheetJS (already loaded)
+  if (typeof XLSX === 'undefined') {
+    alert('Excel export not available — XLSX library not loaded');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Column widths
+  ws['!cols'] = [{ wch: 50 }, { wch: 16 }, { wch: 14 }];
+
+  // Style header row
+  ['A1','B1','C1'].forEach(cell => {
+    if (!ws[cell]) return;
+    ws[cell].s = { font: { bold: true }, fill: { fgColor: { rgb: '3D6B52' } }, font: { bold: true, color: { rgb: 'FFFFFF' } } };
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Investments');
+  const clientName = clients[currentClientId]?.name || 'client';
+  const date = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `rebalance_${clientName}_${date}.xlsx`);
 }
 
 
