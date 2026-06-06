@@ -4049,7 +4049,23 @@ function rbExportXlsx() {
 
   const clientName = (clients[currentClientId]?.name || 'client').replace(/\s+/g,'_');
   const date = new Date().toISOString().slice(0,10);
-  XL.writeFile(wb, `rebalance_${clientName}_${date}.xlsx`);
+  const fname = `rebalance_${clientName}_${date}.xlsx`;
+
+  // Use Blob download to avoid browser blocking
+  try {
+    const wbout = XL.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  } catch(e) {
+    console.error('Export error:', e);
+    alert('Export failed: ' + e.message);
+  }
 }
 
 function rbSendToLetter() {
