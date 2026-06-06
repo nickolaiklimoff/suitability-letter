@@ -3612,9 +3612,22 @@ function rbClassify(h) {
   let sector = null, bondSeg = null;
 
   if (BP_SECTORS) {
+    const SECTOR_KW = {
+      'Info Tech':              ['information tech','info tech','technology'],
+      'Financials':             ['financial'],
+      'Health Care':            ['health care','healthcare'],
+      'Consumer Discretionary': ['consumer discret','discretionary'],
+      'Industrials':            ['industrial'],
+      'Communication Services': ['communication serv','communication'],
+      'Consumer Staples':       ['consumer staples','staples'],
+      'Energy':                 ['energy'],
+      'Materials':              ['materials'],
+      'Utilities':              ['utilities','utility'],
+      'Real Estate':            ['real estate','reit'],
+    };
     for (const s of BP_SECTORS) {
-      const kw = s.label.toLowerCase().split(/\s+/)[0];
-      if (name.includes(kw)) { sector = s.label; break; }
+      const kws = SECTOR_KW[s.label] || [s.label.toLowerCase().split(' ')[0]];
+      if (kws.some(kw => name.includes(kw))) { sector = s.label; break; }
     }
   }
 
@@ -3872,8 +3885,10 @@ function runRebalance() {
           `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(actualAmt)}</span>`
         ], i);
       });
-      // Total row
-      hrows += `<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total equity buys</td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBuyAmt)}</td></tr>`;
+      // Total row with unallocated remainder from rounding
+      const remainder = addCash > 0 ? addCash - totalBuyAmt : 0;
+      const remainderNote = remainder > 1 ? ` <span style="font-size:11px;color:var(--text3);font-weight:400">(${fmtUSDabs(remainder)} unallocated — rounding)</span>` : '';
+      hrows += `<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total equity buys${remainderNote}</td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBuyAmt)}</td></tr>`;
       html += tbl(['Holding','Price per unit','Units to buy','Amount'], hrows);
     }
   }
