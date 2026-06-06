@@ -4072,39 +4072,50 @@ function rbSendToLetter() {
   const trades = window._rbLastTrades || [];
   if (!trades.length) { alert('No trades to send. Calculate rebalancing first.'); return; }
 
-  // Build trade summary for letter
-  const lines2 = trades.map(t => {
+  // Build trade rows
+  const rows = [];
+  trades.forEach(t => {
     const qty   = t.h.quantity || t.h.qty || 0;
     const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : (t.h.price||0);
     const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
     const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
-    return `${t.h.name}: +${units} units ($${amount.toLocaleString('en-US')})`;
-  }).filter((_,i) => trades[i].buyAmt > 10);
+    if (amount > 0) rows.push({ name: t.h.name, isin: t.h.isin || '', amount });
+  });
 
-  const ir = document.getElementById('rb-irSelect')?.value || 'IR3';
-  const summary = `Rebalancing trades (${ir}):\n` + lines2.join('\n');
+  if (!rows.length) { alert('No valid trades to send.'); return; }
 
-  // Store for use in letter tab
-  window._rbLetterNote = summary;
+  // Switch to letter tab
+  const letterBtn = document.querySelector('.tab[onclick*="letter"]');
+  switchTab('letter', letterBtn);
 
-  // Switch to letter tab and pre-fill additional context
-  switchTab('letter', document.querySelector('.tab[onclick*="letter"]'));
-
-  // Try to inject into letter additional context field
   setTimeout(() => {
-    const ctx = document.getElementById('l-additionalContext') || document.getElementById('r-additionalContext');
-    if (ctx) {
-      ctx.value = (ctx.value ? ctx.value + '\n\n' : '') + summary;
-      ctx.dispatchEvent(new Event('input'));
-    } else {
-      // Show as toast
-      const toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;bottom:2rem;right:2rem;background:#2e7d52;color:#fff;padding:1rem 1.5rem;border-radius:8px;font-size:13px;z-index:9999;max-width:400px;white-space:pre-wrap';
-      toast.textContent = 'Rebalancing note copied to Letter tab context:\n' + lines2.slice(0,3).join('\n') + (lines2.length>3?'\n...':'');
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 5000);
+    // Navigate to step 2 (investments) — click Continue if on step 1
+    const step2 = document.getElementById('l-step2');
+    const step1 = document.getElementById('l-step1');
+    if (step1 && !step1.classList.contains('hidden') && step2) {
+      // Try to advance to step 2
+      const continueBtn = step1.querySelector('button[onclick*="nextStep"], .btn-primary');
+      if (continueBtn) continueBtn.click();
     }
+
+    setTimeout(() => {
+      // Clear existing invest rows
+      const tbody = document.getElementById('l-investRows');
+      if (!tbody) { alert('Could not find investment rows in Suitability Letter tab.'); return; }
+      tbody.innerHTML = '';
+
+      // Add each trade as a row
+      rows.forEach(r => addInvestRow(r.name, r.isin, r.amount));
+
+      // Show confirmation
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:2rem;right:2rem;background:#2e7d52;color:#fff;padding:1rem 1.5rem;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+      toast.textContent = `✓ ${rows.length} trades added to Suitability Letter`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }, 400);
   }, 300);
+
 }
 
 
