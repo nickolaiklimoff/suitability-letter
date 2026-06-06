@@ -3786,7 +3786,7 @@ function runRebalance() {
   const devCol    = d => Math.abs(d) < 0.005 ? 'var(--text2)' : d > 0 ? '#c0392b' : '#2e7d52';
 
   const h3  = t => `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin:1.5rem 0 0.5rem">${t}</div>`;
-  const thRow = cols => `<thead><tr style="background:var(--green-dark);color:#fff">${cols.map((c,i)=>`<th style="padding:8px 12px;text-align:${i===0?'left':'right'};font-weight:700;font-size:12px;letter-spacing:0.03em;opacity:1;white-space:nowrap">${c}</th>`).join('')}</tr></thead>`;
+  const thRow = cols => `<thead><tr style="background:#2d5a3d;color:#ffffff">${cols.map((c,i)=>`<th style="padding:8px 12px;text-align:${i===0?'left':'right'};font-weight:700;font-size:12px;letter-spacing:0.03em;color:#ffffff !important;white-space:nowrap">${c}</th>`).join('')}</tr></thead>`;
   const tdRow = (cells, idx) => {
     const bg = idx%2===0 ? 'background:var(--bg2)' : '';
     return `<tr style="${bg}">${cells.map((c,i)=>`<td style="padding:7px 12px;text-align:${i===0?'left':'right'}">${c}</td>`).join('')}</tr>`;
