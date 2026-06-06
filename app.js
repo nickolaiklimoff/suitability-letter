@@ -3822,14 +3822,25 @@ function runRebalance() {
       ? eqValue + addCash
       : newTotal * (W.eq / (W.eq + W.bd));
 
-    // Weights are computed WITHIN the selected equity subset
+    // Weights are computed WITHIN classified equity holdings only (exclude unclassified/broad ETFs)
+    const classifiedEqValue = eqHoldings
+      .filter(h => h.sector)  // only holdings with a known sector
+      .reduce((s,h) => s+(h.convertedHoldingValue||0), 0);
+    const unclassifiedEq = eqHoldings.filter(h => !h.sector);
+    if (unclassifiedEq.length) {
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:0.75rem">
+        ℹ️ ${unclassifiedEq.map(h=>h.name).join(', ')} excluded from sector analysis (broad/unclassified ETF)
+      </div>`;
+    }
+    const eqBase = classifiedEqValue > 0 ? classifiedEqValue : eqValue;
+
     // Target: BP_SECTORS weights normalised to 100% within equity
     const sectorTargets = BP_SECTORS.map(s => {
       const tgtPct = s.w / wSum;  // target % within equity sleeve
       const curVal = (sectorMap[s.label] || []).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      const curPct = eqValue > 0 ? curVal / eqValue : 0;  // current % within selected equity subset
+      const curPct = eqBase > 0 ? curVal / eqBase : 0;  // current % within classified equity only
       const shortfall = Math.max(0, tgtPct - curPct);
-      return { sector: s.label, tgtPct, curPct, curVal, shortfall, holdings: sectorMap[s.label] || [] };
+      return { sector: s.label, tgtPct, curPct, curVal, shortfall, holdings: sectorMap[s.label] || [], eqBase };
     });
 
     // Scale buys proportionally to addCash budget
@@ -3896,7 +3907,7 @@ function runRebalance() {
       const buyMap = {};
       holdingTrades.forEach(t => { buyMap[t.h.name] = (buyMap[t.h.name]||0) + t.buyAmt; });
 
-      const newEqValue = eqValue + totalBuyAmt;
+      const newEqValue = eqBase + totalBuyAmt;
       html += h3('Portfolio After Rebalancing — Equity');
       let prows = '';
       // All selected equity holdings with new amounts
