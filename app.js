@@ -3643,10 +3643,14 @@ function rbInit() {
     return;
   }
 
-  // Set IR selector to client's IR
+  // Set IR selector to client's IR only on first load
   const clientIR = clients[currentClientId]?.ir || 'IR3';
   const sel = document.getElementById('rb-irSelect');
-  if (sel && !sel._userChanged) sel.value = clientIR;
+  if (sel && !sel._initialized) {
+    sel.value = clientIR;
+    sel._initialized = true;
+    sel.addEventListener('change', () => { sel._initialized = true; });
+  }
 
   const allH = [...(pd.funds||[]),...(pd.stocks||[]),...(pd.bonds||[])];
   _rbClassified = allH.map(rbClassify);
@@ -3805,26 +3809,25 @@ function runRebalance() {
       ? eqValue + addCash
       : newTotal * (W.eq / (W.eq + W.bd));
 
+    // Weights are computed WITHIN the selected equity subset
+    // Target: BP_SECTORS weights normalised to 100% within equity
     const sectorTargets = BP_SECTORS.map(s => {
-      const tgtPct = s.w / wSum;
-      // Target % is always relative to equity sleeve
+      const tgtPct = s.w / wSum;  // target % within equity sleeve
       const curVal = (sectorMap[s.label] || []).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      const curPct = eqValue > 0 ? curVal / eqValue : 0;
-      // Raw shortfall vs target (as fraction of equity)
+      const curPct = eqValue > 0 ? curVal / eqValue : 0;  // current % within selected equity subset
       const shortfall = Math.max(0, tgtPct - curPct);
       return { sector: s.label, tgtPct, curPct, curVal, shortfall, holdings: sectorMap[s.label] || [] };
     });
 
-    // Scale buys to addCash budget
+    // Scale buys proportionally to addCash budget
     const totalShortfall = sectorTargets.reduce((s,r) => s + r.shortfall, 0);
-    const budget = addCash > 0 ? addCash : 0;
     sectorTargets.forEach(r => {
-      // buy amount = proportion of shortfall × budget
-      r.buyAmt = totalShortfall > 0 && budget > 0 ? (r.shortfall / totalShortfall) * budget : 0;
+      r.buyAmt = totalShortfall > 0 && addCash > 0 ? (r.shortfall / totalShortfall) * addCash : 0;
     });
+    const totalBuys = sectorTargets.reduce((s,r) => s + r.buyAmt, 0);
 
-    // Per-sector allocation table
-    html += h3(`Equity Sleeve — Sector Allocation vs ${ir}`);
+    // Per-sector allocation table — weights within equity subset
+    html += h3(`Equity Sleeve — Sector Weights vs ${ir} (within selected holdings)`);
     let rows = '';
     sectorTargets.forEach((r,i) => {
       const dev = r.curPct - r.tgtPct;
@@ -3833,9 +3836,11 @@ function runRebalance() {
         fmtPctAbs(r.tgtPct),
         fmtPctAbs(r.curPct),
         `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
-        r.buyAmt > 50 ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>` : '<span style="color:var(--text3)">—</span>'
+        r.buyAmt > 10 ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>` : '<span style="color:var(--text3)">—</span>'
       ], i);
     });
+    // Total buy row
+    rows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(totalBuys)}</td></tr>`;
     html += tbl(['Sector','Target','Current','Deviation','Buy'], rows);
 
     // Per-holding buy orders — distribute sector budget proportionally by current value
