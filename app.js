@@ -3911,7 +3911,7 @@ function runRebalance() {
       html += h3('Portfolio After Rebalancing — Equity');
       let prows = '';
       // All selected equity holdings with new amounts
-      const afterRows = eqHoldings.map(h => {
+      const afterRows = eqHoldings.filter(h => h.sector).map(h => {
         const qty   = h.quantity || h.qty || 0;
         const price = qty > 0 ? (h.convertedHoldingValue||0)/qty : (h.price||0);
         const buyAmt = buyMap[h.name] || 0;
@@ -4014,6 +4014,9 @@ function runRebalance() {
     <button class="btn-primary" onclick="rbExportXlsx()" style="display:flex;align-items:center;gap:6px">
       ⬇ Export to Excel
     </button>
+    <button class="btn-secondary" onclick="rbSendToLetter()" style="display:flex;align-items:center;gap:6px">
+      ✉ Send to Suitability Letter
+    </button>
   </div>`;
 
   document.getElementById('rb-allocationTable').innerHTML = html;
@@ -4022,7 +4025,7 @@ function runRebalance() {
 
 function rbExportXlsx() {
   const trades = window._rbLastTrades || [];
-  if (!trades.length) return;
+  if (!trades.length) { alert('No trades to export. Calculate rebalancing first.'); return; }
 
   // Build rows: Name, ISIN, Amount USD
   const rows = [['Name', 'ISIN', 'Amount USD']];
@@ -4034,27 +4037,57 @@ function rbExportXlsx() {
     if (amount > 0) rows.push([t.h.name, t.h.isin || '', amount]);
   });
 
-  // Build xlsx using SheetJS (already loaded)
-  if (typeof XLSX === 'undefined') {
-    alert('Excel export not available — XLSX library not loaded');
-    return;
-  }
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Use SheetJS global (loaded as xlsx.full.min.js → window.XLSX)
+  const XL = window.XLSX;
+  if (!XL) { alert('Excel library not loaded'); return; }
 
-  // Column widths
-  ws['!cols'] = [{ wch: 50 }, { wch: 16 }, { wch: 14 }];
+  const wb = XL.utils.book_new();
+  const ws = XL.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 52 }, { wch: 16 }, { wch: 14 }];
+  XL.utils.book_append_sheet(wb, ws, 'Investments');
 
-  // Style header row
-  ['A1','B1','C1'].forEach(cell => {
-    if (!ws[cell]) return;
-    ws[cell].s = { font: { bold: true }, fill: { fgColor: { rgb: '3D6B52' } }, font: { bold: true, color: { rgb: 'FFFFFF' } } };
-  });
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Investments');
-  const clientName = clients[currentClientId]?.name || 'client';
+  const clientName = (clients[currentClientId]?.name || 'client').replace(/\s+/g,'_');
   const date = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `rebalance_${clientName}_${date}.xlsx`);
+  XL.writeFile(wb, `rebalance_${clientName}_${date}.xlsx`);
+}
+
+function rbSendToLetter() {
+  const trades = window._rbLastTrades || [];
+  if (!trades.length) { alert('No trades to send. Calculate rebalancing first.'); return; }
+
+  // Build trade summary for letter
+  const lines2 = trades.map(t => {
+    const qty   = t.h.quantity || t.h.qty || 0;
+    const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : (t.h.price||0);
+    const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
+    const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
+    return `${t.h.name}: +${units} units ($${amount.toLocaleString('en-US')})`;
+  }).filter((_,i) => trades[i].buyAmt > 10);
+
+  const ir = document.getElementById('rb-irSelect')?.value || 'IR3';
+  const summary = `Rebalancing trades (${ir}):\n` + lines2.join('\n');
+
+  // Store for use in letter tab
+  window._rbLetterNote = summary;
+
+  // Switch to letter tab and pre-fill additional context
+  switchTab('letter', document.querySelector('.tab[onclick*="letter"]'));
+
+  // Try to inject into letter additional context field
+  setTimeout(() => {
+    const ctx = document.getElementById('l-additionalContext') || document.getElementById('r-additionalContext');
+    if (ctx) {
+      ctx.value = (ctx.value ? ctx.value + '\n\n' : '') + summary;
+      ctx.dispatchEvent(new Event('input'));
+    } else {
+      // Show as toast
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:2rem;right:2rem;background:#2e7d52;color:#fff;padding:1rem 1.5rem;border-radius:8px;font-size:13px;z-index:9999;max-width:400px;white-space:pre-wrap';
+      toast.textContent = 'Rebalancing note copied to Letter tab context:\n' + lines2.slice(0,3).join('\n') + (lines2.length>3?'\n...':'');
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 5000);
+    }
+  }, 300);
 }
 
 
