@@ -3749,6 +3749,7 @@ function runRebalance() {
   const addCash     = parseFloat(document.getElementById('rb-addCash')?.value) || 0;
   const mode        = document.querySelector('input[name="rbMode"]:checked')?.value || 'equity';
   const currentVal  = subset.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
+  let holdingTrades = [];  // declared here so export can access it
   const eqHoldings  = subset.filter(h => h.type === 'equity');
   const bdHoldings  = subset.filter(h => h.type === 'bond');
   const eqValue     = eqHoldings.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
@@ -3868,7 +3869,7 @@ function runRebalance() {
     html += tbl(['Sector','Target','Current','Deviation','Buy'], rows);
 
     // Per-holding buy orders — distribute sector budget proportionally by current value
-    const holdingTrades = [];
+    holdingTrades = [];
     sectorTargets.forEach(st => {
       if (!st.holdings.length || st.buyAmt < 50) return;
       const totalHoldingsVal = st.holdings.reduce((s,h) => s+(h.convertedHoldingValue||0), 0);
@@ -4006,7 +4007,7 @@ function runRebalance() {
   }
 
   // Store trades for export
-  window._rbLastTrades = (typeof holdingTrades !== 'undefined' ? holdingTrades : []);
+  window._rbLastTrades = holdingTrades;
   window._rbLastTradesMode = mode;
 
   // Add export buttons
