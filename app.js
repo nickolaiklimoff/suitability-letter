@@ -3807,51 +3807,47 @@ function runRebalance() {
 
     const sectorTargets = BP_SECTORS.map(s => {
       const tgtPct = s.w / wSum;
-      const tgtVal = eqBudget * tgtPct;
-      const holdings = sectorMap[s.label] || [];
-      const curVal   = holdings.reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      return { sector: s.label, tgtPct, tgtVal, curVal, holdings };
+      // Target % is always relative to equity sleeve
+      const curVal = (sectorMap[s.label] || []).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
+      const curPct = eqValue > 0 ? curVal / eqValue : 0;
+      // Raw shortfall vs target (as fraction of equity)
+      const shortfall = Math.max(0, tgtPct - curPct);
+      return { sector: s.label, tgtPct, curPct, curVal, shortfall, holdings: sectorMap[s.label] || [] };
+    });
+
+    // Scale buys to addCash budget
+    const totalShortfall = sectorTargets.reduce((s,r) => s + r.shortfall, 0);
+    const budget = addCash > 0 ? addCash : 0;
+    sectorTargets.forEach(r => {
+      // buy amount = proportion of shortfall × budget
+      r.buyAmt = totalShortfall > 0 && budget > 0 ? (r.shortfall / totalShortfall) * budget : 0;
     });
 
     // Per-sector allocation table
     html += h3(`Equity Sleeve — Sector Allocation vs ${ir}`);
     let rows = '';
     sectorTargets.forEach((r,i) => {
-      const curPct = r.curVal / (mode === 'equity' ? eqValue : currentVal);
-      const dev    = curPct - r.tgtPct;
-      const buy    = Math.max(0, r.tgtVal - r.curVal);
+      const dev = r.curPct - r.tgtPct;
       rows += tdRow([
         r.sector,
         fmtPctAbs(r.tgtPct),
-        fmtPctAbs(curPct),
+        fmtPctAbs(r.curPct),
         `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
-        buy > 100 ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(buy)}</span>` : '<span style="color:var(--text3)">—</span>'
+        r.buyAmt > 50 ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>` : '<span style="color:var(--text3)">—</span>'
       ], i);
     });
     html += tbl(['Sector','Target','Current','Deviation','Buy'], rows);
 
-    // Per-holding buy orders
+    // Per-holding buy orders — distribute sector budget proportionally by current value
     const holdingTrades = [];
     sectorTargets.forEach(st => {
-      if (!st.holdings.length) return;
+      if (!st.holdings.length || st.buyAmt < 50) return;
       const totalHoldingsVal = st.holdings.reduce((s,h) => s+(h.convertedHoldingValue||0), 0);
-      const sectorBuy = Math.max(0, st.tgtVal - st.curVal);
-      if (addCash > 0) {
-        // Distribute buy proportionally within sector (by current weight, or equally if all zero)
-        st.holdings.forEach(h => {
-          const share = totalHoldingsVal > 0 ? (h.convertedHoldingValue||0)/totalHoldingsVal : 1/st.holdings.length;
-          const buyAmt = sectorBuy * share;
-          if (buyAmt > 50) holdingTrades.push({ h, buyAmt });
-        });
-      } else {
-        // Minimum mode: only buy the most underweight sector, split equally
-        if (sectorBuy > 100) {
-          st.holdings.forEach(h => {
-            const share = totalHoldingsVal > 0 ? (h.convertedHoldingValue||0)/totalHoldingsVal : 1/st.holdings.length;
-            holdingTrades.push({ h, buyAmt: sectorBuy * share });
-          });
-        }
-      }
+      st.holdings.forEach(h => {
+        const share = totalHoldingsVal > 0 ? (h.convertedHoldingValue||0)/totalHoldingsVal : 1/st.holdings.length;
+        const buyAmt = st.buyAmt * share;
+        if (buyAmt > 10) holdingTrades.push({ h, buyAmt });
+      });
     });
 
     if (holdingTrades.length) {
