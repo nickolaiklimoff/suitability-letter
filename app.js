@@ -3611,8 +3611,8 @@ function rbClassify(h) {
   const name = (h.name||'').toLowerCase();
   let sector = null, bondSeg = null;
 
-  if (window.BP_SECTORS) {
-    for (const s of window.BP_SECTORS) {
+  if (BP_SECTORS) {
+    for (const s of BP_SECTORS) {
       const kw = s.label.toLowerCase().split(/\s+/)[0];
       if (name.includes(kw)) { sector = s.label; break; }
     }
@@ -3788,8 +3788,8 @@ function runRebalance() {
   </div>`;
 
   // ── Equity sector trades ───────────────────────────────────────────────────
-  if (eqValue > 0 && window.BP_SECTORS) {
-    const wSum     = window.BP_SECTORS.reduce((s,x) => s+x.w, 0);
+  if (eqValue > 0 && BP_SECTORS) {
+    const wSum     = BP_SECTORS.reduce((s,x) => s+x.w, 0);
     const tradeBase = mode === 'equity' ? (eqValue + addCash) : (newTotal * W.eq / (W.eq + W.bd) * (W.eq + W.bd));
 
     // Build per-holding targets within equity
@@ -3805,7 +3805,7 @@ function runRebalance() {
       ? eqValue + addCash
       : newTotal * (W.eq / (W.eq + W.bd));
 
-    const sectorTargets = window.BP_SECTORS.map(s => {
+    const sectorTargets = BP_SECTORS.map(s => {
       const tgtPct = s.w / wSum;
       const tgtVal = eqBudget * tgtPct;
       const holdings = sectorMap[s.label] || [];
@@ -3878,8 +3878,8 @@ function runRebalance() {
   }
 
   // ── Bond segment trades (full mode) ────────────────────────────────────────
-  if (bdValue > 0 && window.BP_BOND_SEGS && mode === 'full') {
-    const wSum      = window.BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
+  if (bdValue > 0 && BP_BOND_SEGS && mode === 'full') {
+    const wSum      = BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
     const bdBudget  = newTotal * (W.bd / (W.eq + W.bd));
     const segMap    = {};
     bdHoldings.forEach(h => {
@@ -3890,7 +3890,7 @@ function runRebalance() {
 
     html += h3(`Bond Sleeve — Segment Allocation vs ${ir}`);
     let rows = '', bondTrades = [];
-    window.BP_BOND_SEGS.forEach((s,i) => {
+    BP_BOND_SEGS.forEach((s,i) => {
       const holdings = segMap[s.label] || [];
       const curVal   = holdings.reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
       const tgtPct   = W.bd * (s.w / wSum);
