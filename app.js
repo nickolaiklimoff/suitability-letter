@@ -3890,6 +3890,54 @@ function runRebalance() {
       const remainderNote = remainder > 1 ? ` <span style="font-size:11px;color:var(--text3);font-weight:400">(${fmtUSDabs(remainder)} unallocated — rounding)</span>` : '';
       hrows += `<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total equity buys${remainderNote}</td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBuyAmt)}</td></tr>`;
       html += tbl(['Holding','Price per unit','Units to buy','Amount'], hrows);
+
+      // ── Portfolio after rebalancing ──────────────────────────────────────────
+      // Build map of buys per holding
+      const buyMap = {};
+      holdingTrades.forEach(t => { buyMap[t.h.name] = (buyMap[t.h.name]||0) + t.buyAmt; });
+
+      const newEqValue = eqValue + totalBuyAmt;
+      html += h3('Portfolio After Rebalancing — Equity');
+      let prows = '';
+      // All selected equity holdings with new amounts
+      const afterRows = eqHoldings.map(h => {
+        const qty   = h.quantity || h.qty || 0;
+        const price = qty > 0 ? (h.convertedHoldingValue||0)/qty : (h.price||0);
+        const buyAmt = buyMap[h.name] || 0;
+        const addUnits = price > 0.01 ? Math.floor(buyAmt / price) : 0;
+        const newQty   = qty + addUnits;
+        const newVal   = (h.convertedHoldingValue||0) + addUnits * price;
+        const newPct   = newEqValue > 0 ? newVal / newEqValue : 0;
+        const tgtSector = BP_SECTORS.find(s => s.label === h.sector);
+        const tgtPct   = tgtSector ? tgtSector.w / wSum : null;
+        const dev      = tgtPct !== null ? newPct - tgtPct : null;
+        return { h, qty, newQty, price, newVal, newPct, tgtPct, dev };
+      }).sort((a,b) => b.newVal - a.newVal);
+
+      afterRows.forEach((r,i) => {
+        const devCell = r.dev !== null
+          ? `<span style="color:${devCol(r.dev)}">${fmtDev(r.dev)}</span>`
+          : '—';
+        const tgtCell = r.tgtPct !== null ? fmtPctAbs(r.tgtPct) : '—';
+        prows += tdRow([
+          r.h.name,
+          r.qty ? r.qty.toLocaleString('en-US') : '—',
+          r.newQty ? `<strong>${r.newQty.toLocaleString('en-US')}</strong>` : '—',
+          r.price > 0.01 ? r.price.toFixed(2) : '—',
+          fmtUSDabs(r.newVal),
+          fmtPctAbs(r.newPct),
+          tgtCell,
+          devCell,
+        ], i);
+      });
+      // Total row
+      prows += `<tr style="border-top:2px solid var(--border);font-weight:700">
+        <td style="padding:8px 12px">Total</td><td></td>
+        <td></td><td></td>
+        <td style="padding:8px 12px;text-align:right">$${Math.round(newEqValue).toLocaleString('en-US')}</td>
+        <td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td>
+      </tr>`;
+      html += tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'], prows);
     }
   }
 
