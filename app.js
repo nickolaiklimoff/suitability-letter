@@ -4006,7 +4006,7 @@ function runRebalance() {
   }
 
   // Store trades for export
-  window._rbLastTrades = holdingTrades || [];
+  window._rbLastTrades = (typeof holdingTrades !== 'undefined' ? holdingTrades : []);
   window._rbLastTradesMode = mode;
 
   // Add export buttons
