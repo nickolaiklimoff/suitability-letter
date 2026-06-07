@@ -3799,7 +3799,7 @@ function runRebalance() {
   const newTotal = currentVal + addCash;
   html += `<div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border-radius:8px;font-size:13px">
     <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Current portfolio</div><strong>$${Math.round(currentVal).toLocaleString('en-US')}</strong></div>
-    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Additional cash</div><strong>${addCash > 0 ? '$'+Math.round(addCash).toLocaleString('en-US') : '—'}</strong></div>
+    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Additional cash</div><strong>${addCash > 0 ? '$'+Math.round(addCash).toLocaleString('en-US') : 'Auto (minimum)'}</strong></div>
     <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">New total</div><strong>$${Math.round(newTotal).toLocaleString('en-US')}</strong></div>
     <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Benchmark</div><strong>${ir}</strong></div>
     <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Mode</div><strong>${mode==='equity'?'Equity sleeve':'Full allocation'}</strong></div>
@@ -3844,10 +3844,37 @@ function runRebalance() {
       return { sector: s.label, tgtPct, curPct, curVal, shortfall, holdings: sectorMap[s.label] || [], eqBase };
     });
 
-    // Scale buys proportionally to addCash budget
+    // Scale buys proportionally to budget
     const totalShortfall = sectorTargets.reduce((s,r) => s + r.shortfall, 0);
+
+    let effectiveBudget = addCash;
+    if (addCash === 0 && totalShortfall > 0) {
+      // Minimum mode: buy 1 unit of the cheapest holding in each underweight sector
+      let minBudget = 0;
+      sectorTargets.forEach(r => {
+        if (r.shortfall <= 0 || !r.holdings.length) return;
+        // Find cheapest price in this sector
+        let minPrice = Infinity;
+        r.holdings.forEach(h => {
+          const qty = h.quantity || h.qty || 0;
+          const p = qty > 0 ? (h.convertedHoldingValue||0)/qty : 0;
+          if (p > 0.01 && p < minPrice) minPrice = p;
+        });
+        if (minPrice < Infinity) minBudget += minPrice;
+      });
+      effectiveBudget = minBudget > 0 ? minBudget : 0;
+
+      // Show minimum budget info
+      if (effectiveBudget > 0) {
+        html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:1rem">
+          💡 Minimum rebalancing budget calculated: <strong>$${Math.round(effectiveBudget).toLocaleString('en-US')}</strong>
+          — buys 1 unit of the cheapest holding in each underweight sector.
+        </div>`;
+      }
+    }
+
     sectorTargets.forEach(r => {
-      r.buyAmt = totalShortfall > 0 && addCash > 0 ? (r.shortfall / totalShortfall) * addCash : 0;
+      r.buyAmt = totalShortfall > 0 && effectiveBudget > 0 ? (r.shortfall / totalShortfall) * effectiveBudget : 0;
     });
     const totalBuys = sectorTargets.reduce((s,r) => s + r.buyAmt, 0);
 
