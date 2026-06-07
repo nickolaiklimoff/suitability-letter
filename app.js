@@ -3818,15 +3818,26 @@ function runRebalance() {
     const totalShortfall = allLines.reduce((s,r)=>s+r.shortfall,0);
     let effectiveBudget = addCash;
     if (addCash === 0 && totalShortfall > 0) {
-      let minBudget = 0;
-      allLines.forEach(r => {
-        if(r.shortfall<=0||!r.holdings.length) return;
-        let minPrice=Infinity;
-        r.holdings.forEach(h=>{const q=h.quantity||0,p=q>0?(h.convertedHoldingValue||0)/q:0;if(p>0.01&&p<minPrice)minPrice=p;});
-        if(minPrice<Infinity) minBudget+=minPrice;
-      });
-      effectiveBudget=minBudget;
-      if(minBudget>0) html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum rebalancing budget: <strong>${fmtUSDabs(minBudget)}</strong></div>`;
+      // Find minimum budget to bring all deviations under 0.5pp
+      // Binary search: find smallest budget where max deviation < 0.005
+      const THRESHOLD = 0.005;
+      let lo = 0, hi = totalShortfall * 3, minBudget = totalShortfall;
+      for (let iter = 0; iter < 40; iter++) {
+        const mid = (lo + hi) / 2;
+        const scale = mid / totalShortfall;
+        let maxDev = 0;
+        allLines.forEach(r => {
+          const buy = Math.min(r.shortfall, r.shortfall * scale);
+          const newVal = r.curVal + buy;
+          const newPct = (subsetVal + mid) > 0 ? newVal / (subsetVal + mid) : 0;
+          maxDev = Math.max(maxDev, Math.abs(newPct - r.tgtPct));
+        });
+        if (maxDev < THRESHOLD) { hi = mid; minBudget = mid; }
+        else lo = mid;
+      }
+      // Round up to nearest $100
+      effectiveBudget = Math.ceil(minBudget / 100) * 100;
+      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget to reach <strong>&lt;0.5pp</strong> deviation: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
     allLines.forEach(r => {
       r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0?(r.shortfall/totalShortfall)*effectiveBudget:0);
@@ -3926,15 +3937,24 @@ function runRebalance() {
     const totalShortfall = sectorTargets.reduce((s,r)=>s+r.shortfall,0);
     let effectiveBudget = addCash;
     if (addCash === 0 && totalShortfall > 0) {
-      let minBudget = 0;
-      sectorTargets.forEach(r => {
-        if (r.shortfall<=0||!r.holdings.length) return;
-        let minPrice=Infinity;
-        r.holdings.forEach(h=>{const q=h.quantity||0,p=q>0?(h.convertedHoldingValue||0)/q:0;if(p>0.01&&p<minPrice) minPrice=p;});
-        if (minPrice<Infinity) minBudget+=minPrice;
-      });
-      effectiveBudget = minBudget;
-      if (minBudget>0) html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum rebalancing budget: <strong>${fmtUSDabs(minBudget)}</strong></div>`;
+      // Find minimum budget so all sector deviations < 0.5pp
+      const THRESHOLD = 0.005;
+      let lo = 0, hi = totalShortfall * 3, minBudget = totalShortfall;
+      for (let iter = 0; iter < 40; iter++) {
+        const mid = (lo + hi) / 2;
+        let maxDev = 0;
+        sectorTargets.forEach(r => {
+          const buy = Math.min(r.shortfall, totalShortfall > 0 ? (r.shortfall/totalShortfall)*mid : 0);
+          const newVal = r.curVal + buy;
+          const newBase = eqTargetBase > eqBase ? eqBase + mid : eqBase + mid;
+          const newPct = newBase > 0 ? newVal / newBase : 0;
+          maxDev = Math.max(maxDev, Math.abs(newPct - r.tgtPct));
+        });
+        if (maxDev < THRESHOLD) { hi = mid; minBudget = mid; }
+        else lo = mid;
+      }
+      effectiveBudget = Math.ceil(minBudget / 100) * 100;
+      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget to reach <strong>&lt;0.5pp</strong> deviation: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
 
     sectorTargets.forEach(r => {
