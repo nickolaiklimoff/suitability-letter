@@ -3803,7 +3803,8 @@ function runRebalance() {
         const tgtVal = tgtPct * totalAfter;
         const curVal = (sectorMap[s.label]||[]).reduce((sum,h)=>sum+(h.convertedHoldingValue||0),0);
         const curPct = subsetVal>0 ? curVal/subsetVal : 0;
-        allLines.push({label:s.label, group:'equity', tgtPct, curPct, curVal, tgtVal, shortfall:Math.max(0,tgtVal-curVal), holdings:sectorMap[s.label]||[]});
+        const sfEq = curPct < tgtPct ? Math.max(0, tgtVal - curVal) : 0;  // no buy if overweight
+        allLines.push({label:s.label, group:'equity', tgtPct, curPct, curVal, tgtVal, shortfall:sfEq, holdings:sectorMap[s.label]||[]});
       });
     }
     if (BP_BOND_SEGS) {
@@ -3812,7 +3813,8 @@ function runRebalance() {
         const tgtVal = tgtPct * totalAfter;
         const curVal = (segMap[s.label]||[]).reduce((sum,h)=>sum+(h.convertedHoldingValue||0),0);
         const curPct = subsetVal>0 ? curVal/subsetVal : 0;
-        allLines.push({label:s.label, group:'bond', tgtPct, curPct, curVal, tgtVal, shortfall:Math.max(0,tgtVal-curVal), holdings:segMap[s.label]||[]});
+        const sfBd = curPct < tgtPct ? Math.max(0, tgtVal - curVal) : 0;  // no buy if overweight
+        allLines.push({label:s.label, group:'bond', tgtPct, curPct, curVal, tgtVal, shortfall:sfBd, holdings:segMap[s.label]||[]});
       });
     }
 
