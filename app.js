@@ -4068,16 +4068,22 @@ function runRebalance() {
 
   // Add export buttons
   html += `<div style="display:flex;gap:10px;margin-top:1.5rem;flex-wrap:wrap">
-    <button class="btn-primary" onclick="rbExportXlsx()" style="display:flex;align-items:center;gap:6px">
+    <button id="rb-exportBtn" class="btn-primary" style="display:flex;align-items:center;gap:6px">
       ⬇ Export to Excel
     </button>
-    <button class="btn-secondary" onclick="rbSendToLetter()" style="display:flex;align-items:center;gap:6px">
+    <button id="rb-letterBtn" class="btn-secondary" style="display:flex;align-items:center;gap:6px">
       ✉ Send to Suitability Letter
     </button>
   </div>`;
 
   document.getElementById('rb-allocationTable').innerHTML = html;
   document.getElementById('rb-output').style.display = 'block';
+
+  // Attach button handlers after innerHTML render (onclick doesn't work in dynamic HTML)
+  const exportBtn = document.getElementById('rb-exportBtn');
+  const letterBtn2 = document.getElementById('rb-letterBtn');
+  if (exportBtn) exportBtn.onclick = rbExportXlsx;
+  if (letterBtn2) letterBtn2.onclick = rbSendToLetter;
 }
 
 
