@@ -3901,8 +3901,10 @@ function runRebalance() {
           const newQty=qty+addUnits,newVal=(h.convertedHoldingValue||0)+addUnits*price;
           const newPct=newTotal2>0?newVal/newTotal2:0;
           const tgtLine=allLines.find(l=>l.label===h.sector||l.label===h.bondSeg);
-          const nH=tgtLine?Math.max(1,tgtLine.holdings.length):1;
-          const tgtPct=tgtLine?tgtLine.tgtPct/nH:null;
+          // Target % per holding = sector target * this holding's share within sector
+          const sectorCurVal=tgtLine?tgtLine.holdings.reduce((s,hh)=>s+(hh.convertedHoldingValue||0),0):0;
+          const holdingShare=sectorCurVal>0?(h.convertedHoldingValue||0)/sectorCurVal:tgtLine?1/Math.max(1,tgtLine.holdings.length):0;
+          const tgtPct=tgtLine?tgtLine.tgtPct*holdingShare:null;
           const dev=tgtPct!==null?newPct-tgtPct:null;
           prows+=tdRow([h.name,qty?qty.toLocaleString('en-US'):'—',
             newQty?`<strong>${newQty.toLocaleString('en-US')}</strong>`:'—',
