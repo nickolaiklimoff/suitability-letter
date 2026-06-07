@@ -3834,14 +3834,16 @@ function runRebalance() {
       </div>`;
     }
     const eqBase = classifiedEqValue > 0 ? classifiedEqValue : eqValue;
+    const eqTargetBase = eqBase + (addCash > 0 ? addCash : 0);
 
-    // Target: BP_SECTORS weights normalised to 100% within equity
+    // Target: BP_SECTORS weights vs post-investment total
     const sectorTargets = BP_SECTORS.map(s => {
-      const tgtPct = s.w / wSum;  // target % within equity sleeve
+      const tgtPct = s.w / wSum;
+      const tgtVal = tgtPct * eqTargetBase;  // target $ after investing
       const curVal = (sectorMap[s.label] || []).reduce((sum,h) => sum+(h.convertedHoldingValue||0), 0);
-      const curPct = eqBase > 0 ? curVal / eqBase : 0;  // current % within classified equity only
-      const shortfall = Math.max(0, tgtPct - curPct);
-      return { sector: s.label, tgtPct, curPct, curVal, shortfall, holdings: sectorMap[s.label] || [], eqBase };
+      const curPct = eqBase > 0 ? curVal / eqBase : 0;
+      const shortfall = Math.max(0, tgtVal - curVal);  // $ shortfall
+      return { sector: s.label, tgtPct, curPct, curVal, tgtVal, shortfall, holdings: sectorMap[s.label] || [], eqBase };
     });
 
     // Scale buys proportionally to budget
@@ -3874,7 +3876,7 @@ function runRebalance() {
     }
 
     sectorTargets.forEach(r => {
-      r.buyAmt = totalShortfall > 0 && effectiveBudget > 0 ? (r.shortfall / totalShortfall) * effectiveBudget : 0;
+      r.buyAmt = Math.min(r.shortfall, totalShortfall > 0 && effectiveBudget > 0 ? (r.shortfall / totalShortfall) * effectiveBudget : 0);
     });
     const totalBuys = sectorTargets.reduce((s,r) => s + r.buyAmt, 0);
 
@@ -3935,7 +3937,7 @@ function runRebalance() {
       const buyMap = {};
       holdingTrades.forEach(t => { buyMap[t.h.name] = (buyMap[t.h.name]||0) + t.buyAmt; });
 
-      const newEqValue = eqBase + totalBuyAmt;
+      const newEqValue = eqTargetBase;
       html += h3('Portfolio After Rebalancing — Equity');
       let prows = '';
       // All selected equity holdings with new amounts
