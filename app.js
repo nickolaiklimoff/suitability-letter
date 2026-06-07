@@ -3939,6 +3939,8 @@ function runRebalance() {
       html += h3('Portfolio After Rebalancing — Equity');
       let prows = '';
       // All selected equity holdings with new amounts
+      // New total = classified equity + all buys
+      const newEqValueFinal = eqBase + totalBuyAmt;
       const afterRows = eqHoldings.filter(h => h.sector).map(h => {
         const qty   = h.quantity || h.qty || 0;
         const price = qty > 0 ? (h.convertedHoldingValue||0)/qty : (h.price||0);
@@ -3946,7 +3948,7 @@ function runRebalance() {
         const addUnits = price > 0.01 ? Math.floor(buyAmt / price) : 0;
         const newQty   = qty + addUnits;
         const newVal   = (h.convertedHoldingValue||0) + addUnits * price;
-        const newPct   = newEqValue > 0 ? newVal / newEqValue : 0;
+        const newPct   = newEqValueFinal > 0 ? newVal / newEqValueFinal : 0;
         const tgtSector = BP_SECTORS.find(s => s.label === h.sector);
         const tgtPct   = tgtSector ? tgtSector.w / wSum : null;
         const dev      = tgtPct !== null ? newPct - tgtPct : null;
