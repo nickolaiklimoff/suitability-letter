@@ -3875,6 +3875,33 @@ function runRebalance() {
       hrows+=`<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total buys${rem>1?` <span style="font-size:11px;color:var(--text3);font-weight:400">(${fmtUSDabs(rem)} unallocated)</span>`:''}</td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBuyAmt)}</td></tr>`;
       html+=tbl(['Holding','Price per unit','Units to buy','Amount'],hrows);
     }
+
+      // ── Portfolio after rebalancing ──────────────────────────────────────
+      const buyMap={};
+      holdingTrades.forEach(t=>{buyMap[t.h.name]=(buyMap[t.h.name]||0)+t.buyAmt;});
+      const newTotal2=totalAfter;
+      html+=h3('Portfolio After Rebalancing');
+      let prows='';
+      [...eqHoldings.filter(h=>h.sector),...bdHoldings]
+        .sort((a,b)=>(b.convertedHoldingValue||0)-(a.convertedHoldingValue||0))
+        .forEach((h,i)=>{
+          const qty=h.quantity||0,price=qty>0?(h.convertedHoldingValue||0)/qty:0;
+          const addUnits=price>0.01?Math.floor((buyMap[h.name]||0)/price):0;
+          const newQty=qty+addUnits,newVal=(h.convertedHoldingValue||0)+addUnits*price;
+          const newPct=newTotal2>0?newVal/newTotal2:0;
+          const tgtLine=allLines.find(l=>l.label===h.sector||l.label===h.bondSeg);
+          const nH=tgtLine?Math.max(1,tgtLine.holdings.length):1;
+          const tgtPct=tgtLine?tgtLine.tgtPct/nH:null;
+          const dev=tgtPct!==null?newPct-tgtPct:null;
+          prows+=tdRow([h.name,qty?qty.toLocaleString('en-US'):'—',
+            newQty?`<strong>${newQty.toLocaleString('en-US')}</strong>`:'—',
+            price>0.01?price.toFixed(2):'—',fmtUSDabs(newVal),
+            fmtPctAbs(newPct),tgtPct!==null?fmtPctAbs(tgtPct):'—',
+            dev!==null?`<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`:'—'
+          ],i);
+        });
+      prows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right">${fmtUSDabs(newTotal2)}</td><td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td></tr>`;
+      html+=tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'],prows);
   } else {
     // ── Equity only mode ──────────────────────────────────────────────────────
     const wSum = BP_SECTORS ? BP_SECTORS.reduce((s,x)=>s+x.w,0) : 1;
