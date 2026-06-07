@@ -3815,7 +3815,16 @@ function runRebalance() {
       });
     }
 
-    const totalShortfall = allLines.reduce((s,r)=>s+r.shortfall,0);
+    // Only count shortfalls for segments/sectors that have actual holdings to buy
+    const actionableLines = allLines.filter(r => r.holdings.length > 0);
+    const totalShortfall = actionableLines.reduce((s,r)=>s+r.shortfall,0);
+    // For display: also compute non-actionable shortfall (no holdings = needs new position)
+    const noHoldingLines = allLines.filter(r => r.holdings.length === 0 && r.shortfall > 0);
+    if (noHoldingLines.length) {
+      html += `<div style="font-size:12px;color:#856404;background:#fff3cd;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
+        ⚠️ No holdings for: ${noHoldingLines.map(l=>l.label).join(', ')} — new positions required to fill these segments.
+      </div>`;
+    }
     let effectiveBudget = addCash;
     if (addCash === 0 && totalShortfall > 0) {
       // Find minimum budget to bring all deviations under 0.5pp
@@ -3824,10 +3833,9 @@ function runRebalance() {
       let lo = 0, hi = totalShortfall * 3, minBudget = totalShortfall;
       for (let iter = 0; iter < 40; iter++) {
         const mid = (lo + hi) / 2;
-        const scale = mid / totalShortfall;
         let maxDev = 0;
-        allLines.forEach(r => {
-          const buy = Math.min(r.shortfall, r.shortfall * scale);
+        actionableLines.forEach(r => {
+          const buy = Math.min(r.shortfall, totalShortfall>0?(r.shortfall/totalShortfall)*mid:0);
           const newVal = r.curVal + buy;
           const newPct = (subsetVal + mid) > 0 ? newVal / (subsetVal + mid) : 0;
           maxDev = Math.max(maxDev, Math.abs(newPct - r.tgtPct));
@@ -3840,6 +3848,7 @@ function runRebalance() {
       html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget to reach <strong>&lt;0.5pp</strong> deviation: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
     allLines.forEach(r => {
+      if (r.holdings.length === 0) { r.buyAmt = 0; return; }  // no holdings = can't buy
       r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0?(r.shortfall/totalShortfall)*effectiveBudget:0);
     });
 
