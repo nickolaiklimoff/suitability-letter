@@ -3862,6 +3862,13 @@ function runRebalance() {
     </div>`;
     html = html.replace('___SUMMARY___', summaryHtml);
 
+    // Recalculate tgtVal with real budget now known
+    const realTotal = subsetVal + effectiveBudget;
+    allLines.forEach(r => {
+      r.tgtValReal = r.tgtPct * realTotal;
+      r.buyAmtReal = r.curPct < r.tgtPct ? Math.min(r.tgtValReal - r.curVal, r.buyAmt) : 0;
+    });
+
     html += h3(`Full Allocation vs ${ir} Benchmark`);
     let rows='', lastGroup='';
     allLines.forEach((r,i)=>{
@@ -3909,7 +3916,7 @@ function runRebalance() {
       // ── Portfolio after rebalancing ──────────────────────────────────────
       const buyMap={};
       holdingTrades.forEach(t=>{buyMap[t.h.name]=(buyMap[t.h.name]||0)+t.buyAmt;});
-      const newTotal2=totalAfter;
+      const newTotal2=subsetVal + effectiveBudget;  // actual total after buying
       html+=h3('Portfolio After Rebalancing');
       let prows='';
       [...eqHoldings.filter(h=>h.sector),...bdHoldings]
