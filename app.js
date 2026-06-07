@@ -3774,13 +3774,9 @@ function runRebalance() {
   let html = '';
 
   // ── Summary header ────────────────────────────────────────────────────────
-  html += `<div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border-radius:8px;font-size:13px">
-    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Current portfolio</div><strong>${fmtUSDabs(subsetVal)}</strong></div>
-    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Additional cash</div><strong>${addCash > 0 ? fmtUSDabs(addCash) : 'Auto (minimum)'}</strong></div>
-    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">New total</div><strong>${fmtUSDabs(totalAfter)}</strong></div>
-    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Benchmark</div><strong>${ir}</strong></div>
-    <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Mode</div><strong>${mode==='equity'?'Equity sleeve':'Full allocation'}</strong></div>
-  </div>`;
+  // Will be updated after effectiveBudget is known
+  const summaryPlaceholder = '___SUMMARY___';
+  html += summaryPlaceholder;
 
   if (mode === 'full') {
     // ── Full allocation: single unified table vs IR benchmark ─────────────────
@@ -3854,6 +3850,17 @@ function runRebalance() {
       if (r.holdings.length === 0) { r.buyAmt = 0; return; }  // no holdings = can't buy
       r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0?(r.shortfall/totalShortfall)*effectiveBudget:0);
     });
+
+    // Now we know effectiveBudget — render summary with correct new total
+    const realNewTotal = subsetVal + effectiveBudget;
+    const summaryHtml = `<div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border-radius:8px;font-size:13px">
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Current portfolio</div><strong>${fmtUSDabs(subsetVal)}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Additional cash</div><strong>${addCash > 0 ? fmtUSDabs(addCash) : fmtUSDabs(effectiveBudget)+' (auto)'}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">New total</div><strong>${fmtUSDabs(realNewTotal)}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Benchmark</div><strong>${ir}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Mode</div><strong>${mode==='equity'?'Equity sleeve':'Full allocation'}</strong></div>
+    </div>`;
+    html = html.replace('___SUMMARY___', summaryHtml);
 
     html += h3(`Full Allocation vs ${ir} Benchmark`);
     let rows='', lastGroup='';
@@ -3974,6 +3981,16 @@ function runRebalance() {
     sectorTargets.forEach(r => {
       r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0?(r.shortfall/totalShortfall)*effectiveBudget:0);
     });
+
+    const realNewTotalEq = subsetVal + effectiveBudget;
+    const summaryHtmlEq = `<div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border-radius:8px;font-size:13px">
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Current portfolio</div><strong>${fmtUSDabs(subsetVal)}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Additional cash</div><strong>${addCash > 0 ? fmtUSDabs(addCash) : fmtUSDabs(effectiveBudget)+' (auto)'}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">New total</div><strong>${fmtUSDabs(realNewTotalEq)}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Benchmark</div><strong>${ir}</strong></div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Mode</div><strong>Equity sleeve</strong></div>
+    </div>`;
+    html = html.replace('___SUMMARY___', summaryHtmlEq);
 
     html += h3(`Equity Sleeve — Sector Weights vs ${ir}`);
     let srows='';
