@@ -4055,14 +4055,14 @@ function rbExportXlsx() {
   const trades = window._rbLastTrades || [];
   if (!trades.length) { alert('No trades to export. Calculate rebalancing first.'); return; }
 
-  // Build rows: Name, ISIN, Amount USD
-  const rows = [['Name', 'ISIN', 'Amount USD']];
+  // Build rows: Name, ISIN, Units to buy, Amount USD
+  const rows = [['Name', 'ISIN', 'Units to buy', 'Amount USD']];
   trades.forEach(t => {
     const qty   = t.h.quantity || t.h.qty || 0;
     const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : (t.h.price||0);
     const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
     const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
-    if (amount > 0) rows.push([t.h.name, t.h.isin || '', amount]);
+    if (amount > 0) rows.push([t.h.name, t.h.isin || '', units, amount]);
   });
 
   // Use SheetJS global (loaded as xlsx.full.min.js → window.XLSX)
@@ -4071,7 +4071,7 @@ function rbExportXlsx() {
 
   const wb = XL.utils.book_new();
   const ws = XL.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 52 }, { wch: 16 }, { wch: 14 }];
+  ws['!cols'] = [{ wch: 52 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
   XL.utils.book_append_sheet(wb, ws, 'Investments');
 
   const clientName = (clients[currentClientId]?.name || 'client').replace(/\s+/g,'_');
