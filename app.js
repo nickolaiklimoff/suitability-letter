@@ -3944,7 +3944,7 @@ function runRebalance() {
       const tgtVal = tgtPct * eqTargetBase;
       const curVal = (sectorMap[s.label]||[]).reduce((sum,h)=>sum+(h.convertedHoldingValue||0),0);
       const curPct = eqBase > 0 ? curVal/eqBase : 0;
-      const shortfall = Math.max(0, tgtVal - curVal);
+      const shortfall = curPct < tgtPct ? Math.max(0, tgtVal - curVal) : 0;  // no buy if overweight
       return {sector:s.label, tgtPct, curPct, curVal, tgtVal, shortfall, holdings:sectorMap[s.label]||[]};
     }) : [];
 
