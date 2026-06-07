@@ -3607,6 +3607,28 @@ window.settingsClose = function() {
 // ─── Rebalancing Tab ──────────────────────────────────────────────────────────
 let _rbClassified = [];
 
+function importFromPortfolioReport() {
+  const pd = window._lastPortfolioData;
+  if (!pd) {
+    alert('No portfolio loaded. Go to Portfolio Report tab and load a portfolio file first.');
+    return;
+  }
+  const allH = [...(pd.bonds||[]), ...(pd.funds||[]), ...(pd.stocks||[])];
+  if (!allH.length) { alert('Portfolio is empty.'); return; }
+
+  const tbody = document.getElementById('l-existingRows');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  allH.forEach(h => {
+    const val = Math.round(h.convertedHoldingValue || h.holdingValue || 0);
+    if (val > 0) addExistingRow(h.isin || '', h.name || '', val);
+  });
+
+  const statusEl = document.getElementById('existingStatus');
+  if (statusEl) statusEl.textContent = `✓ ${allH.length} holdings imported from Portfolio Report`;
+}
+
 function rbClassify(h) {
   const name = (h.name||'').toLowerCase();
   let sector = null, bondSeg = null;
