@@ -3733,6 +3733,64 @@ function rbSelectByType(type) {
   });
 }
 
+function rbExportXlsx() {
+  const trades = window._rbLastTrades || [];
+  if (!trades.length) { alert('No trades to export. Calculate rebalancing first.'); return; }
+  const rows = [['Name', 'ISIN', 'Units to buy', 'Amount USD']];
+  trades.forEach(t => {
+    const qty = t.h.quantity || t.h.qty || 0;
+    const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : 0;
+    const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
+    const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
+    if (amount > 0) rows.push([t.h.name, t.h.isin || '', units, amount]);
+  });
+  const XL = window.XLSX;
+  if (!XL) { alert('Excel library not loaded'); return; }
+  const wb = XL.utils.book_new();
+  const ws = XL.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 52 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
+  XL.utils.book_append_sheet(wb, ws, 'Investments');
+  const clientName = (clients[currentClientId]?.name || 'client').replace(/\s+/g,'_');
+  const date = new Date().toISOString().slice(0,10);
+  try {
+    const wbout = XL.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `rebalance_${clientName}_${date}.xlsx`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  } catch(e) { alert('Export failed: ' + e.message); }
+}
+
+function rbSendToLetter() {
+  const trades = window._rbLastTrades || [];
+  if (!trades.length) { alert('No trades to send. Calculate rebalancing first.'); return; }
+  const rows = [];
+  trades.forEach(t => {
+    const qty = t.h.quantity || t.h.qty || 0;
+    const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : 0;
+    const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
+    const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
+    if (amount > 0) rows.push({ name: t.h.name, isin: t.h.isin || '', amount });
+  });
+  if (!rows.length) { alert('No valid trades to send.'); return; }
+  const letterBtn = document.querySelector('.tab[onclick*="letter"]');
+  switchTab('letter', letterBtn);
+  setTimeout(() => {
+    const tbody = document.getElementById('l-investRows');
+    if (!tbody) { alert('Could not find investment rows.'); return; }
+    tbody.innerHTML = '';
+    rows.forEach(r => addInvestRow(r.name, r.isin, r.amount));
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:2rem;right:2rem;background:#2e7d52;color:#fff;padding:1rem 1.5rem;border-radius:8px;font-size:13px;z-index:9999';
+    toast.textContent = `✓ ${rows.length} trades added to Suitability Letter`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }, 400);
+}
+
+
 function runRebalance() {
   if (!_rbClassified.length) return;
 
