@@ -426,12 +426,22 @@ const BROAD_ETF_KEYWORDS = [
 ];
 
 const BOND_SEGMENT_MAP = {
+  // Government / Gilt
   '7-10 Year Treasury': 'Government', 'IEF': 'Government', 'Treasury Bond ETF': 'Government',
   '20+ Year Treasury': 'Government', 'TMF': 'Government', 'TLT': 'Government',
   'Daily 20+': 'Government', 'Direxion Daily 20': 'Government',
+  'Gilt': 'Government', 'Year Gilt': 'Government', 'Sovereign': 'Government',
+  'Government Bond': 'Government', 'Gov Bond': 'Government',
+  // Investment Grade / Corporate
   'International Corporate': 'Investment Grade', 'Bloomberg Barclays International': 'Investment Grade',
-  'High Yield': 'High Yield', 'HYG': 'High Yield', 'JNK': 'High Yield',
-  'J.P. Morgan EM': 'EM Debt', 'EM Corporate': 'EM Debt',
+  'Euro Corporate Bond': 'Investment Grade', 'Corporate Bond UCITS': 'Investment Grade',
+  'U.S. Corporate Bond': 'Investment Grade', 'IG Corp': 'Investment Grade',
+  'Investment Grade': 'Investment Grade', 'Global Aggregate': 'Investment Grade',
+  'Aggregate Bond': 'Investment Grade', 'AGGU': 'Investment Grade', 'AGGG': 'Investment Grade',
+  // High Yield
+  'High Yield': 'High Yield', 'HYG': 'High Yield', 'JNK': 'High Yield', 'High Yield Corp': 'High Yield',
+  // EM Debt
+  'J.P. Morgan EM': 'EM Debt', 'EM Corporate': 'EM Debt', 'Emerging Market Bond': 'EM Debt',
 };
 
 function classifyHolding(h) {
