@@ -569,7 +569,7 @@ function addInvestRow(name='', isin='', amount='', fee='0') {
   tbody.appendChild(tr);
 }
 
-function escVal(s) { return (s||'').replace(/"/g,'&quot;'); }
+function escVal(s) { return String(s||'').replace(/"/g,'&quot;'); }
 
 function addPortfolioRow(prefix) {
   const tbody = document.getElementById(`l-${prefix}Rows`);
