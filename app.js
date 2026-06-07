@@ -3782,166 +3782,99 @@ function runRebalance() {
   </div>`;
 
   if (mode === 'full') {
-    // ── Full allocation: compare vs IR equity+bond weights ──────────────────
-    // All weights are % of total subset
-    const wEqNorm = W.eq / (W.eq + W.bd);  // normalise if no cash in subset
-    const wBdNorm = W.bd / (W.eq + W.bd);
+    // ── Full allocation: single unified table vs IR benchmark ─────────────────
+    const bm = (window._benchmark||{})[ir] || {};
+    const wSum = BP_SECTORS ? BP_SECTORS.reduce((s,x)=>s+x.w,0) : 1;
+    const wBdSum = BP_BOND_SEGS ? BP_BOND_SEGS.reduce((s,x)=>s+x.w,0) : 1;
 
-    const curEqPct = subsetVal > 0 ? eqValue / subsetVal : 0;
-    const curBdPct = subsetVal > 0 ? bdValue / subsetVal : 0;
+    const sectorMap = {};
+    eqHoldings.forEach(h => { if(h.sector){if(!sectorMap[h.sector]) sectorMap[h.sector]=[]; sectorMap[h.sector].push(h);}});
+    const segMap = {};
+    bdHoldings.forEach(h => { const seg=h.bondSeg||'__other__'; if(!segMap[seg]) segMap[seg]=[]; segMap[seg].push(h);});
 
-    // Top-level asset allocation
-    html += h3(`Asset Allocation vs ${ir}`);
-    let arows = '';
-    [{label:'Equities', cur:curEqPct, tgt:wEqNorm},
-     {label:'Bonds',    cur:curBdPct, tgt:wBdNorm}].forEach((r,i) => {
-      const dev = r.cur - r.tgt;
-      const buy = Math.max(0, r.tgt * totalAfter - r.cur * subsetVal);
-      arows += tdRow([r.label, fmtPctAbs(r.tgt), fmtPctAbs(r.cur),
-        `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
-        buy > 50 ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(buy)}</span>` : '—'
-      ], i);
-    });
-    html += tbl(['Asset Class','Target','Current','Deviation','Buy'], arows);
+    const unclassified = eqHoldings.filter(h=>!h.sector);
+    if (unclassified.length) html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">ℹ️ ${unclassified.map(h=>h.name).join(', ')} — broad ETF, excluded from sector breakdown</div>`;
 
-    // Equity sectors — all as % of total subset
-    if (eqValue > 0 && BP_SECTORS) {
-      const wSum = BP_SECTORS.reduce((s,x) => s+x.w, 0);
-      const sectorMap = {};
-      eqHoldings.forEach(h => { if (h.sector) { if (!sectorMap[h.sector]) sectorMap[h.sector]=[]; sectorMap[h.sector].push(h); }});
-
-      const classEqVal = eqHoldings.filter(h=>h.sector).reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
-      const unclassified = eqHoldings.filter(h=>!h.sector);
-      if (unclassified.length) html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin:0.5rem 0">ℹ️ ${unclassified.map(h=>h.name).join(', ')} excluded from sector analysis (broad ETF)</div>`;
-
-      html += h3(`Equity Sleeve — Sector Weights vs ${ir} (% of total portfolio)`);
-      const sectorTargets = BP_SECTORS.map(s => {
-        const tgtPct = wEqNorm * (s.w / wSum);  // target as % of total
+    const allLines = [];
+    if (BP_SECTORS) {
+      BP_SECTORS.forEach(s => {
+        const tgtPct = bm.sectors?.[s.label] !== undefined ? bm.sectors[s.label] : W.eq*(s.w/wSum);
         const tgtVal = tgtPct * totalAfter;
         const curVal = (sectorMap[s.label]||[]).reduce((sum,h)=>sum+(h.convertedHoldingValue||0),0);
-        const curPct = subsetVal > 0 ? curVal / subsetVal : 0;
-        const shortfall = Math.max(0, tgtVal - curVal);
-        return {sector:s.label, tgtPct, curPct, curVal, tgtVal, shortfall, holdings:sectorMap[s.label]||[]};
+        const curPct = subsetVal>0 ? curVal/subsetVal : 0;
+        allLines.push({label:s.label, group:'equity', tgtPct, curPct, curVal, tgtVal, shortfall:Math.max(0,tgtVal-curVal), holdings:sectorMap[s.label]||[]});
       });
-
-      const eqBudget = Math.max(0, wEqNorm * totalAfter - eqValue);  // cash allocated to equity
-      const totalShortfall = sectorTargets.reduce((s,r)=>s+r.shortfall,0);
-
-      let effectiveBudget = addCash > 0 ? Math.min(addCash, eqBudget) : eqBudget;
-      if (addCash === 0) {
-        let minBudget = 0;
-        sectorTargets.forEach(r => {
-          if (r.shortfall <= 0 || !r.holdings.length) return;
-          let minPrice = Infinity;
-          r.holdings.forEach(h => { const q=h.quantity||0, p=q>0?(h.convertedHoldingValue||0)/q:0; if(p>0.01&&p<minPrice) minPrice=p; });
-          if (minPrice < Infinity) minBudget += minPrice;
-        });
-        effectiveBudget = minBudget;
-        if (minBudget > 0) html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum equity buy: <strong>${fmtUSDabs(minBudget)}</strong></div>`;
-      }
-
-      sectorTargets.forEach(r => {
-        r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0 ? (r.shortfall/totalShortfall)*effectiveBudget : 0);
-      });
-
-      let srows = '';
-      sectorTargets.forEach((r,i) => {
-        const dev = r.curPct - r.tgtPct;
-        srows += tdRow([r.sector, fmtPctAbs(r.tgtPct), fmtPctAbs(r.curPct),
-          `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
-          r.buyAmt>10 ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>` : '—'
-        ], i);
-      });
-      const totalSectorBuy = sectorTargets.reduce((s,r)=>s+r.buyAmt,0);
-      srows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total equity</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(totalSectorBuy)}</td></tr>`;
-      html += tbl(['Sector','Target','Current','Deviation','Buy'], srows);
-
-      // Buy orders — equity
-      holdingTrades = [];
-      sectorTargets.forEach(st => {
-        if (!st.holdings.length || st.buyAmt < 10) return;
-        const tot = st.holdings.reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
-        st.holdings.forEach(h => {
-          const share = tot>0?(h.convertedHoldingValue||0)/tot:1/st.holdings.length;
-          holdingTrades.push({h, buyAmt: st.buyAmt*share});
-        });
-      });
-
-      if (holdingTrades.length) {
-        html += h3('Buy Orders — Equity');
-        let hrows='', totalBuyAmt=0;
-        holdingTrades.sort((a,b)=>b.buyAmt-a.buyAmt).forEach((t,i)=>{
-          const qty=t.h.quantity||0, price=qty>0?(t.h.convertedHoldingValue||0)/qty:0;
-          const units=price>0.01?Math.floor(t.buyAmt/price):0;
-          const amt=units>0?units*price:t.buyAmt;
-          totalBuyAmt+=amt;
-          hrows+=tdRow([t.h.name, price>0.01?price.toFixed(2):'—',
-            `<span style="color:#2e7d52;font-weight:600">${units} units</span>`,
-            `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(amt)}</span>`],i);
-        });
-        const rem=effectiveBudget-totalBuyAmt;
-        hrows+=`<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total equity buys${rem>1?` <span style="font-size:11px;color:var(--text3);font-weight:400">(${fmtUSDabs(rem)} unallocated)</span>`:''}
-        </td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBuyAmt)}</td></tr>`;
-        html+=tbl(['Holding','Price per unit','Units to buy','Amount'],hrows);
-      }
     }
-
-    // Bond segments — % of total subset
-    if (bdValue > 0 && BP_BOND_SEGS) {
-      const wSum = BP_BOND_SEGS.reduce((s,x)=>s+x.w,0);
-      const segMap = {};
-      bdHoldings.forEach(h => { const seg=h.bondSeg||'__other__'; if(!segMap[seg]) segMap[seg]=[]; segMap[seg].push(h); });
-      const bdBudget = Math.max(0, wBdNorm * totalAfter - bdValue);
-
-      html += h3(`Bond Sleeve — Segment Weights vs ${ir} (% of total portfolio)`);
-      const segTargets = BP_BOND_SEGS.map(s => {
-        const tgtPct = wBdNorm * (s.w / wSum);
+    if (BP_BOND_SEGS) {
+      BP_BOND_SEGS.forEach(s => {
+        const tgtPct = bm.bondSegments?.[s.label] !== undefined ? bm.bondSegments[s.label] : W.bd*(s.w/wBdSum);
         const tgtVal = tgtPct * totalAfter;
         const curVal = (segMap[s.label]||[]).reduce((sum,h)=>sum+(h.convertedHoldingValue||0),0);
-        const curPct = subsetVal > 0 ? curVal / subsetVal : 0;
-        const shortfall = Math.max(0, tgtVal - curVal);
-        return {seg:s.label, tgtPct, curPct, curVal, shortfall, holdings:segMap[s.label]||[]};
+        const curPct = subsetVal>0 ? curVal/subsetVal : 0;
+        allLines.push({label:s.label, group:'bond', tgtPct, curPct, curVal, tgtVal, shortfall:Math.max(0,tgtVal-curVal), holdings:segMap[s.label]||[]});
       });
-
-      const totalBdShortfall = segTargets.reduce((s,r)=>s+r.shortfall,0);
-      segTargets.forEach(r => {
-        r.buyAmt = Math.min(r.shortfall, totalBdShortfall>0&&bdBudget>0?(r.shortfall/totalBdShortfall)*bdBudget:0);
-      });
-
-      let brows='';
-      segTargets.forEach((r,i)=>{
-        const dev=r.curPct-r.tgtPct;
-        brows+=tdRow([r.seg, fmtPctAbs(r.tgtPct), fmtPctAbs(r.curPct),
-          `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
-          r.buyAmt>10?`<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>`:'—'
-        ],i);
-      });
-      html+=tbl(['Segment','Target','Current','Deviation','Buy'],brows);
-
-      // Bond buy orders
-      const bdTrades=[];
-      segTargets.forEach(st=>{
-        if(!st.holdings.length||st.buyAmt<10) return;
-        const tot=st.holdings.reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
-        st.holdings.forEach(h=>{ const share=tot>0?(h.convertedHoldingValue||0)/tot:1/st.holdings.length; bdTrades.push({h,buyAmt:st.buyAmt*share}); });
-      });
-      if (bdTrades.length) {
-        html+=h3('Buy Orders — Bonds');
-        let hrows='',totalBd=0;
-        bdTrades.sort((a,b)=>b.buyAmt-a.buyAmt).forEach((t,i)=>{
-          const qty=t.h.quantity||0,price=qty>0?(t.h.convertedHoldingValue||0)/qty:0;
-          const units=price>0.01?Math.floor(t.buyAmt/price):0;
-          const amt=units>0?units*price:t.buyAmt; totalBd+=amt;
-          hrows+=tdRow([t.h.name,price>0.01?price.toFixed(2):'—',
-            units?`<span style="color:#2e7d52;font-weight:600">${units} units</span>`:'—',
-            `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(amt)}</span>`],i);
-          holdingTrades.push(t);
-        });
-        hrows+=`<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total bond buys</td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBd)}</td></tr>`;
-        html+=tbl(['Holding','Price per unit','Units to buy','Amount'],hrows);
-      }
     }
 
+    const totalShortfall = allLines.reduce((s,r)=>s+r.shortfall,0);
+    let effectiveBudget = addCash;
+    if (addCash === 0 && totalShortfall > 0) {
+      let minBudget = 0;
+      allLines.forEach(r => {
+        if(r.shortfall<=0||!r.holdings.length) return;
+        let minPrice=Infinity;
+        r.holdings.forEach(h=>{const q=h.quantity||0,p=q>0?(h.convertedHoldingValue||0)/q:0;if(p>0.01&&p<minPrice)minPrice=p;});
+        if(minPrice<Infinity) minBudget+=minPrice;
+      });
+      effectiveBudget=minBudget;
+      if(minBudget>0) html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum rebalancing budget: <strong>${fmtUSDabs(minBudget)}</strong></div>`;
+    }
+    allLines.forEach(r => {
+      r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0?(r.shortfall/totalShortfall)*effectiveBudget:0);
+    });
+
+    html += h3(`Full Allocation vs ${ir} Benchmark`);
+    let rows='', lastGroup='';
+    allLines.forEach((r,i)=>{
+      if(r.group!==lastGroup){
+        rows+=`<tr style="background:var(--bg3)"><td colspan="5" style="padding:6px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">${r.group==='equity'?'Equity Sectors':'Bond Segments'}</td></tr>`;
+        lastGroup=r.group;
+      }
+      const dev=r.curPct-r.tgtPct;
+      rows+=tdRow([r.label, fmtPctAbs(r.tgtPct), fmtPctAbs(r.curPct),
+        `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
+        r.buyAmt>10?`<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>`:'—'
+      ],i);
+    });
+    const totalBuy=allLines.reduce((s,r)=>s+r.buyAmt,0);
+    rows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(totalBuy)}</td></tr>`;
+    html+=tbl(['Segment / Sector','Target','Current','Deviation','Buy'],rows);
+
+    holdingTrades=[];
+    allLines.forEach(st=>{
+      if(!st.holdings.length||st.buyAmt<10) return;
+      const tot=st.holdings.reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
+      st.holdings.forEach(h=>{
+        const share=tot>0?(h.convertedHoldingValue||0)/tot:1/st.holdings.length;
+        holdingTrades.push({h,buyAmt:st.buyAmt*share,group:st.group});
+      });
+    });
+
+    if(holdingTrades.length){
+      html+=h3('Buy Orders');
+      let hrows='',totalBuyAmt=0;
+      holdingTrades.sort((a,b)=>b.buyAmt-a.buyAmt).forEach((t,i)=>{
+        const qty=t.h.quantity||0,price=qty>0?(t.h.convertedHoldingValue||0)/qty:0;
+        const units=price>0.01?Math.floor(t.buyAmt/price):0;
+        const amt=units>0?units*price:t.buyAmt; totalBuyAmt+=amt;
+        const tag=t.group==='equity'?'<span style="font-size:10px;background:#e8f4ed;color:#2e7d52;border-radius:3px;padding:1px 5px;margin-left:6px">EQ</span>':'<span style="font-size:10px;background:#eaf0f8;color:#1a5276;border-radius:3px;padding:1px 5px;margin-left:6px">BD</span>';
+        hrows+=tdRow([t.h.name+tag, price>0.01?price.toFixed(2):'—',
+          `<span style="color:#2e7d52;font-weight:600">${units} units</span>`,
+          `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(amt)}</span>`],i);
+      });
+      const rem=effectiveBudget-totalBuyAmt;
+      hrows+=`<tr style="border-top:2px solid var(--border)"><td style="padding:8px 12px;font-weight:700">Total buys${rem>1?` <span style="font-size:11px;color:var(--text3);font-weight:400">(${fmtUSDabs(rem)} unallocated)</span>`:''}</td><td></td><td></td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#2e7d52">+${fmtUSDabs(totalBuyAmt)}</td></tr>`;
+      html+=tbl(['Holding','Price per unit','Units to buy','Amount'],hrows);
+    }
   } else {
     // ── Equity only mode ──────────────────────────────────────────────────────
     const wSum = BP_SECTORS ? BP_SECTORS.reduce((s,x)=>s+x.w,0) : 1;
