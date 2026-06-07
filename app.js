@@ -3634,7 +3634,7 @@ function rbClassify(h) {
   if (name.includes('gilt') || name.includes('gov') || name.includes('treasur') || name.includes('bund') || name.includes('sovereign')) bondSeg = 'Government';
   else if (name.includes('corporate') || name.includes('ig corp') || name.includes('investment grade') || (name.includes('aggregate') && !name.includes('high yield'))) bondSeg = 'Investment Grade';
   else if (name.includes('high yield') || name.includes(' hy ') || name.includes('hy bond') || name.includes('junk')) bondSeg = 'High Yield';
-  else if (name.includes('em debt') || name.includes('emerging market bond') || name.includes('em bond')) bondSeg = 'EM Debt';
+  else if (name.includes('em debt') || name.includes('emerging market bond') || name.includes('em bond') || name.includes('em corporate bond') || name.includes('j.p. morgan em') || name.includes('jpmorgan em') || (name.includes('emerging') && name.includes('bond'))) bondSeg = 'EM Debt';
 
   const isBond = !!(bondSeg || h.maturityDate || (name.includes('bond') && !sector));
   const isEquity = !isBond && !!(sector || name.includes('equity') || name.includes('msci') || name.includes('acwi') || name.includes('world') || name.includes('s&p') || name.includes('stoxx') || name.includes('ftse'));
