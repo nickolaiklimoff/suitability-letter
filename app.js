@@ -4082,8 +4082,8 @@ function runRebalance() {
   // Attach button handlers after innerHTML render (onclick doesn't work in dynamic HTML)
   const exportBtn = document.getElementById('rb-exportBtn');
   const letterBtn2 = document.getElementById('rb-letterBtn');
-  if (exportBtn) exportBtn.onclick = rbExportXlsx;
-  if (letterBtn2) letterBtn2.onclick = rbSendToLetter;
+  if (exportBtn) exportBtn.onclick = () => rbExportXlsx();
+  if (letterBtn2) letterBtn2.onclick = () => rbSendToLetter();
 }
 
 
