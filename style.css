@@ -203,6 +203,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* ── Print / PDF ── */
 @media print {
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Hide everything except the letter modal when printing */
+  body.printing-letter > * { display: none !important; }
+  body.printing-letter .modal { display: block !important; }
+  body.printing-letter .modal-content { display: block !important; }
   body { background: white !important; overflow: visible !important; height: auto !important; }
   .app { display: block !important; height: auto !important; }
   .sidebar, .tabs, .step-nav, .modal-header, .no-print { display: none !important; }
