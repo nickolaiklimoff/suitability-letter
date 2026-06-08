@@ -1961,7 +1961,11 @@ window.printReport = function() {
   <script>
     // Wait for fonts + any lazy images to settle before printing
     window.addEventListener('load', function() {
-      setTimeout(function() { window.print(); }, 1500);
+      setTimeout(function() {
+        document.body.classList.add('printing-letter');
+        window.print();
+        setTimeout(() => document.body.classList.remove('printing-letter'), 1000);
+      }, 1500);
     });
   <\/script>
 </body>
