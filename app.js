@@ -3614,19 +3614,27 @@ function importFromPortfolioReport() {
     return;
   }
   const allH = [...(pd.bonds||[]), ...(pd.funds||[]), ...(pd.stocks||[])];
-  if (!allH.length) { alert('Portfolio is empty.'); return; }
+  const filtered = allH.filter(h => Math.round(h.convertedHoldingValue || h.holdingValue || 0) > 0);
+  if (!filtered.length) { alert('Portfolio is empty.'); return; }
 
   const tbody = document.getElementById('l-existingRows');
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  allH.forEach(h => {
+  filtered.forEach(h => {
     const val = Math.round(h.convertedHoldingValue || h.holdingValue || 0);
-    if (val > 0) addExistingRow(h.isin || '', h.name || '', val);
+    // addExistingRow creates an empty row — then we fill the inputs
+    addExistingRow();
+    const rows = tbody.querySelectorAll('tr');
+    const lastRow = rows[rows.length - 1];
+    const inputs = lastRow.querySelectorAll('input');
+    if (inputs[0]) inputs[0].value = h.isin || '';
+    if (inputs[1]) inputs[1].value = h.name || '';
+    if (inputs[2]) { inputs[2].value = val; inputs[2].dispatchEvent(new Event('input')); }
   });
 
   const statusEl = document.getElementById('existingStatus');
-  if (statusEl) statusEl.textContent = `✓ ${allH.length} holdings imported from Portfolio Report`;
+  if (statusEl) statusEl.textContent = `✓ ${filtered.length} holdings imported from Portfolio Report`;
 }
 
 function rbClassify(h) {
