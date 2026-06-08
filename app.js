@@ -3647,19 +3647,38 @@ function importModelFromBasePortfolios() {
     return;
   }
 
-  // Fill model name
   const nameEl = document.getElementById('l-modelName');
   if (nameEl && !nameEl.value) nameEl.value = `${ir} Model Portfolio`;
 
-  // Clear and fill model rows
   const tbody = document.getElementById('l-modelRows');
   if (!tbody) return;
   tbody.innerHTML = '';
 
   const rows = [];
-  if (W.eq > 0)   rows.push({ label: 'Equities', pct: Math.round(W.eq * 1000) / 10 });
-  if (W.bd > 0)   rows.push({ label: 'Bonds',    pct: Math.round(W.bd * 1000) / 10 });
-  if (W.cash > 0) rows.push({ label: 'Cash',     pct: Math.round(W.cash * 1000) / 10 });
+  const fmt = v => Math.round(v * 1000) / 10;
+
+  // Top-level
+  if (W.eq > 0)   rows.push({ label: 'Equities (total)', pct: fmt(W.eq) });
+
+  // Equity sectors
+  if (BP_SECTORS && W.eq > 0) {
+    const wSum = BP_SECTORS.reduce((s,x) => s+x.w, 0);
+    BP_SECTORS.forEach(s => {
+      rows.push({ label: `  ${s.label}`, pct: fmt(W.eq * s.w / wSum) });
+    });
+  }
+
+  if (W.bd > 0) rows.push({ label: 'Bonds (total)', pct: fmt(W.bd) });
+
+  // Bond segments
+  if (BP_BOND_SEGS && W.bd > 0) {
+    const wSum = BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
+    BP_BOND_SEGS.forEach(s => {
+      rows.push({ label: `  ${s.label}`, pct: fmt(W.bd * s.w / wSum) });
+    });
+  }
+
+  if (W.cash > 0) rows.push({ label: 'Cash', pct: fmt(W.cash) });
 
   rows.forEach(r => {
     addModelRow();
@@ -3671,7 +3690,7 @@ function importModelFromBasePortfolios() {
   });
 
   const statusEl = document.getElementById('importModelStatus');
-  if (statusEl) statusEl.textContent = `✓ ${ir} allocation loaded`;
+  if (statusEl) statusEl.textContent = `✓ ${ir} — ${rows.length} lines loaded`;
 }
 
 function rbClassify(h) {
