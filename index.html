@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1780939326">
+<link rel="stylesheet" href="style.css?v=1780939506">
 <body>
 <div class="app">
 
@@ -206,11 +206,11 @@
                     <input type="file" id="importExistingFile" accept=".xlsx,.xls" style="display:none"
                       onchange="importPortfolioExcel(this)"/>
                   </label>
-                  <button class="btn-secondary" onclick="importFromPortfolioReport()" style="font-size:13px;background:var(--green-dark);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">↙ From Portfolio Report</button>
-                  <button class="btn-analyze" id="btnAnalyzeExisting" onclick="analyzeExistingPortfolio()">Assign ratings →</button>
+                                    <button class="btn-analyze" id="btnAnalyzeExisting" onclick="analyzeExistingPortfolio()">Assign ratings →</button>
                 </div>
               </div>
               <span id="existingStatus" class="import-status" style="display:block;margin-bottom:8px"></span>
+              <button onclick="importFromPortfolioReport()" style="font-size:12px;background:var(--green-dark);color:#fff;border:none;padding:5px 14px;border-radius:5px;cursor:pointer;margin-bottom:10px">↙ Import from Portfolio Report</button>
               <div class="table-wrap">
                 <table class="input-table">
                   <thead><tr><th style="width:130px">ISIN</th><th>Product name</th><th>Amount (USD)</th><th style="width:80px">Risk rating</th><th></th></tr></thead>
@@ -883,10 +883,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1780939326"></script>
+<script src="waar.js?v=1780939506"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1780939326"></script>
-<script src="app.js?v=1780939326"></script>
+<script src="report.js?v=1780939506"></script>
+<script src="app.js?v=1780939506"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
