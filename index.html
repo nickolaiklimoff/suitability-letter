@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1780944841">
+<link rel="stylesheet" href="style.css?v=1780945338">
 <body>
 <div class="app">
 
@@ -255,6 +255,7 @@
                     onchange="importModelExcel(this)"/>
                 </label>
                 <span id="importModelStatus" class="import-status" style="margin-left:8px"></span>
+<button onclick="importModelFromBasePortfolios()" style="font-size:12px;background:#2e7d52;color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-weight:600;margin-left:8px">↙ From Base Portfolios</button>
                 <button class="btn-add-row" style="margin-left:auto" onclick="addModelRow()">+ Add row manually</button>
               </div>
               <div class="table-wrap">
@@ -883,10 +884,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1780944841"></script>
+<script src="waar.js?v=1780945338"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1780944841"></script>
-<script src="app.js?v=1780944841"></script>
+<script src="report.js?v=1780945338"></script>
+<script src="app.js?v=1780945338"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
