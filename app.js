@@ -3637,6 +3637,43 @@ function importFromPortfolioReport() {
   if (statusEl) statusEl.textContent = `✓ ${filtered.length} holdings imported from Portfolio Report`;
 }
 
+function importModelFromBasePortfolios() {
+  const ir = clients[currentClientId]?.ir || 'IR3';
+  const bpDef = (window._benchmark || {})[ir] || {};
+  const W = { eq: bpDef.eq || bpDef.equity || 0, bd: bpDef.bd || bpDef.bond || 0, cash: bpDef.cash || 0 };
+
+  if (!W.eq && !W.bd) {
+    alert('Base Portfolios not loaded. Go to Base Portfolios and save first.');
+    return;
+  }
+
+  // Fill model name
+  const nameEl = document.getElementById('l-modelName');
+  if (nameEl && !nameEl.value) nameEl.value = `${ir} Model Portfolio`;
+
+  // Clear and fill model rows
+  const tbody = document.getElementById('l-modelRows');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const rows = [];
+  if (W.eq > 0)   rows.push({ label: 'Equities', pct: Math.round(W.eq * 1000) / 10 });
+  if (W.bd > 0)   rows.push({ label: 'Bonds',    pct: Math.round(W.bd * 1000) / 10 });
+  if (W.cash > 0) rows.push({ label: 'Cash',     pct: Math.round(W.cash * 1000) / 10 });
+
+  rows.forEach(r => {
+    addModelRow();
+    const allRows = tbody.querySelectorAll('tr');
+    const last = allRows[allRows.length - 1];
+    const inputs = last.querySelectorAll('input');
+    if (inputs[0]) inputs[0].value = r.label;
+    if (inputs[1]) inputs[1].value = r.pct;
+  });
+
+  const statusEl = document.getElementById('importModelStatus');
+  if (statusEl) statusEl.textContent = `✓ ${ir} allocation loaded`;
+}
+
 function rbClassify(h) {
   const name = (h.name||'').toLowerCase();
   let sector = null, bondSeg = null;
