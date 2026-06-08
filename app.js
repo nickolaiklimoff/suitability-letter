@@ -3639,11 +3639,30 @@ function importFromPortfolioReport() {
 
 function importModelFromBasePortfolios() {
   const ir = clients[currentClientId]?.ir || 'IR3';
-  const bpDef = (window._benchmark || {})[ir] || {};
+  // Try window._benchmark first, then localStorage
+  let bpDef = (window._benchmark || {})[ir] || {};
+  if (!bpDef.eq && !bpDef.equity) {
+    try {
+      const stored = localStorage.getItem('suitability-bp-data');
+      if (stored) {
+        const bp = JSON.parse(stored);
+        const irKey = ir.toLowerCase().replace('-','');
+        bpDef = {
+          eq:   parseFloat(bp[irKey + 'eq'] || bp['ir3eq'] || 0),
+          bd:   parseFloat(bp[irKey + 'bd'] || bp['ir3bd'] || 0),
+          cash: parseFloat(bp[irKey + 'ca'] || bp['ir3ca'] || 0),
+        };
+        // Also load sector/segment data from _benchmark if available
+        if (window._benchmark && window._benchmark[ir]) {
+          bpDef = { ...bpDef, ...window._benchmark[ir] };
+        }
+      }
+    } catch(e) {}
+  }
   const W = { eq: bpDef.eq || bpDef.equity || 0, bd: bpDef.bd || bpDef.bond || 0, cash: bpDef.cash || 0 };
 
   if (!W.eq && !W.bd) {
-    alert('Base Portfolios not loaded. Go to Base Portfolios and save first.');
+    alert('Base Portfolios not loaded. Open Base Portfolios panel and click Save first.');
     return;
   }
 
