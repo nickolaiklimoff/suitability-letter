@@ -4015,7 +4015,7 @@ function runRebalance() {
     const TARGET_DEV = 0.01;
     allLines.forEach(r => {
       const dev = r.tgtPct - r.curPct;
-      if (dev <= TARGET_DEV || r.holdings.length === 0) r.shortfall = 0;
+      if (dev < TARGET_DEV || r.holdings.length === 0) r.shortfall = 0;
     });
     const actionableLines = allLines.filter(r => r.shortfall > 0);
     const totalShortfall = actionableLines.reduce((s,r)=>s+r.shortfall,0);
@@ -4054,7 +4054,7 @@ function runRebalance() {
         });
         const totalSf = sfs.reduce((a,b)=>a+b, 0);
         return allLines.reduce((mx, r, i) => {
-          if ((r.tgtPct - r.curPct) <= TARGET_DEV) return mx;
+          if ((r.tgtPct - r.curPct) < TARGET_DEV) return mx;
           const buy = totalSf>0&&budget>0 ? Math.min(sfs[i],(sfs[i]/totalSf)*budget) : 0;
           const newPct = (r.curVal+buy) / Math.max(nt,1);
           return Math.max(mx, Math.abs(newPct - r.tgtPct));
@@ -4080,11 +4080,12 @@ function runRebalance() {
     }
 
     // Recalculate shortfalls with actual new total (effectiveBudget now known)
+    // Only positions underweight by > 1pp (TARGET_DEV) are eligible for buys
     const actualNewTotal = subsetVal + effectiveBudget;
     allLines.forEach(r => {
+      const dev = r.tgtPct - r.curPct;
       const tgtValActual = r.tgtPct * actualNewTotal;
-      r.shortfall = r.curPct < r.tgtPct ? Math.max(0, tgtValActual - r.curVal) : 0;
-      if (r.holdings.length === 0) r.shortfall = 0;
+      r.shortfall = (dev > TARGET_DEV && r.holdings.length > 0) ? Math.max(0, tgtValActual - r.curVal) : 0;
     });
 
     // Apply final buy amounts proportional to recalculated shortfalls
