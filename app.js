@@ -4107,6 +4107,7 @@ function runRebalance() {
 
     holdingTrades=[];
     console.log('[rebalance] allLines buyAmts:', allLines.map(r=>({l:r.label,buy:Math.round(r.buyAmt),sf:Math.round(r.shortfall)})));
+    const govLine = allLines.find(l=>l.label==='Government'); console.log('[gov]', govLine ? {curPct:govLine.curPct, tgtPct:govLine.tgtPct, sf:govLine.shortfall, nHoldings:govLine.holdings.length} : 'not found');
     window._rbLastAllLines = allLines;  // save here before holdingTrades check
     allLines.forEach(st=>{
       if(!st.holdings.length||st.buyAmt<10) return;
@@ -4301,7 +4302,7 @@ function runRebalance() {
 
   // Store trades for export
   window._rbLastTrades = holdingTrades;
-  window._rbLastAllLines = (typeof allLines !== 'undefined' ? allLines : []);
+  // _rbLastAllLines saved inside full mode block
   window._rbLastTradesMode = mode;
 
   // Add export buttons
