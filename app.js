@@ -4011,8 +4011,12 @@ function runRebalance() {
       });
     }
 
-    // Only count shortfalls for segments/sectors that have actual holdings to buy
-    const actionableLines = allLines.filter(r => r.holdings.length > 0);
+    // Only buy positions that are underweight by more than 1pp
+    allLines.forEach(r => {
+      const dev = r.tgtPct - r.curPct;
+      if (dev <= TARGET_DEV || r.holdings.length === 0) r.shortfall = 0;
+    });
+    const actionableLines = allLines.filter(r => r.shortfall > 0);
     const totalShortfall = actionableLines.reduce((s,r)=>s+r.shortfall,0);
     const noHoldingLines = allLines.filter(r => r.holdings.length === 0 && r.shortfall > 0);
     if (noHoldingLines.length) {
@@ -4043,12 +4047,14 @@ function runRebalance() {
       // Overweight positions are marked separately — can't fix by buying
       function testUnderweightDev(budget) {
         const nt = subsetVal + budget;
-        const sfs = allLines.map(r =>
-          (r.holdings.length > 0 && r.curPct < r.tgtPct) ? Math.max(0, r.tgtPct*nt - r.curVal) : 0
-        );
+        // Only lines with deviation > 1pp
+        const sfs = allLines.map(r => {
+          const dev = r.tgtPct - r.curPct;
+          return (r.holdings.length > 0 && dev > TARGET_DEV) ? Math.max(0, r.tgtPct*nt - r.curVal) : 0;
+        });
         const totalSf = sfs.reduce((a,b)=>a+b, 0);
         return allLines.reduce((mx, r, i) => {
-          if (r.curPct >= r.tgtPct) return mx;  // skip overweight
+          if ((r.tgtPct - r.curPct) <= TARGET_DEV) return mx;
           const buy = totalSf>0&&budget>0 ? Math.min(sfs[i],(sfs[i]/totalSf)*budget) : 0;
           const newPct = (r.curVal+buy) / Math.max(nt,1);
           return Math.max(mx, Math.abs(newPct - r.tgtPct));
