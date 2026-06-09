@@ -4014,65 +4014,65 @@ function runRebalance() {
     // Only count shortfalls for segments/sectors that have actual holdings to buy
     const actionableLines = allLines.filter(r => r.holdings.length > 0);
     const totalShortfall = actionableLines.reduce((s,r)=>s+r.shortfall,0);
-    // For display: also compute non-actionable shortfall (no holdings = needs new position)
     const noHoldingLines = allLines.filter(r => r.holdings.length === 0 && r.shortfall > 0);
     if (noHoldingLines.length) {
       html += `<div style="font-size:12px;color:#856404;background:#fff3cd;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
         ⚠️ No holdings for: ${noHoldingLines.map(l=>l.label).join(', ')} — new positions required to fill these segments.
       </div>`;
     }
+
+    // ── Iterative buy-only algorithm: keep buying until all deviations < 1pp ──
+    // Uses binary search on budget, then distributes proportionally to shortfalls
+    const TARGET_DEV = 0.01;  // 1pp threshold
+
+    function computeBuys(budget, lines) {
+      const sf = lines.filter(r=>r.holdings.length>0).reduce((s,r)=>s+r.shortfall,0);
+      lines.forEach(r => {
+        r.buyAmt = r.holdings.length===0 ? 0 :
+          Math.min(r.shortfall, sf>0&&budget>0 ? (r.shortfall/sf)*budget : 0);
+      });
+      const newTotal = subsetVal + budget;
+      return lines.map(r => ({
+        dev: Math.abs((r.curVal+r.buyAmt)/Math.max(newTotal,1) - r.tgtPct)
+      }));
+    }
+
     let effectiveBudget = addCash;
     if (addCash === 0 && totalShortfall > 0) {
-      // Find minimum budget to bring all deviations under 0.5pp
-      // Binary search: find smallest budget where max deviation < 0.005
-      const THRESHOLD = 0.005;
-      let lo = 0, hi = totalShortfall * 3, minBudget = totalShortfall;
-      for (let iter = 0; iter < 40; iter++) {
+      // Binary search for minimum budget to get all underweight deviations < 1pp
+      let lo = 0, hi = totalShortfall * 4, minBudget = totalShortfall;
+      for (let iter = 0; iter < 50; iter++) {
         const mid = (lo + hi) / 2;
-        let maxDev = 0;
-        actionableLines.forEach(r => {
-          const buy = Math.min(r.shortfall, totalShortfall>0?(r.shortfall/totalShortfall)*mid:0);
-          const newVal = r.curVal + buy;
-          const newPct = (subsetVal + mid) > 0 ? newVal / (subsetVal + mid) : 0;
-          maxDev = Math.max(maxDev, Math.abs(newPct - r.tgtPct));
-        });
-        if (maxDev < THRESHOLD) { hi = mid; minBudget = mid; }
+        const devs = computeBuys(mid, allLines);
+        // Only check underweight lines (overweight ones can't be fixed by buying)
+        const maxUnderweightDev = allLines
+          .filter(r => r.holdings.length > 0 && r.curPct < r.tgtPct)
+          .reduce((mx, r, i) => {
+            const nd = (r.curVal+r.buyAmt) / Math.max(subsetVal+mid,1);
+            return Math.max(mx, Math.abs(nd - r.tgtPct));
+          }, 0);
+        if (maxUnderweightDev < TARGET_DEV) { hi = mid; minBudget = mid; }
         else lo = mid;
       }
-      // Round up to nearest $100
       effectiveBudget = Math.ceil(minBudget / 100) * 100;
-      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget to reach <strong>&lt;0.5pp</strong> deviation: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
+      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> deviation on underweight positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
+
+    // Apply final buy amounts
+    const sf = actionableLines.reduce((s,r)=>s+r.shortfall,0);
     allLines.forEach(r => {
-      if (r.holdings.length === 0) { r.buyAmt = 0; return; }  // no holdings = can't buy
-      r.buyAmt = Math.min(r.shortfall, totalShortfall>0&&effectiveBudget>0?(r.shortfall/totalShortfall)*effectiveBudget:0);
+      r.buyAmt = r.holdings.length===0 ? 0 :
+        Math.min(r.shortfall, sf>0&&effectiveBudget>0 ? (r.shortfall/sf)*effectiveBudget : 0);
     });
 
-    // Now we know effectiveBudget — render summary with correct new total
+    // Calculate after% for each line using correct new total
     const realNewTotal = subsetVal + effectiveBudget;
-    const summaryHtml = `<div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border-radius:8px;font-size:13px">
-      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Current portfolio</div><strong>${fmtUSDabs(subsetVal)}</strong></div>
-      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Additional cash</div><strong>${addCash > 0 ? fmtUSDabs(addCash) : fmtUSDabs(effectiveBudget)+' (auto)'}</strong></div>
-      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">New total</div><strong>${fmtUSDabs(realNewTotal)}</strong></div>
-      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Benchmark</div><strong>${ir}</strong></div>
-      <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">Mode</div><strong>${mode==='equity'?'Equity sleeve':'Full allocation'}</strong></div>
-    </div>`;
-    html = html.replace('___SUMMARY___', summaryHtml);
-
-    // Recalculate tgtVal with real budget now known
-    const realTotal = subsetVal + effectiveBudget;
     allLines.forEach(r => {
-      r.tgtValReal = r.tgtPct * realTotal;
-      r.buyAmtReal = r.curPct < r.tgtPct ? Math.min(r.tgtValReal - r.curVal, r.buyAmt) : 0;
-    });
-
-    // Pre-calculate after% for each line
-    realTotal2 = subsetVal + effectiveBudget;
-    allLines.forEach(r => {
-      const newVal = r.curVal + r.buyAmt;
-      r.afterPct = realTotal2 > 0 ? newVal / realTotal2 : 0;
+      r.afterPct = realNewTotal > 0 ? (r.curVal + r.buyAmt) / realNewTotal : 0;
       r.afterDev = r.afterPct - r.tgtPct;
+      r.beforePctFull = subsetVal > 0 ? r.curVal / subsetVal : 0;  // % before (of old total)
     });
+
 
     // Summary
     const improved = allLines.filter(r => Math.abs(r.afterDev) < Math.abs(r.curPct - r.tgtPct) - 0.001).length;
