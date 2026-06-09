@@ -3985,10 +3985,10 @@ function runRebalance() {
     const allLines = [];
     const sectorMap = {}, segMap = {};
     subset.forEach(h => {
-      const sec = h.sectorLabel || h.sector || '';
-      const seg = h.bondSegment  || '';
-      if (h.assetClass === 'Equity') { (sectorMap[sec]||(sectorMap[sec]=[])).push(h); }
-      else                           { (segMap[seg]  ||(segMap[seg]  =[])).push(h); }
+      const sec = h.sector || '';
+      const seg = h.bondSeg || '';
+      if (h.type === 'equity') { (sectorMap[sec]||(sectorMap[sec]=[])).push(h); }
+      else                     { (segMap[seg]  ||(segMap[seg]  =[])).push(h); }
     });
 
     const portfolioTotal = subsetVal;  // base for current weights
@@ -4064,7 +4064,8 @@ function runRebalance() {
         const lineAlloc = (r.deficit / totalDeficit) * effectiveBudget;
         let lineSpent = 0;
         r.holdings.forEach(h => {
-          const price = h.convertedPrice || 0;
+          const qty_now = h.quantity || 0;
+          const price = qty_now > 0 ? (h.convertedHoldingValue||0) / qty_now : (h.price || h.lastPrice || 0);
           if (price <= 0) return;
           // Proportional share of this line's alloc by current value weight within line
           const hShare  = r.curVal > 0 ? (h.convertedHoldingValue||0) / r.curVal : 1 / Math.max(r.holdings.length,1);
@@ -4102,9 +4103,9 @@ function runRebalance() {
     // Map buyAmt back to allLines from holdingTrades
     allLines.forEach(r => { r.buyAmt = 0; r.sharesToBuy = 0; });
     holdingTrades.forEach(t => {
-      const sec = t.holding.sectorLabel || t.holding.sector || '';
-      const seg = t.holding.bondSegment || '';
-      const key = t.holding.assetClass === 'Equity' ? sec : seg;
+      const sec = t.holding.sector || '';
+      const seg = t.holding.bondSeg || '';
+      const key = t.holding.type === 'equity' ? sec : seg;
       const line = allLines.find(r => r.label === key);
       if (line) { line.buyAmt += t.spent; line.sharesToBuy = (line.sharesToBuy||0) + t.qty; }
     });
@@ -4184,15 +4185,15 @@ function runRebalance() {
     subset.forEach((h,i) => {
       const id  = h.isin || h.fundName || h.name;
       const tr  = tradeMap[id] || { qty:0, spent:0 };
-      const qtyNow   = h.qty || 0;
+      const qtyNow   = h.quantity || h.qty || 0;
       const qtyAfter = qtyNow + tr.qty;
-      const price    = h.convertedPrice || 0;
+      const price    = qtyNow > 0 ? (h.convertedHoldingValue||0) / qtyNow : (h.price || h.lastPrice || 0);
       const valAfter = qtyAfter * price;
       const newPct   = actualNewTotal > 0 ? valAfter / actualNewTotal : 0;
       // Find target for this holding
-      const sec = h.sectorLabel || h.sector || '';
-      const seg = h.bondSegment || '';
-      const key = h.assetClass === 'Equity' ? sec : seg;
+      const sec = h.sector || '';
+      const seg = h.bondSeg || '';
+      const key = h.type === 'equity' ? sec : seg;
       const line = allLines.find(r => r.label === key);
       const nH   = line ? Math.max(line.holdings.length,1) : 1;
       const tgtPct = line ? line.tgtPct / nH : null;
