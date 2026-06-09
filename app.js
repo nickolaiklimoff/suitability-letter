@@ -4059,6 +4059,7 @@ function runRebalance() {
     }
 
     // Apply final buy amounts
+    console.log('[rebalance] effectiveBudget:', Math.round(effectiveBudget), 'totalShortfall:', Math.round(totalShortfall));
     const sf = actionableLines.reduce((s,r)=>s+r.shortfall,0);
     allLines.forEach(r => {
       r.buyAmt = r.holdings.length===0 ? 0 :
@@ -4293,6 +4294,7 @@ function runRebalance() {
       prows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right">${fmtUSDabs(newEqBase)}</td><td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td></tr>`;
       html+=tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'],prows);
     }
+    window._rbLastAllLines = allLines;  // save for Excel export
   }
 
   // Store trades for export
