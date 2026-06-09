@@ -4012,6 +4012,7 @@ function runRebalance() {
     }
 
     // Only buy positions that are underweight by more than 1pp
+    const TARGET_DEV = 0.01;
     allLines.forEach(r => {
       const dev = r.tgtPct - r.curPct;
       if (dev <= TARGET_DEV || r.holdings.length === 0) r.shortfall = 0;
@@ -4027,7 +4028,6 @@ function runRebalance() {
 
     // ── Iterative buy-only algorithm: keep buying until all deviations < 1pp ──
     // Uses binary search on budget, then distributes proportionally to shortfalls
-    const TARGET_DEV = 0.01;  // 1pp threshold
 
     function computeBuys(budget, lines) {
       const sf = lines.filter(r=>r.holdings.length>0).reduce((s,r)=>s+r.shortfall,0);
