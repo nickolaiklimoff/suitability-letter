@@ -3845,31 +3845,61 @@ function rbSelectByType(type) {
 function rbExportXlsx() {
   const trades = window._rbLastTrades || [];
   if (!trades.length) { alert('No trades to export. Calculate rebalancing first.'); return; }
-  const rows = [['Name', 'ISIN', 'Units to buy', 'Amount USD']];
-  trades.forEach(t => {
-    const qty = t.h.quantity || t.h.qty || 0;
-    const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : 0;
-    const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
-    const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
-    if (amount > 0) rows.push([t.h.name, t.h.isin || '', units, amount]);
-  });
   const XL = window.XLSX;
   if (!XL) { alert('Excel library not loaded'); return; }
   const wb = XL.utils.book_new();
-  const ws = XL.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 52 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
-  XL.utils.book_append_sheet(wb, ws, 'Investments');
-  const clientName = (clients[currentClientId]?.name || 'client').replace(/\s+/g,'_');
+
+  // Sheet 1: Allocation Before vs After
+  const alloc = window._rbLastAllLines || [];
+  const allocRows = [['Segment / Sector', 'Target %', 'Current %', 'Deviation before', 'Buy (USD)', 'After %', 'Deviation after']];
+  alloc.forEach(r => {
+    const fmt = v => parseFloat((v*100).toFixed(1));
+    const fmtDev = v => parseFloat(((v||0)*100).toFixed(1));
+    allocRows.push([r.label, fmt(r.tgtPct), fmt(r.curPct), fmtDev(r.curPct-r.tgtPct),
+      Math.round(r.buyAmt||0), fmt(r.afterPct||r.curPct), fmtDev(r.afterDev!==undefined?r.afterDev:(r.curPct-r.tgtPct))]);
+  });
+  const ws1 = XL.utils.aoa_to_sheet(allocRows);
+  ws1['!cols'] = [{wch:30},{wch:10},{wch:10},{wch:16},{wch:12},{wch:10},{wch:14}];
+  XL.utils.book_append_sheet(wb, ws1, 'Allocation');
+
+  // Sheet 2: Buy Orders
+  const buyRows = [['Holding', 'ISIN', 'Price per unit', 'Units to buy', 'Amount USD']];
+  trades.forEach(t => {
+    const qty = t.h.quantity||0, price = qty>0?(t.h.convertedHoldingValue||0)/qty:0;
+    const units = price>0.01?Math.floor(t.buyAmt/price):0;
+    const amount = units>0?Math.round(units*price):Math.round(t.buyAmt);
+    if (amount>0) buyRows.push([t.h.name, t.h.isin||'', parseFloat(price.toFixed(2)), units, amount]);
+  });
+  const ws2 = XL.utils.aoa_to_sheet(buyRows);
+  ws2['!cols'] = [{wch:50},{wch:16},{wch:14},{wch:14},{wch:14}];
+  XL.utils.book_append_sheet(wb, ws2, 'Buy Orders');
+
+  // Sheet 3: Portfolio After
+  const afterData = window._rbLastAfterRows || [];
+  const afterRows = [['Holding', 'Qty now', 'Qty after', 'Price', 'Value after', '% before', '% after', 'Target %', 'Deviation after']];
+  afterData.forEach(r => {
+    afterRows.push([r.name, r.qtyNow, r.qtyAfter, r.price,
+      r.newVal, parseFloat((r.beforePct*100).toFixed(1)),
+      parseFloat((r.newPct*100).toFixed(1)),
+      r.tgtPct!==null?parseFloat((r.tgtPct*100).toFixed(1)):'',
+      r.dev!==null?parseFloat((r.dev*100).toFixed(1)):''
+    ]);
+  });
+  const ws3 = XL.utils.aoa_to_sheet(afterRows);
+  ws3['!cols'] = [{wch:50},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:10},{wch:16}];
+  XL.utils.book_append_sheet(wb, ws3, 'Portfolio After');
+
+  const clientName = (clients[currentClientId]?.name||'client').replace(/\s+/g,'_');
   const date = new Date().toISOString().slice(0,10);
   try {
-    const wbout = XL.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const wbout = XL.write(wb, {bookType:'xlsx', type:'array'});
+    const blob = new Blob([wbout], {type:'application/octet-stream'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `rebalance_${clientName}_${date}.xlsx`;
+    a.href=url; a.download=`rebalance_${clientName}_${date}.xlsx`;
     document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-  } catch(e) { alert('Export failed: ' + e.message); }
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  } catch(e) { alert('Export failed: '+e.message); }
 }
 
 function rbSendToLetter() {
@@ -4036,22 +4066,43 @@ function runRebalance() {
       r.buyAmtReal = r.curPct < r.tgtPct ? Math.min(r.tgtValReal - r.curVal, r.buyAmt) : 0;
     });
 
+    // Pre-calculate after% for each line
+    const realTotal = subsetVal + effectiveBudget;
+    allLines.forEach(r => {
+      const newVal = r.curVal + r.buyAmt;
+      r.afterPct = realTotal > 0 ? newVal / realTotal : 0;
+      r.afterDev = r.afterPct - r.tgtPct;
+    });
+
+    // Summary
+    const improved = allLines.filter(r => Math.abs(r.afterDev) < Math.abs(r.curPct - r.tgtPct) - 0.001).length;
+    const unchanged = allLines.filter(r => r.buyAmt < 10).length;
+    html += `<div style="font-size:13px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:10px 14px;margin-bottom:1rem">
+      After investing <strong>${fmtUSDabs(effectiveBudget)}</strong>: 
+      <span style="color:#2e7d52;font-weight:600">${improved} positions improved</span> · 
+      <span style="color:var(--text3)">${unchanged} positions unchanged (already at target or overweight)</span>
+    </div>`;
+
     html += h3(`Full Allocation vs ${ir} Benchmark`);
     let rows='', lastGroup='';
     allLines.forEach((r,i)=>{
       if(r.group!==lastGroup){
-        rows+=`<tr style="background:var(--bg3)"><td colspan="5" style="padding:6px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">${r.group==='equity'?'Equity Sectors':'Bond Segments'}</td></tr>`;
+        rows+=`<tr style="background:var(--bg3)"><td colspan="7" style="padding:6px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">${r.group==='equity'?'Equity Sectors':'Bond Segments'}</td></tr>`;
         lastGroup=r.group;
       }
       const dev=r.curPct-r.tgtPct;
+      const afterArrow = r.buyAmt > 10 ? (Math.abs(r.afterDev) < Math.abs(dev) - 0.001 ? '↑' : '→') : '';
+      const afterColor = Math.abs(r.afterDev) < 0.005 ? '#2e7d52' : Math.abs(r.afterDev) < Math.abs(dev) - 0.001 ? '#2e7d52' : devCol(r.afterDev);
       rows+=tdRow([r.label, fmtPctAbs(r.tgtPct), fmtPctAbs(r.curPct),
         `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
-        r.buyAmt>10?`<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>`:'—'
+        r.buyAmt>10?`<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>`:'—',
+        r.buyAmt>10?`<span style="color:${afterColor};font-weight:600">${fmtPctAbs(r.afterPct)} ${afterArrow}</span>`:`<span style="color:var(--text3)">${fmtPctAbs(r.curPct)}</span>`,
+        r.buyAmt>10?`<span style="color:${afterColor}">${fmtDev(r.afterDev)}</span>`:`<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`
       ],i);
     });
     const totalBuy=allLines.reduce((s,r)=>s+r.buyAmt,0);
-    rows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(totalBuy)}</td></tr>`;
-    html+=tbl(['Segment / Sector','Target','Current','Deviation','Buy'],rows);
+    rows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(totalBuy)}</td><td></td><td></td></tr>`;
+    html+=tbl(['Segment / Sector','Target','Current','Dev. before','Buy','After %','Dev. after'],rows);
 
     holdingTrades=[];
     allLines.forEach(st=>{
@@ -4106,7 +4157,22 @@ function runRebalance() {
             dev!==null?`<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`:'—'
           ],i);
         });
-      prows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right">${fmtUSDabs(newTotal2)}</td><td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td></tr>`;
+      // Store for Excel export
+      window._rbLastAfterRows = eqHoldings.filter(h=>h.sector).concat(bdHoldings)
+        .sort((a,b)=>(b.convertedHoldingValue||0)-(a.convertedHoldingValue||0))
+        .map(h=>{
+          const qty=h.quantity||0,price=qty>0?(h.convertedHoldingValue||0)/qty:0;
+          const addUnits=price>0.01?Math.floor((buyMap[h.name]||0)/price):0;
+          const newQty=qty+addUnits,newVal=(h.convertedHoldingValue||0)+addUnits*price;
+          const newPct=newTotal2>0?newVal/newTotal2:0;
+          const beforePct=newTotal2>0?(h.convertedHoldingValue||0)/newTotal2:0;
+          const tgtLine=allLines.find(l=>l.label===h.sector||l.label===h.bondSeg);
+          const nH=tgtLine?Math.max(1,tgtLine.holdings.length):1;
+          const tgtPct=tgtLine?tgtLine.tgtPct/nH:null;
+          return {name:h.name,qtyNow:qty,qtyAfter:newQty,price:parseFloat(price.toFixed(2)),
+            newVal:Math.round(newVal),beforePct,newPct,tgtPct,dev:tgtPct!==null?newPct-tgtPct:null};
+        });
+      prows+=`<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right">${fmtUSDabs(newTotal2)}</td><td></td><td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td></tr>`;
       html+=tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'],prows);
   } else {
     // ── Equity only mode ──────────────────────────────────────────────────────
@@ -4231,6 +4297,7 @@ function runRebalance() {
 
   // Store trades for export
   window._rbLastTrades = holdingTrades;
+  window._rbLastAllLines = allLines || [];
   window._rbLastTradesMode = mode;
 
   // Add export buttons
