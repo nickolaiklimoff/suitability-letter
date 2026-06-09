@@ -3865,10 +3865,12 @@ function rbExportXlsx() {
   // Sheet 2: Buy Orders
   const buyRows = [['Holding', 'ISIN', 'Price per unit', 'Units to buy', 'Amount USD']];
   trades.forEach(t => {
-    const qty = t.h.quantity||0, price = qty>0?(t.h.convertedHoldingValue||0)/qty:0;
-    const units = price>0.01?Math.floor(t.buyAmt/price):0;
-    const amount = units>0?Math.round(units*price):Math.round(t.buyAmt);
-    if (amount>0) buyRows.push([t.h.name, t.h.isin||'', parseFloat(price.toFixed(2)), units, amount]);
+    // Support both new format {holding, qty, spent, price} and legacy {h, buyAmt}
+    const holding = t.holding || t.h;
+    const qty     = t.qty !== undefined ? t.qty : (t.price > 0.01 ? Math.floor((t.buyAmt||0) / t.price) : 0);
+    const price   = t.price || (holding?.quantity > 0 ? (holding.convertedHoldingValue||0)/holding.quantity : 0);
+    const amount  = Math.round(qty * price);
+    if (qty > 0 && amount > 0) buyRows.push([holding?.name||'', holding?.isin||'', parseFloat(price.toFixed(2)), qty, amount]);
   });
   const ws2 = XL.utils.aoa_to_sheet(buyRows);
   ws2['!cols'] = [{wch:50},{wch:16},{wch:14},{wch:14},{wch:14}];
@@ -3907,11 +3909,12 @@ function rbSendToLetter() {
   if (!trades.length) { alert('No trades to send. Calculate rebalancing first.'); return; }
   const rows = [];
   trades.forEach(t => {
-    const qty = t.h.quantity || t.h.qty || 0;
-    const price = qty > 0 ? (t.h.convertedHoldingValue||0)/qty : 0;
-    const units = price > 0.01 ? Math.floor(t.buyAmt / price) : 0;
-    const amount = units > 0 ? Math.round(units * price) : Math.round(t.buyAmt);
-    if (amount > 0) rows.push({ name: t.h.name, isin: t.h.isin || '', amount });
+    // Support both new format {holding, qty, spent, price} and legacy {h, buyAmt}
+    const holding = t.holding || t.h;
+    const qty     = t.qty !== undefined ? t.qty : (t.price > 0.01 ? Math.floor((t.buyAmt||0) / t.price) : 0);
+    const price   = t.price || (holding?.quantity > 0 ? (holding.convertedHoldingValue||0)/holding.quantity : 0);
+    const amount  = Math.round(qty * price);
+    if (qty > 0 && amount > 0) rows.push({ name: holding?.name||'', isin: holding?.isin||'', amount });
   });
   if (!rows.length) { alert('No valid trades to send.'); return; }
   const letterBtn = document.querySelector('.tab[onclick*="letter"]');
@@ -4050,8 +4053,8 @@ function runRebalance() {
     });
     const totalDeficit = underLines.reduce((s,r)=>s+r.deficit, 0);
 
-    // Per-holding: floor to whole shares
-    const holdingTrades = [];
+    // Per-holding: floor to whole shares — use outer holdingTrades so export can read it
+    holdingTrades.length = 0;  // clear outer array
     let totalSpent = 0;
 
     allLines.forEach(r => {
@@ -4175,6 +4178,7 @@ function runRebalance() {
     // ── Table 3: Portfolio after rebalancing ──────────────────────────────────
     html += `<h4 style="margin:1.5rem 0 0.5rem;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">PORTFOLIO AFTER REBALANCING</h4>`;
     let prows = '';
+    const afterRowsData = [];
     const tradeMap = {};
     holdingTrades.forEach(t => {
       const id = t.holding.isin || t.holding.fundName || t.holding.name;
@@ -4190,6 +4194,7 @@ function runRebalance() {
       const price    = qtyNow > 0 ? (h.convertedHoldingValue||0) / qtyNow : (h.price || h.lastPrice || 0);
       const valAfter = qtyAfter * price;
       const newPct   = actualNewTotal > 0 ? valAfter / actualNewTotal : 0;
+      const beforePct = subsetVal > 0 ? (h.convertedHoldingValue||0) / subsetVal : 0;
       // Find target for this holding
       const sec = h.sector || '';
       const seg = h.bondSeg || '';
@@ -4198,6 +4203,7 @@ function runRebalance() {
       const nH   = line ? Math.max(line.holdings.length,1) : 1;
       const tgtPct = line ? line.tgtPct / nH : null;
       const dev  = tgtPct !== null ? newPct - tgtPct : null;
+      afterRowsData.push({ name: h.fundName||h.name||'', qtyNow, qtyAfter, price: parseFloat(price.toFixed(2)), newVal: Math.round(valAfter), beforePct, newPct, tgtPct, dev });
       prows += tdRow([
         `<span style="font-weight:600">${h.fundName||h.name||''}</span>`,
         qtyNow, qtyAfter,
@@ -4208,6 +4214,7 @@ function runRebalance() {
         dev !== null ? `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>` : '—'
       ], i);
     });
+    window._rbLastAfterRows = afterRowsData;
     prows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right">${fmtUSDabs(Math.round(actualNewTotal))}</td><td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td></tr>`;
     html += tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'], prows);
 
