@@ -4067,10 +4067,10 @@ function runRebalance() {
     });
 
     // Pre-calculate after% for each line
-    realTotal = subsetVal + effectiveBudget;
+    realTotal2 = subsetVal + effectiveBudget;
     allLines.forEach(r => {
       const newVal = r.curVal + r.buyAmt;
-      r.afterPct = realTotal > 0 ? newVal / realTotal : 0;
+      r.afterPct = realTotal2 > 0 ? newVal / realTotal2 : 0;
       r.afterDev = r.afterPct - r.tgtPct;
     });
 
