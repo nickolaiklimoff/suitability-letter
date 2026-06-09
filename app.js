@@ -4038,24 +4038,30 @@ function runRebalance() {
     }
 
     let effectiveBudget = addCash;
-    if (addCash === 0 && totalShortfall > 0) {
-      // Binary search for minimum budget to get all underweight deviations < 1pp
-      let lo = 0, hi = totalShortfall * 4, minBudget = totalShortfall;
-      for (let iter = 0; iter < 50; iter++) {
+    if (addCash === 0) {
+      // Binary search for minimum budget so ALL positions deviate < 1pp
+      // For overweight positions, buying more dilutes them below threshold
+      // hi must be large enough to dilute even the most overweight position
+      let lo = 0, hi = subsetVal * 3;  // up to 3x portfolio size
+      let minBudget = 0;
+      for (let iter = 0; iter < 60; iter++) {
         const mid = (lo + hi) / 2;
-        const devs = computeBuys(mid, allLines);
-        // Only check underweight lines (overweight ones can't be fixed by buying)
-        const maxUnderweightDev = allLines
-          .filter(r => r.holdings.length > 0 && r.curPct < r.tgtPct)
-          .reduce((mx, r, i) => {
-            const nd = (r.curVal+r.buyAmt) / Math.max(subsetVal+mid,1);
-            return Math.max(mx, Math.abs(nd - r.tgtPct));
-          }, 0);
-        if (maxUnderweightDev < TARGET_DEV) { hi = mid; minBudget = mid; }
+        const newTotal = subsetVal + mid;
+        // Recalculate shortfalls for this budget
+        const testLines = allLines.map(r => ({...r, shortfall: r.curPct < r.tgtPct ? Math.max(0, r.tgtPct*newTotal - r.curVal) : 0}));
+        testLines.forEach(r => { if (r.holdings.length===0) r.shortfall=0; });
+        const testSf = testLines.reduce((s,r)=>s+r.shortfall,0);
+        testLines.forEach(r => { r.buyAmt = testSf>0&&mid>0 ? Math.min(r.shortfall,(r.shortfall/testSf)*mid) : 0; });
+        // Check all deviations
+        const maxDev = allLines.reduce((mx, r, i) => {
+          const newVal = r.curVal + (testLines[i]?.buyAmt||0);
+          return Math.max(mx, Math.abs(newVal/Math.max(newTotal,1) - r.tgtPct));
+        }, 0);
+        if (maxDev < TARGET_DEV) { hi = mid; minBudget = mid; }
         else lo = mid;
       }
       effectiveBudget = Math.ceil(minBudget / 100) * 100;
-      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> deviation on underweight positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
+      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> deviation across all positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
 
     // Recalculate shortfalls with actual new total (effectiveBudget now known)
