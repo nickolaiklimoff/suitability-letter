@@ -4297,7 +4297,7 @@ function runRebalance() {
 
   // Store trades for export
   window._rbLastTrades = holdingTrades;
-  window._rbLastAllLines = allLines || [];
+  window._rbLastAllLines = (typeof allLines !== 'undefined' ? allLines : []);
   window._rbLastTradesMode = mode;
 
   // Add export buttons
