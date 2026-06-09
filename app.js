@@ -4061,7 +4061,7 @@ function runRebalance() {
         }, 0);
       }
 
-      let lo = 0, hi = totalShortfall * 5, minBudget = totalShortfall;
+      let lo = 0, hi = subsetVal * 0.5, minBudget = subsetVal * 0.5;  // hi = 50% of portfolio
       for (let iter = 0; iter < 60; iter++) {
         const mid = (lo + hi) / 2;
         if (testUnderweightDev(mid) < TARGET_DEV) { hi = mid; minBudget = mid; }
