@@ -4033,80 +4033,61 @@ function runRebalance() {
       </div>`;
     }
 
-    // ── Compute buy amounts ───────────────────────────────────────────────────
+    // ── Compute buy amounts ─────────────────────────────────────────────────────────────────────────────────
     let effectiveBudget = addCash;
 
     if (addCash === 0) {
-      // Mode 1: Minimum budget — analytical formula
-      // new_total = Σ(overweight curVal) / (1 − Σ(underweight tgtPct))
-      const sumOverVal    = overLines.reduce((s,r)=>s+r.curVal, 0);
-      const sumUnderTgt   = underLines.reduce((s,r)=>s+r.tgtPct, 0);
-      const denominator   = 1 - sumUnderTgt;
-      if (denominator > 0.001) {
-        const newTotal    = sumOverVal / denominator;
-        effectiveBudget   = Math.max(0, newTotal - portfolioTotal);
-      } else {
-        effectiveBudget   = 0;
-      }
+      // Mode 1: Minimum budget - analytical formula
+      // new_total = sum(overweight curVal) / (1 - sum(underweight tgtPct))
+      const overVal  = allLines.filter(r => r.curPct >= r.tgtPct).reduce((s,r)=>s+r.curVal, 0);
+      const underTgt = allLines.filter(r => r.curPct <  r.tgtPct).reduce((s,r)=>s+r.tgtPct, 0);
+      const denom    = 1 - underTgt;
+      const newTotalM1 = denom > 0.001 ? overVal / denom : portfolioTotal;
+      effectiveBudget  = Math.max(0, newTotalM1 - portfolioTotal);
       html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
         💡 Minimum budget to bring all underweight positions to target: <strong>${fmtUSDabs(Math.round(effectiveBudget))}</strong>
       </div>`;
     }
 
+    // KEY: deficit = tgtPct * newTotal - curVal  (newTotal = current + budget)
     const newTotal = portfolioTotal + effectiveBudget;
-
-    // ── Allocate budget proportionally to weight deficit ──────────────────────
-    // deficit[i] = (tgtPct - curPct) × portfolioTotal   (only for underweight)
-    underLines.forEach(r => {
-      r.deficit = (r.tgtPct - r.curPct) * portfolioTotal;
-    });
-    const totalDeficit = underLines.reduce((s,r)=>s+r.deficit, 0);
-
-    // Per-holding: floor to whole shares — use outer holdingTrades so export can read it
-    holdingTrades.length = 0;  // clear outer array
-    let totalSpent = 0;
-
     allLines.forEach(r => {
-      r.buyAmt   = 0;
-      r.sharesBought = 0;
+      r.targetVal = r.tgtPct * newTotal;
+      r.deficit   = Math.max(0, r.targetVal - r.curVal);
     });
+    const underLines2  = allLines.filter(r => r.deficit > 0.01);
+    const totalDeficit = underLines2.reduce((s,r)=>s+r.deficit, 0);
 
-    if (totalDeficit > 0 && effectiveBudget > 0) {
-      underLines.forEach(r => {
-        const lineAlloc = (r.deficit / totalDeficit) * effectiveBudget;
-        let lineSpent = 0;
+    holdingTrades.length = 0;
+    let totalSpent = 0;
+    allLines.forEach(r => { r.buyAmt = 0; });
+
+    if (totalDeficit > 0.01 && effectiveBudget > 0) {
+      const budgetSufficient = effectiveBudget >= totalDeficit;
+      underLines2.forEach(r => {
+        const lineAlloc = budgetSufficient ? r.deficit : (r.deficit / totalDeficit) * effectiveBudget;
+        r.buyAmt = lineAlloc;
         r.holdings.forEach(h => {
           const qty_now = h.quantity || 0;
           const price = qty_now > 0 ? (h.convertedHoldingValue||0) / qty_now : (h.price || h.lastPrice || 0);
           if (price <= 0) return;
-          // Proportional share of this line's alloc by current value weight within line
-          const hShare  = r.curVal > 0 ? (h.convertedHoldingValue||0) / r.curVal : 1 / Math.max(r.holdings.length,1);
-          const hAlloc  = lineAlloc * hShare;
-          const qty     = Math.floor(hAlloc / price);
-          const spent   = qty * price;
-          holdingTrades.push({ holding:h, qty, spent, price });
-          lineSpent += spent;
+          const hShare = r.curVal > 0 ? (h.convertedHoldingValue||0) / r.curVal : 1 / Math.max(r.holdings.length, 1);
+          const hAlloc = lineAlloc * hShare;
+          const qty    = Math.floor(hAlloc / price);
+          const spent  = qty * price;
+          holdingTrades.push({ holding:h, qty, spent, price, alloc:hAlloc });
           totalSpent += spent;
         });
-        r.buyAmt = lineAlloc;  // for table display (before flooring)
-        r.sharesBought = lineAlloc; // placeholder
       });
-
-      // Greedy remainder pass: sort by fractional leftover descending, buy 1 more share if budget allows
-      const remaining = () => effectiveBudget - totalSpent;
-      holdingTrades.sort((a,b) => {
-        const fracA = (a.qty > 0 ? (a.qty * a.price) : 0) % a.price;
-        const fracB = (b.qty > 0 ? (b.qty * b.price) : 0) % b.price;
-        return (a.price - (a.qty > 0 ? a.qty*a.price%a.price : 0)) -
-               (b.price - (b.qty > 0 ? b.qty*b.price%b.price : 0));
-      });
-      holdingTrades.forEach(t => {
-        if (t.price > 0 && remaining() >= t.price) {
-          t.qty   += 1;
-          t.spent += t.price;
-          totalSpent += t.price;
-        }
-      });
+      // Greedy remainder: sort by fractional leftover (alloc mod price) descending
+      holdingTrades
+        .filter(t => t.price > 0)
+        .sort((a,b) => (b.alloc % b.price) - (a.alloc % a.price))
+        .forEach(t => {
+          if (effectiveBudget - totalSpent >= t.price) {
+            t.qty += 1; t.spent += t.price; totalSpent += t.price;
+          }
+        });
     }
 
     // Recalc actual new total after flooring
