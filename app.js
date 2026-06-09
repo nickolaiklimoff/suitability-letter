@@ -4067,7 +4067,7 @@ function runRebalance() {
     });
 
     // Pre-calculate after% for each line
-    const realTotal = subsetVal + effectiveBudget;
+    realTotal = subsetVal + effectiveBudget;
     allLines.forEach(r => {
       const newVal = r.curVal + r.buyAmt;
       r.afterPct = realTotal > 0 ? newVal / realTotal : 0;
