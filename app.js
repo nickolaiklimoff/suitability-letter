@@ -4073,7 +4073,7 @@ function runRebalance() {
       const overweightItems = allLines.filter(r => r.curPct > r.tgtPct + TARGET_DEV);
       if (overweightItems.length) {
         html += `<div style="font-size:12px;color:#856404;background:#fff3cd;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
-          ⚠️ Overweight (require selling): ${overweightItems.map(r=>`${r.label} (${fmtDev(r.curPct-r.tgtPct)})`).join(', ')}
+          ⚠️ Overweight (buy-only mode, no action): ${overweightItems.map(r=>`${r.label} (${fmtDev(r.curPct-r.tgtPct)})`).join(', ')}
         </div>`;
       }
       html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> on underweight positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
@@ -4105,7 +4105,7 @@ function runRebalance() {
 
 
     // Summary
-    const improved = allLines.filter(r => Math.abs(r.afterDev) < Math.abs(r.curPct - r.tgtPct) - 0.001).length;
+    const improved = allLines.filter(r => r.buyAmt >= 10).length;
     const unchanged = allLines.filter(r => r.buyAmt < 10).length;
     html += `<div style="font-size:13px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:10px 14px;margin-bottom:1rem">
       After investing <strong>${fmtUSDabs(effectiveBudget)}</strong>: 
@@ -4121,8 +4121,8 @@ function runRebalance() {
         lastGroup=r.group;
       }
       const dev=r.curPct-r.tgtPct;
-      const afterArrow = r.buyAmt > 10 ? (Math.abs(r.afterDev) < Math.abs(dev) - 0.001 ? '↑' : '→') : '';
-      const afterColor = Math.abs(r.afterDev) < 0.005 ? '#2e7d52' : Math.abs(r.afterDev) < Math.abs(dev) - 0.001 ? '#2e7d52' : devCol(r.afterDev);
+      const afterArrow = r.buyAmt > 10 ? '↑' : '';
+      const afterColor = r.buyAmt > 10 ? (Math.abs(r.afterDev) < 0.005 ? '#2e7d52' : '#2e7d52') : devCol(dev);
       rows+=tdRow([r.label, fmtPctAbs(r.tgtPct), fmtPctAbs(r.curPct),
         `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
         r.buyAmt>10?`<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(r.buyAmt)}</span>`:'—',
