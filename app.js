@@ -4038,41 +4038,39 @@ function runRebalance() {
     }
 
     let effectiveBudget = addCash;
-    if (addCash === 0) {
-      // Find minimum budget so ALL positions (incl. overweight) are within 1pp
-      // Overweight positions get diluted as total grows
-
-      function testMaxDev(budget) {
+    if (addCash === 0 && totalShortfall > 0) {
+      // Find minimum budget so all UNDERWEIGHT positions are within 1pp
+      // Overweight positions are marked separately — can't fix by buying
+      function testUnderweightDev(budget) {
         const nt = subsetVal + budget;
-        // Recalculate shortfalls vs new total
-        const sfs = allLines.map(r => {
-          if (r.holdings.length === 0) return 0;
-          return r.curPct < r.tgtPct ? Math.max(0, r.tgtPct * nt - r.curVal) : 0;
-        });
+        const sfs = allLines.map(r =>
+          (r.holdings.length > 0 && r.curPct < r.tgtPct) ? Math.max(0, r.tgtPct*nt - r.curVal) : 0
+        );
         const totalSf = sfs.reduce((a,b)=>a+b, 0);
-        // Compute new values after buys
         return allLines.reduce((mx, r, i) => {
-          const buy = totalSf > 0 && budget > 0 ? Math.min(sfs[i], (sfs[i]/totalSf)*budget) : 0;
-          const newPct = (r.curVal + buy) / Math.max(nt, 1);
+          if (r.curPct >= r.tgtPct) return mx;  // skip overweight
+          const buy = totalSf>0&&budget>0 ? Math.min(sfs[i],(sfs[i]/totalSf)*budget) : 0;
+          const newPct = (r.curVal+buy) / Math.max(nt,1);
           return Math.max(mx, Math.abs(newPct - r.tgtPct));
         }, 0);
       }
 
-      // Binary search: lo=0 must fail (max dev > 1pp), find min budget where it passes
-      let lo = 0, hi = subsetVal * 5, minBudget = hi;
-      // First verify hi is enough
-      if (testMaxDev(hi) >= TARGET_DEV) {
-        // Extreme case — just use all shortfall
-        minBudget = totalShortfall * 10;
-      } else {
-        for (let iter = 0; iter < 60; iter++) {
-          const mid = (lo + hi) / 2;
-          if (testMaxDev(mid) < TARGET_DEV) { hi = mid; minBudget = mid; }
-          else lo = mid;
-        }
+      let lo = 0, hi = totalShortfall * 5, minBudget = totalShortfall;
+      for (let iter = 0; iter < 60; iter++) {
+        const mid = (lo + hi) / 2;
+        if (testUnderweightDev(mid) < TARGET_DEV) { hi = mid; minBudget = mid; }
+        else lo = mid;
       }
       effectiveBudget = Math.ceil(minBudget / 100) * 100;
-      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> deviation across all positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
+
+      // Identify overweight positions that need selling
+      const overweightItems = allLines.filter(r => r.curPct > r.tgtPct + TARGET_DEV);
+      if (overweightItems.length) {
+        html += `<div style="font-size:12px;color:#856404;background:#fff3cd;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
+          ⚠️ Overweight (require selling): ${overweightItems.map(r=>`${r.label} (${fmtDev(r.curPct-r.tgtPct)})`).join(', ')}
+        </div>`;
+      }
+      html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> on underweight positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
 
     // Recalculate shortfalls with actual new total (effectiveBudget now known)
