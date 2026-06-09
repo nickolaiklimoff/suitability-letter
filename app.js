@@ -4106,6 +4106,8 @@ function runRebalance() {
     html+=tbl(['Segment / Sector','Target','Current','Dev. before','Buy','After %','Dev. after'],rows);
 
     holdingTrades=[];
+    console.log('[rebalance] allLines buyAmts:', allLines.map(r=>({l:r.label,buy:Math.round(r.buyAmt),sf:Math.round(r.shortfall)})));
+    window._rbLastAllLines = allLines;  // save here before holdingTrades check
     allLines.forEach(st=>{
       if(!st.holdings.length||st.buyAmt<10) return;
       const tot=st.holdings.reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
