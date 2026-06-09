@@ -4039,26 +4039,37 @@ function runRebalance() {
 
     let effectiveBudget = addCash;
     if (addCash === 0) {
-      // Binary search for minimum budget so ALL positions deviate < 1pp
-      // For overweight positions, buying more dilutes them below threshold
-      // hi must be large enough to dilute even the most overweight position
-      let lo = 0, hi = subsetVal * 3;  // up to 3x portfolio size
-      let minBudget = 0;
-      for (let iter = 0; iter < 60; iter++) {
-        const mid = (lo + hi) / 2;
-        const newTotal = subsetVal + mid;
-        // Recalculate shortfalls for this budget
-        const testLines = allLines.map(r => ({...r, shortfall: r.curPct < r.tgtPct ? Math.max(0, r.tgtPct*newTotal - r.curVal) : 0}));
-        testLines.forEach(r => { if (r.holdings.length===0) r.shortfall=0; });
-        const testSf = testLines.reduce((s,r)=>s+r.shortfall,0);
-        testLines.forEach(r => { r.buyAmt = testSf>0&&mid>0 ? Math.min(r.shortfall,(r.shortfall/testSf)*mid) : 0; });
-        // Check all deviations
-        const maxDev = allLines.reduce((mx, r, i) => {
-          const newVal = r.curVal + (testLines[i]?.buyAmt||0);
-          return Math.max(mx, Math.abs(newVal/Math.max(newTotal,1) - r.tgtPct));
+      // Find minimum budget so ALL positions (incl. overweight) are within 1pp
+      // Overweight positions get diluted as total grows
+
+      function testMaxDev(budget) {
+        const nt = subsetVal + budget;
+        // Recalculate shortfalls vs new total
+        const sfs = allLines.map(r => {
+          if (r.holdings.length === 0) return 0;
+          return r.curPct < r.tgtPct ? Math.max(0, r.tgtPct * nt - r.curVal) : 0;
+        });
+        const totalSf = sfs.reduce((a,b)=>a+b, 0);
+        // Compute new values after buys
+        return allLines.reduce((mx, r, i) => {
+          const buy = totalSf > 0 && budget > 0 ? Math.min(sfs[i], (sfs[i]/totalSf)*budget) : 0;
+          const newPct = (r.curVal + buy) / Math.max(nt, 1);
+          return Math.max(mx, Math.abs(newPct - r.tgtPct));
         }, 0);
-        if (maxDev < TARGET_DEV) { hi = mid; minBudget = mid; }
-        else lo = mid;
+      }
+
+      // Binary search: lo=0 must fail (max dev > 1pp), find min budget where it passes
+      let lo = 0, hi = subsetVal * 5, minBudget = hi;
+      // First verify hi is enough
+      if (testMaxDev(hi) >= TARGET_DEV) {
+        // Extreme case — just use all shortfall
+        minBudget = totalShortfall * 10;
+      } else {
+        for (let iter = 0; iter < 60; iter++) {
+          const mid = (lo + hi) / 2;
+          if (testMaxDev(mid) < TARGET_DEV) { hi = mid; minBudget = mid; }
+          else lo = mid;
+        }
       }
       effectiveBudget = Math.ceil(minBudget / 100) * 100;
       html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> deviation across all positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
