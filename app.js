@@ -3851,15 +3851,24 @@ function rbExportXlsx() {
 
   // Sheet 1: Allocation Before vs After
   const alloc = window._rbLastAllLines || [];
-  const allocRows = [['Segment / Sector', 'Target %', 'Current %', 'Deviation before', 'Buy (USD)', 'After %', 'Deviation after']];
+  const allocRows = [['Segment / Sector', 'Target %', 'Current %', 'Deviation before', 'Buy (USD)', 'Units to buy', 'After %', 'Deviation after']];
   alloc.forEach(r => {
     const fmt = v => parseFloat((v*100).toFixed(1));
     const fmtDev = v => parseFloat(((v||0)*100).toFixed(1));
+    // Sum units from holdingTrades for this segment
+    const trades = window._rbLastTrades || [];
+    const segUnits = trades.filter(t => {
+      const h = t.holding || t.h;
+      const sec = h?.sector || '';
+      const seg = h?.bondSeg || '';
+      const key = h?.type === 'equity' ? sec : seg;
+      return key === r.label && (t.qty || 0) > 0;
+    }).reduce((s, t) => s + (t.qty || 0), 0);
     allocRows.push([r.label, fmt(r.tgtPct), fmt(r.curPct), fmtDev(r.curPct-r.tgtPct),
-      Math.round(r.buyAmt||0), fmt(r.afterPct||r.curPct), fmtDev(r.afterDev!==undefined?r.afterDev:(r.curPct-r.tgtPct))]);
+      Math.round(r.buyAmt||0), segUnits || '', fmt(r.afterPct||r.curPct), fmtDev(r.afterDev!==undefined?r.afterDev:(r.curPct-r.tgtPct))]);
   });
   const ws1 = XL.utils.aoa_to_sheet(allocRows);
-  ws1['!cols'] = [{wch:30},{wch:10},{wch:10},{wch:16},{wch:12},{wch:10},{wch:14}];
+  ws1['!cols'] = [{wch:30},{wch:10},{wch:10},{wch:16},{wch:12},{wch:14},{wch:10},{wch:14}];
   XL.utils.book_append_sheet(wb, ws1, 'Allocation');
 
   // Sheet 2: Buy Orders
