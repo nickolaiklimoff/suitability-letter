@@ -4058,12 +4058,19 @@ function runRebalance() {
       html+=`<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">💡 Minimum budget for <strong>&lt;1pp</strong> deviation on underweight positions: <strong>${fmtUSDabs(effectiveBudget)}</strong></div>`;
     }
 
-    // Apply final buy amounts
-    console.log('[rebalance] effectiveBudget:', Math.round(effectiveBudget), 'totalShortfall:', Math.round(totalShortfall));
-    const sf = actionableLines.reduce((s,r)=>s+r.shortfall,0);
+    // Recalculate shortfalls with actual new total (effectiveBudget now known)
+    const actualNewTotal = subsetVal + effectiveBudget;
     allLines.forEach(r => {
-      r.buyAmt = r.holdings.length===0 ? 0 :
-        Math.min(r.shortfall, sf>0&&effectiveBudget>0 ? (r.shortfall/sf)*effectiveBudget : 0);
+      const tgtValActual = r.tgtPct * actualNewTotal;
+      r.shortfall = r.curPct < r.tgtPct ? Math.max(0, tgtValActual - r.curVal) : 0;
+      if (r.holdings.length === 0) r.shortfall = 0;
+    });
+
+    // Apply final buy amounts proportional to recalculated shortfalls
+    console.log('[rebalance] effectiveBudget:', Math.round(effectiveBudget), 'actualNewTotal:', Math.round(actualNewTotal));
+    const sf = allLines.reduce((s,r)=>s+r.shortfall, 0);
+    allLines.forEach(r => {
+      r.buyAmt = sf > 0 && effectiveBudget > 0 ? Math.min(r.shortfall, (r.shortfall/sf)*effectiveBudget) : 0;
     });
 
     // Calculate after% for each line using correct new total
