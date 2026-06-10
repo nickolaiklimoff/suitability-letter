@@ -1630,6 +1630,32 @@ window.buildWeightedCountryExposure = function(equityHoldings, perEtfBreakdown) 
     .map(([country, pct]) => ({ country, pct: parseFloat(pct.toFixed(1)) }));
 };
 
+// Map raw country exposure into BCA-style region buckets
+window.mapToBCARegions = function(weighted) {
+  const EURO_AREA = ['Germany','France','Netherlands','Italy','Spain','Ireland','Belgium','Austria','Finland','Portugal','Greece','Luxembourg'];
+  const OTHER_EM  = ['Taiwan','South Korea','India','Brazil','Mexico','Saudi Arabia','South Africa','Indonesia','Thailand','Malaysia','Poland','UAE','Qatar','Kuwait','Philippines','Vietnam'];
+  const OTHER_DM  = ['Switzerland','Sweden','Denmark','Norway','Singapore','Hong Kong','Israel','New Zealand'];
+  const buckets = { 'US':0, 'Euro Area':0, 'Japan':0, 'UK':0, 'Canada':0, 'Australia':0, 'China':0, 'Other EM':0, 'Other DM':0 };
+
+  weighted.forEach(({country, pct}) => {
+    if (country === 'United States') buckets['US'] += pct;
+    else if (country === 'United Kingdom') buckets['UK'] += pct;
+    else if (country === 'Japan') buckets['Japan'] += pct;
+    else if (country === 'Canada') buckets['Canada'] += pct;
+    else if (country === 'Australia') buckets['Australia'] += pct;
+    else if (country === 'China') buckets['China'] += pct;
+    else if (EURO_AREA.includes(country)) buckets['Euro Area'] += pct;
+    else if (OTHER_EM.includes(country)) buckets['Other EM'] += pct;
+    else if (OTHER_DM.includes(country)) buckets['Other DM'] += pct;
+    else buckets['Other EM'] += pct;
+  });
+
+  return Object.entries(buckets)
+    .filter(([,pct]) => pct > 0.05)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([region, pct]) => ({ region, pct: parseFloat(pct.toFixed(1)) }));
+};
+
 window.generatePortfolioReport = async function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
@@ -1724,6 +1750,15 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
                   Based on ${equityHoldings.length} holding${equityHoldings.length>1?'s':''} · Total equity: ${fmtUSD(equityHoldings.reduce((s,h)=>s+(h.convertedHoldingValue||0),0))}
                 </div>
               </div>
+            </div>
+            <div style="margin-top:1.25rem">
+              <div style="font-size:13px;font-weight:600;margin-bottom:0.4rem">By Region (BCA grouping)</div>
+              <table class="report-table">
+                <thead><tr><th>Region</th><th style="text-align:right">% of Equity</th></tr></thead>
+                <tbody>${window.mapToBCARegions(weighted).map(r =>
+                  `<tr><td>${r.region}</td><td style="text-align:right;font-weight:600">${r.pct.toFixed(1)}%</td></tr>`
+                ).join('')}</tbody>
+              </table>
             </div>`;
         }
       }
