@@ -1788,6 +1788,30 @@ window.clearBreakdown = function() {
   document.getElementById('r-clearBreakdown').style.display = 'none';
 };
 
+// ─── Print Suitability Letter (new window, clean PDF) ─────────────────────────
+window.printLetter = function() {
+  const content = document.getElementById('letterOutput');
+  if (!content || !content.innerHTML.trim()) {
+    alert('Please generate the suitability letter first.'); return;
+  }
+  const letterHtml = content.innerHTML;
+  const w = window.open('', '_blank', 'width=900,height=800');
+  if (!w) { alert('Pop-up blocked — please allow pop-ups for this page and try again.'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Suitability Letter</title>
+    <style>
+      body { font-family: Georgia, serif; font-size: 12pt; line-height: 1.6; margin: 2cm 2.5cm; color: #000; }
+      h1, h2, h3 { font-family: Arial, sans-serif; }
+      p { margin: 0 0 1em; }
+      strong { font-weight: 700; }
+      @media print { body { margin: 1.5cm 2cm; } }
+    </style>
+  </head><body>${letterHtml}<script>
+    window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 800); });
+  <\/script></body></html>`);
+  w.document.close();
+};
+
 // ─── Print Report (new window with cover + all sections) ──────────────────────
 window.printReport = function() {
   const content = document.getElementById('r-reportContent');
