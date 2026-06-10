@@ -4145,7 +4145,17 @@ function runRebalance() {
       ], i);
     });
     const totalBuy = allLines.reduce((s,r)=>s+r.buyAmt,0);
-    rows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(Math.round(totalSpent))}</td><td></td><td></td></tr>`;
+    const sumDevBefore = allLines.reduce((s,r) => s + Math.abs(r.curPct - r.tgtPct), 0);
+    const sumDevAfter  = allLines.reduce((s,r) => s + Math.abs(r.afterDev !== undefined ? r.afterDev : (r.curPct - r.tgtPct)), 0);
+    const devImprove   = sumDevBefore > 0 ? Math.round((1 - sumDevAfter/sumDevBefore)*100) : 0;
+    rows += `<tr style="border-top:2px solid var(--border);font-weight:700">
+      <td style="padding:8px 12px">Total</td>
+      <td></td><td></td>
+      <td style="padding:8px 12px;text-align:right;color:#c0392b">±${(sumDevBefore*100).toFixed(1)}pp</td>
+      <td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(Math.round(totalSpent))}</td>
+      <td></td>
+      <td style="padding:8px 12px;text-align:right;color:#2e7d52">±${(sumDevAfter*100).toFixed(1)}pp <span style="font-size:11px;color:#2e7d52">(−${devImprove}%)</span></td>
+    </tr>`;
     html += tbl(['Segment / Sector','Target','Current','Dev. before','Buy','After %','Dev. after'], rows);
 
     // ── Table 2: Buy Orders ───────────────────────────────────────────────────
