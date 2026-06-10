@@ -1572,6 +1572,63 @@ function buildCommentarySection(commentaryText) {
     </div>`;
 }
 
+// ─── Country Exposure via Claude API ──────────────────────────────────────────
+window.fetchCountryExposure = async function(equityHoldings, apiKey) {
+  // equityHoldings: array of {name, ticker, convertedHoldingValue}
+  const items = equityHoldings
+    .filter(h => h.ticker || h.name)
+    .map(h => ({ ticker: h.ticker || '', name: h.name, value: h.convertedHoldingValue || 0 }));
+  if (!items.length) return null;
+
+  const prompt = `You are a financial data assistant. For each ETF/fund below, return the geographic country exposure breakdown (% by country).
+Use your knowledge of the fund's actual portfolio composition as of your training cutoff.
+Group small exposures (<1%) into "Other".
+Return ONLY a JSON object, no preamble, no markdown fences.
+Format: { "TICKER_OR_NAME": { "United States": 62.3, "Japan": 5.4, "Other": 3.1, ... }, ... }
+If a fund is 100% one country, still list it.
+
+Funds:
+${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return parsed;
+  } catch(e) {
+    console.warn('[countryExposure] API error:', e);
+    return null;
+  }
+};
+
+// Build weighted country exposure from per-ETF breakdown + holding values
+window.buildWeightedCountryExposure = function(equityHoldings, perEtfBreakdown) {
+  const totalVal = equityHoldings.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
+  if (totalVal <= 0) return null;
+  const weighted = {};
+  equityHoldings.forEach(h => {
+    const key = h.ticker || h.name;
+    // Try ticker first, then name match
+    const breakdown = perEtfBreakdown[h.ticker] || perEtfBreakdown[h.name]
+      || Object.entries(perEtfBreakdown).find(([k]) => h.name.includes(k) || k.includes(h.ticker||'__'))?.[1];
+    if (!breakdown) return;
+    const weight = h.convertedHoldingValue / totalVal;
+    Object.entries(breakdown).forEach(([country, pct]) => {
+      weighted[country] = (weighted[country] || 0) + pct * weight;
+    });
+  });
+  // Sort by weight desc
+  return Object.entries(weighted)
+    .sort((a,b) => b[1]-a[1])
+    .map(([country, pct]) => ({ country, pct: parseFloat(pct.toFixed(1)) }));
+};
+
 window.generatePortfolioReport = async function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null) {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
@@ -1620,6 +1677,57 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     const rec = bm.bondSegments?.[s]||0, cli = bondSegments[s]||0, dev = cli - rec;
     return `<tr><td>${s}</td><td>${fmtPct(rec)}</td><td>${fmtPct(cli)}</td><td style="color:${devColor(dev)}">${fmtDev(dev)}</td></tr>`;
   }).join('');
+
+  // ── Country Exposure (equity funds + stocks) ──────────────────────────────
+  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
+  const equityHoldings = [...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]
+    .filter(h => (h.convertedHoldingValue||0) > 0);
+  let countryHtml = '';
+  if (equityHoldings.length > 0 && apiKey) {
+    try {
+      const perEtf = await window.fetchCountryExposure(equityHoldings, apiKey);
+      if (perEtf) {
+        window._lastCountryExposure = perEtf;
+        const weighted = window.buildWeightedCountryExposure(equityHoldings, perEtf);
+        if (weighted && weighted.length) {
+          // Pie chart via SVG
+          const colors = ['#2c5f2e','#4a90d9','#e8a838','#c0392b','#8e44ad','#16a085','#d35400','#2980b9','#27ae60','#7f8c8d','#bdc3c7'];
+          const total = weighted.reduce((s,r) => s+r.pct, 0);
+          // SVG pie
+          let svgSlices = '', cx = 110, cy = 110, r = 95, startAngle = -Math.PI/2;
+          weighted.forEach((item, i) => {
+            const sliceAngle = (item.pct / total) * 2 * Math.PI;
+            const endAngle = startAngle + sliceAngle;
+            const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+            const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle);
+            const largeArc = sliceAngle > Math.PI ? 1 : 0;
+            svgSlices += `<path d="M${cx},${cy} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${largeArc},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z" fill="${colors[i%colors.length]}" stroke="#fff" stroke-width="1.5"/>`;
+            startAngle = endAngle;
+          });
+          const pieSvg = `<svg width="220" height="220" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">${svgSlices}</svg>`;
+          // Legend table
+          const legendRows = weighted.map((item, i) =>
+            `<tr><td style="padding:3px 8px 3px 0;display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${colors[i%colors.length]};flex-shrink:0"></span>
+              ${item.country}</td>
+             <td style="padding:3px 0;text-align:right;font-weight:600">${item.pct.toFixed(1)}%</td></tr>`
+          ).join('');
+          countryHtml = `
+            <div style="display:flex;align-items:flex-start;gap:2rem;flex-wrap:wrap">
+              <div style="flex-shrink:0">${pieSvg}</div>
+              <div style="flex:1;min-width:200px">
+                <table style="font-size:12px;border-collapse:collapse;width:100%">
+                  <tbody>${legendRows}</tbody>
+                </table>
+                <div style="margin-top:0.75rem;font-size:11px;color:#888">
+                  Based on ${equityHoldings.length} holding${equityHoldings.length>1?'s':''} · Total equity: ${fmtUSD(equityHoldings.reduce((s,h)=>s+(h.convertedHoldingValue||0),0))}
+                </div>
+              </div>
+            </div>`;
+        }
+      }
+    } catch(e) { console.warn('[countryExposure]', e); }
+  }
 
   // Performance: cost basis helper
   const getCostBasis = (h) => h.type === 'bond'
@@ -1829,6 +1937,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr><th>Equity Sector</th><th>${clientIR} Rec.</th><th>Client (% of port.)</th><th>Deviation</th></tr></thead>
           <tbody>${sectorRows}</tbody>
         </table>
+      </div>
+
+        <div class="report-section report-section-numbered">
+        <div class="report-section-title">3b. Equity — Geographic Exposure</div>
+        ${countryHtml || '<p style="color:#888;font-size:13px">Country exposure data not available (API key required)</p>'}
       </div>
 
       <div class="report-section report-section-numbered">
