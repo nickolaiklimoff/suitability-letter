@@ -564,8 +564,43 @@ function buildIncomeMap(portfolioData) {
   return map;
 }
 
+// ─── Sector Exposure for broad equity ETFs (real composition, not benchmark proxy) ──
+window.fetchSectorExposure = async function(broadHoldings, apiKey) {
+  // broadHoldings: array of {name, ticker}
+  const items = broadHoldings.filter(h => h.ticker || h.name);
+  if (!items.length) return null;
+
+  const SECTORS = ['Info Tech','Financials','Health Care','Consumer Discretionary','Industrials',
+    'Communication Services','Consumer Staples','Energy','Materials','Utilities','Real Estate'];
+
+  const prompt = `You are a financial data assistant. For each broad equity ETF/fund below, return its actual GICS sector breakdown (% of equity exposure by sector), based on your knowledge of the fund's real holdings.
+Use ONLY these 11 sector names exactly: ${SECTORS.join(', ')}.
+Percentages for each fund should sum to approximately 100.
+Return ONLY a JSON object, no preamble, no markdown fences.
+Format: { "TICKER_OR_NAME": { "Info Tech": 25.1, "Financials": 17.8, ... }, ... }
+
+Funds:
+${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { console.warn('[sectorExposure] API error:', data); return null; }
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch(e) {
+    console.warn('[sectorExposure] error:', e);
+    return null;
+  }
+};
+
 // ─── Calculate analytics ──────────────────────────────────────────────────────
-window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR) {
+window.calculatePortfolioAnalytics = async function(portfolioData, irRatings, clientIR, apiKey) {
   const { holdings, cash, totalValue } = portfolioData;
 
   const classified = holdings.map(h => ({
@@ -606,15 +641,34 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
     {label:'Utilities',w:0.027},{label:'Real Estate',w:0.017},
   ];
 
+  // For broad ETFs, fetch real sector composition (instead of using benchmark weights as a proxy)
+  const broadHoldings = classified.filter(h => h.assetClass==='equity' && h.sector==='__broad__');
+  let realSectorBreakdown = null;
+  if (broadHoldings.length && apiKey) {
+    realSectorBreakdown = await window.fetchSectorExposure(
+      broadHoldings.map(h => ({ name: h.name, ticker: h.ticker })), apiKey
+    );
+    window._lastSectorExposure = realSectorBreakdown;
+  }
+
   const sectors = {};
   classified.filter(h=>h.assetClass==='equity'&&h.sector).forEach(h => {
     if (h.sector === '__broad__') {
-      // Distribute proportionally across all benchmark sectors
-      BM_SECTORS.forEach(s => {
-        const key = s.label;
-        const w = s.w || s[1] || 0;
-        sectors[key] = (sectors[key]||0) + (h.convertedHoldingValue/grandTotal) * w;
-      });
+      // Try real breakdown first; fall back to benchmark weights as proxy
+      const real = realSectorBreakdown && (realSectorBreakdown[h.ticker] || realSectorBreakdown[h.name]
+        || Object.entries(realSectorBreakdown).find(([k]) => h.name.includes(k) || (h.ticker && k.includes(h.ticker)))?.[1]);
+      const weights = real || BM_SECTORS;
+      if (real) {
+        Object.entries(real).forEach(([key, pct]) => {
+          sectors[key] = (sectors[key]||0) + (h.convertedHoldingValue/grandTotal) * (pct/100);
+        });
+      } else {
+        BM_SECTORS.forEach(s => {
+          const key = s.label;
+          const w = s.w || s[1] || 0;
+          sectors[key] = (sectors[key]||0) + (h.convertedHoldingValue/grandTotal) * w;
+        });
+      }
     } else {
       sectors[h.sector] = (sectors[h.sector]||0) + h.convertedHoldingValue/grandTotal;
     }
