@@ -1103,7 +1103,7 @@ window.runPortfolioReport = async function() {
     const depositData = getDepositData();
     window._lastDepositData = depositData;
 
-    const analytics = calculatePortfolioAnalytics(portfolioData, irRatings, clientIR);
+    const analytics = await calculatePortfolioAnalytics(portfolioData, irRatings, clientIR, apiKey);
 
     const reportDate = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
     const dataDate = reportDate;
