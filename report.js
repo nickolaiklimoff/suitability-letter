@@ -578,9 +578,24 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
   const bondValue   = classified.filter(h => h.assetClass==='bond').reduce((s,h)=>s+h.convertedHoldingValue,0);
   const cashValue   = cash;
 
-  const equityPct = totalValue > 0 ? equityValue/totalValue : 0;
-  const bondPct   = totalValue > 0 ? bondValue/totalValue : 0;
-  const cashPct   = totalValue > 0 ? cashValue/totalValue : 0;
+  // Deposits: classified as Cash — included in allocation %, totalValue, and WAAR
+  const depositCash = window._lastDepositData ? (() => {
+    const dd = window._lastDepositData;
+    const FX = window._liveEurUsd ? {USD:1,EUR:window._liveEurUsd,GBP:1.34,CHF:1.12} : {USD:1,EUR:1.16,GBP:1.34,CHF:1.12};
+    const portFx = FX[portfolioData.reportCcy || 'USD'] || 1;
+    let total = 0;
+    [...(dd.currentAccounts||[]),...(dd.timeDeposits||[])].forEach(r => {
+      total += r.amount * (FX[r.ccy]||1) / portFx;
+    });
+    return total;
+  })() : 0;
+
+  // Grand total = securities + cash + deposits; all allocation % and WAAR computed on this base
+  const grandTotal = totalValue + depositCash;
+
+  const equityPct = grandTotal > 0 ? equityValue/grandTotal : 0;
+  const bondPct   = grandTotal > 0 ? bondValue/grandTotal   : 0;
+  const cashPct   = grandTotal > 0 ? (cashValue + depositCash)/grandTotal : 0;
 
   // Benchmark sector weights for distributing broad ETFs
   const BM_SECTORS = window.BP_SECTORS || [
@@ -598,41 +613,28 @@ window.calculatePortfolioAnalytics = function(portfolioData, irRatings, clientIR
       BM_SECTORS.forEach(s => {
         const key = s.label;
         const w = s.w || s[1] || 0;
-        sectors[key] = (sectors[key]||0) + (h.convertedHoldingValue/totalValue) * w;
+        sectors[key] = (sectors[key]||0) + (h.convertedHoldingValue/grandTotal) * w;
       });
     } else {
-      sectors[h.sector] = (sectors[h.sector]||0) + h.convertedHoldingValue/totalValue;
+      sectors[h.sector] = (sectors[h.sector]||0) + h.convertedHoldingValue/grandTotal;
     }
   });
 
-  // Deposits: added to cover page total only — do NOT affect allocation % or analytics
-  const depositCash = window._lastDepositData ? (() => {
-    const dd = window._lastDepositData;
-    const FX = window._liveEurUsd ? {USD:1,EUR:window._liveEurUsd,GBP:1.34,CHF:1.12} : {USD:1,EUR:1.16,GBP:1.34,CHF:1.12};
-    const portFx = FX[portfolioData.reportCcy || 'USD'] || 1;
-    let total = 0;
-    [...(dd.currentAccounts||[]),...(dd.timeDeposits||[])].forEach(r => {
-      total += r.amount * (FX[r.ccy]||1) / portFx;
-    });
-    return total;
-  })() : 0;
-
-  // All analytics (allocation %, sectors, bond segments, WAAR) use securities-only totalValue
+  // Bond segments expressed as % of grandTotal (consistent with bondPct)
   const bondSegments = {};
   classified.filter(h=>h.assetClass==='bond'&&h.bondSegment).forEach(h => {
-    bondSegments[h.bondSegment] = (bondSegments[h.bondSegment]||0) + h.convertedHoldingValue/totalValue;
+    bondSegments[h.bondSegment] = (bondSegments[h.bondSegment]||0) + h.convertedHoldingValue/grandTotal;
   });
 
-  const waarNum = classified.reduce((s,h)=>s+h.irRating*h.convertedHoldingValue,0);
-  const waar = totalValue > 0 ? waarNum/totalValue : 0;
-
-  // totalValue for cover page includes deposits; analytics percentages stay securities-only
-  const totalWithDeposits = totalValue + depositCash;
+  // WAAR includes securities (classified) + cash + deposits, all rated 1 for cash-like assets
+  const waarNum = classified.reduce((s,h)=>s+h.irRating*h.convertedHoldingValue,0)
+                + (cashValue + depositCash) * 1;
+  const waar = grandTotal > 0 ? waarNum/grandTotal : 0;
 
   return { classified, equityValue, bondValue, cashValue,
            equityPct, bondPct, cashPct,
            sectors, bondSegments, waar,
-           totalValue: totalWithDeposits, securitiesTotalValue: totalValue };
+           totalValue: grandTotal, securitiesTotalValue: totalValue };
 };
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
