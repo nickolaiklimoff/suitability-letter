@@ -3643,7 +3643,22 @@ function importFromPortfolioReport() {
   }
   const allH = [...(pd.bonds||[]), ...(pd.funds||[]), ...(pd.stocks||[])];
   const filtered = allH.filter(h => Math.round(h.convertedHoldingValue || h.holdingValue || 0) > 0);
-  if (!filtered.length) { alert('Portfolio is empty.'); return; }
+
+  // Cash + deposits: classified as Cash, risk rating 1
+  const cashVal = Math.round(pd.cash || 0);
+  let depositVal = 0;
+  if (window._lastDepositData) {
+    const dd = window._lastDepositData;
+    const FX = window._liveEurUsd ? {USD:1,EUR:window._liveEurUsd,GBP:1.34,CHF:1.12} : {USD:1,EUR:1.16,GBP:1.34,CHF:1.12};
+    const portFx = FX[pd.reportCcy || 'USD'] || 1;
+    [...(dd.currentAccounts||[]),...(dd.timeDeposits||[])].forEach(r => {
+      depositVal += r.amount * (FX[r.ccy]||1) / portFx;
+    });
+    depositVal = Math.round(depositVal);
+  }
+  const totalCash = cashVal + depositVal;
+
+  if (!filtered.length && totalCash <= 0) { alert('Portfolio is empty.'); return; }
 
   const tbody = document.getElementById('l-existingRows');
   if (!tbody) return;
@@ -3661,8 +3676,21 @@ function importFromPortfolioReport() {
     if (inputs[2]) { inputs[2].value = val; inputs[2].dispatchEvent(new Event('input')); }
   });
 
+  // Add Cash & Deposits row with risk rating 1
+  if (totalCash > 0) {
+    addExistingRow();
+    const rows = tbody.querySelectorAll('tr');
+    const lastRow = rows[rows.length - 1];
+    const inputs = lastRow.querySelectorAll('input');
+    if (inputs[0]) inputs[0].value = '';
+    if (inputs[1]) inputs[1].value = 'Cash & Deposits';
+    if (inputs[2]) { inputs[2].value = totalCash; inputs[2].dispatchEvent(new Event('input')); }
+    if (inputs[3]) { inputs[3].value = 1; inputs[3].dispatchEvent(new Event('input')); }
+  }
+
+  const totalCount = filtered.length + (totalCash > 0 ? 1 : 0);
   const statusEl = document.getElementById('existingStatus');
-  if (statusEl) statusEl.textContent = `✓ ${filtered.length} holdings imported from Portfolio Report`;
+  if (statusEl) statusEl.textContent = `✓ ${totalCount} holdings imported from Portfolio Report` + (totalCash > 0 ? ` (incl. Cash & Deposits: ${fmtUSD(totalCash)})` : '');
 }
 
 function importModelFromBasePortfolios() {
