@@ -292,6 +292,17 @@ window.parseCbondsExport = function(file) {
         }
 
         // Attach dividends using normalised name matching
+        // FIX: unrealizedPnL/realizedPnL/interestIncome for funds & stocks come in the
+        // fund's TRADING currency (r[7]/r[8]/r[9]), while convertedHoldingValue is in USD.
+        // Convert PnL fields to USD using the same FX ratio as the holding value conversion,
+        // otherwise GBP/EUR-denominated funds understate Cost Basis and distort Total PnL.
+        [...funds, ...stocks].forEach(h => {
+          const fx = h.holdingValueOrig > 0 ? h.convertedHoldingValue / h.holdingValueOrig : 1;
+          h.unrealizedPnL    = (h.unrealizedPnLOrig    || 0) * fx;
+          h.realizedPnL      = (h.realizedPnLOrig      || 0) * fx;
+          h.interestIncome   = (h.interestIncomeOrig   || 0) * fx;
+        });
+
         stocks.forEach(h => {
           h.dividendsPaid = getDivForHolding(h);
           h.totalPnL = h.unrealizedPnL + h.realizedPnL + h.dividendsPaid;
@@ -1822,9 +1833,14 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   }
 
   // Performance: cost basis helper
+  // Bonds: purchasePrice is in % of face, always quoted in the bond's own currency
+  // (typically same as portfolio currency for USD bonds — no FX issue there).
+  // Funds/Stocks: purchasePrice*quantity is in the fund's TRADING currency, while
+  // convertedHoldingValue is in USD. Deriving cost from (value - PnL), both in USD
+  // (unrealizedPnL was converted to USD above), avoids the currency mismatch.
   const getCostBasis = (h) => h.type === 'bond'
     ? (h.purchasePrice/100) * h.faceValueNum
-    : h.purchasePrice * (h.quantity||0);
+    : h.convertedHoldingValue - h.unrealizedPnL;
 
   // Bonds performance
   const bondPerfRows = (portfolioData.bonds||[]).map(h => {
