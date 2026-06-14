@@ -3291,12 +3291,16 @@ window.saveDepositData = function() {
 function makeEmptyRow(isDeposit) {
   const ccyOpts = ['USD','EUR','GBP','CHF'].map(c=>`<option>${c}</option>`).join('');
   const extraFields = isDeposit ? `
+    <input type="text" class="deposit-bank" placeholder="Bank name" oninput="saveDepositData()"
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:130px">
     <input type="date" class="deposit-date-start" title="Start date" oninput="saveDepositData()"
       style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:110px">
     <input type="date" class="deposit-date-end" title="Maturity date" oninput="saveDepositData()"
       style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:110px">
     <input type="number" class="deposit-rate" placeholder="Rate %" step="0.01" min="0" oninput="saveDepositData()"
-      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:72px">` : '';
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:72px">` :
+    `<input type="text" class="deposit-bank" placeholder="Bank name" oninput="saveDepositData()"
+      style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:160px">`;
   const row = document.createElement('div');
   row.className = 'deposit-row';
   row.style.cssText = 'display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;align-items:center';
@@ -3339,6 +3343,8 @@ window.loadDepositData = function() {
       if (ccySel) ccySel.value = r.ccy || 'USD';
       const amtEl = row.querySelector('.deposit-amount');
       if (amtEl && r.amount) amtEl.value = r.amount;
+      const bankEl = row.querySelector('.deposit-bank');
+      if (bankEl && r.bank) bankEl.value = r.bank;
       if (isDeposit) {
         const ds = row.querySelector('.deposit-date-start');
         const de = row.querySelector('.deposit-date-end');
@@ -3387,6 +3393,8 @@ function readDepositRows(containerId) {
     const amt = parseFloat(row.querySelector('.deposit-amount')?.value);
     if (!ccy || isNaN(amt) || amt <= 0) return;
     const entry = { ccy, amount: amt };
+    const bank = row.querySelector('.deposit-bank')?.value?.trim();
+    if (bank) entry.bank = bank;
     if (isDeposit) {
       const ds = row.querySelector('.deposit-date-start')?.value;
       const de = row.querySelector('.deposit-date-end')?.value;
