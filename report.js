@@ -575,6 +575,17 @@ function buildIncomeMap(portfolioData) {
   return map;
 }
 
+// ─── Robust JSON parser — handles trailing commas, truncated responses ─────────
+function parseClaudeJSON(text) {
+  const clean = text.replace(/```json|```/g, '').trim();
+  try { return JSON.parse(clean); } catch(e) {}
+  const fixed = clean.replace(/,\s*([}\]])/g, '$1').replace(/,?\s*$/, '');
+  let opens=0,closes=0,aOpens=0,aCloses=0;
+  for (const c of fixed) { if(c==='{')opens++; if(c==='}')closes++; if(c==='[')aOpens++; if(c===']')aCloses++; }
+  const padded = fixed + '}'.repeat(Math.max(0,opens-closes)) + ']'.repeat(Math.max(0,aOpens-aCloses));
+  try { return JSON.parse(padded); } catch(e2) { console.warn('[parseClaudeJSON]',e2.message); return null; }
+}
+
 // ─── Sector Exposure for broad equity ETFs (real composition, not benchmark proxy) ──
 window.fetchSectorExposure = async function(broadHoldings, apiKey) {
   // broadHoldings: array of {name, ticker}
@@ -597,13 +608,12 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
     if (!resp.ok) { console.warn('[sectorExposure] API error:', data); return null; }
     const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
+    return parseClaudeJSON(text);
   } catch(e) {
     console.warn('[sectorExposure] error:', e);
     return null;
@@ -1520,7 +1530,7 @@ window.extractChartAnalytics = async function(chartSrc, apiKey, portCcy) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 1000,
+        max_tokens: 2000,
         messages: [{
           role: 'user',
           content: [
@@ -1661,14 +1671,12 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
     if (!resp.ok) { console.warn('[countryExposure] API error:', data); return null; }
     const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    return parsed;
+    return parseClaudeJSON(text);
   } catch(e) {
     console.warn('[countryExposure] API error:', e);
     return null;
