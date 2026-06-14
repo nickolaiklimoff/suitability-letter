@@ -2127,7 +2127,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
           <tbody>${fundPerfRows}
-            <tr style="font-weight:600;background:#f5f0eb">
+            <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
               <td colspan="7">Funds total</td>
               <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
               <td>${fmtUSD(fundTotIncome)}</td>
