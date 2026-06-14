@@ -2450,6 +2450,50 @@ window.exportReportToWord = async function() {
         }));
       }
 
+      // Special handling for 3b Geographic Exposure — SVG pie not exportable, build tables from data
+      if (titleEl && titleEl.innerText.includes('Geographic Exposure')) {
+        const perEtf = window._lastCountryExposure;
+        const equityHoldings = [...((window._lastPortfolioData?.funds)||[]), ...((window._lastPortfolioData?.stocks)||[])]
+          .filter(h => (h.convertedHoldingValue||0) > 0);
+        if (perEtf && equityHoldings.length) {
+          const weighted = window.buildWeightedCountryExposure(equityHoldings, perEtf);
+          const regions  = window.mapToBCARegions(weighted);
+          if (weighted?.length) {
+            // Table 1: by country
+            const mkRow = (cells, isHdr) => new D.TableRow({ children: cells.map((txt, ci) => new D.TableCell({
+              width: { size: ci===0 ? 8000 : 3000, type: D.WidthType.DXA },
+              borders: { top: hairBorder, bottom: hairBorder, left: noBorder, right: noBorder },
+              shading: isHdr ? { fill: BRAND_HDR, type: D.ShadingType.CLEAR } : undefined,
+              margins: { top: 60, bottom: 60, left: 120, right: 120 },
+              children: [new D.Paragraph({ children: [new D.TextRun({ text: txt, bold: isHdr, size: isHdr?18:17, font:'Georgia', color: isHdr?BRAND:'000000' })] })],
+            })) });
+            children.push(new D.Table({
+              width: { size: 11000, type: D.WidthType.DXA },
+              columnWidths: [8000, 3000],
+              rows: [
+                mkRow(['Country', '% of Equity'], true),
+                ...weighted.map(r => mkRow([r.country, r.pct.toFixed(1)+'%'], false)),
+              ],
+            }));
+            children.push(spacer());
+            // Table 2: by BCA region
+            children.push(new D.Paragraph({ children: [new D.TextRun({ text: 'By Region (BCA grouping)', bold: true, size: 19, color: BRAND, font: 'Georgia' })], spacing: { before: pt(6), after: pt(3) } }));
+            children.push(new D.Table({
+              width: { size: 11000, type: D.WidthType.DXA },
+              columnWidths: [8000, 3000],
+              rows: [
+                mkRow(['Region', '% of Equity'], true),
+                ...regions.map(r => mkRow([r.region, r.pct.toFixed(1)+'%'], false)),
+              ],
+            }));
+            children.push(spacer());
+          }
+        } else {
+          children.push(new D.Paragraph({ children: [new D.TextRun({ text: 'Country exposure data not available.', size: 18, font: 'Georgia', color: '888888' })], spacing: { after: pt(6) } }));
+        }
+        continue; // skip normal processNode for this section
+      }
+
       // Walk all descendant content
       function processNode(node) {
         if (!node) return;
