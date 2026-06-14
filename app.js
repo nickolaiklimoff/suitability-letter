@@ -1847,6 +1847,12 @@ window.printReport = function() {
 
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* CSS custom properties for report components */
+    :root {
+      --bg1: #FAF7F4; --bg2: #f5f0eb; --bg3: #ede8e3;
+      --border: #d9d0c7; --text1: #2C2C2C; --text2: #5C5148; --text3: #8B7A68;
+    }
+
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
     @page :first { margin: 0; }
 
