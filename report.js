@@ -874,9 +874,11 @@ async function buildDepositsSection(depositData, baseCcy) {
     if (!rows.length) return '';
     let total = 0;
     const showExtra = isDeposit && rows.some(r => r.dateStart || r.dateEnd || r.rate);
+    const showBank  = rows.some(r => r.bank);
     const rowHtml = rows.map(r => {
       const inBase = r.amount * (FX_TO_USD[r.ccy] || 1) / FX_FROM_BASE;
       total += inBase;
+      const bankCell = showBank ? `<td style="color:var(--text2);font-size:12px">${r.bank || '—'}</td>` : '';
       const extra = showExtra ? `
         <td style="text-align:center;color:var(--text3);font-size:11px">${r.dateStart ? new Date(r.dateStart).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
         <td style="text-align:center;color:var(--text3);font-size:11px">${r.dateEnd ? new Date(r.dateEnd).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
@@ -884,10 +886,12 @@ async function buildDepositsSection(depositData, baseCcy) {
       return `<tr>
         <td>${r.ccy}</td>
         <td style="text-align:right">${fmtAmt(r.ccy, r.amount)}</td>
+        ${bankCell}
         <td style="text-align:right;color:var(--text3);font-size:12px">${fmtAmt(baseCcy, Math.round(inBase))} equiv.</td>
         ${extra}
       </tr>`;
     }).join('');
+    const bankHeader = showBank ? `<th>Bank</th>` : '';
     const extraHeaders = showExtra ? `
       <th style="text-align:center">Start date</th>
       <th style="text-align:center">Maturity</th>
@@ -899,13 +903,14 @@ async function buildDepositsSection(depositData, baseCcy) {
           <thead><tr>
             <th>Currency</th>
             <th style="text-align:right">Amount</th>
+            ${bankHeader}
             <th style="text-align:right">${baseCcy} Equivalent</th>
             ${extraHeaders}
           </tr></thead>
           <tbody>
             ${rowHtml}
             <tr style="border-top:2px solid #d9d0c7;font-weight:600">
-              <td colspan="${showExtra ? 5 : 2}">Total</td>
+              <td colspan="${(showExtra ? 5 : 2) + (showBank ? 1 : 0)}">Total</td>
               <td style="text-align:right">${fmtAmt(baseCcy, Math.round(total))}</td>
             </tr>
           </tbody>
