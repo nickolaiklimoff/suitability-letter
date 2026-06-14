@@ -80,7 +80,7 @@ function buildRiskAnalysisSection(a, portfolioData) {
               <td style="color:${c};font-weight:${fw}">${item.pct.toFixed(1)}%</td>
             </tr>`;
           }).join('')}
-          <tr style="font-weight:600;background:var(--bg2)">
+          <tr style="font-weight:600;background:#f5f0eb">
             <td colspan="2">Portfolio Volatility (annualised)</td>
             <td colspan="2">${(rc.portVol*100).toFixed(1)}%</td>
           </tr>
@@ -780,7 +780,7 @@ function buildCouponsSection(couponRows) {
           </tr></thead>
           <tbody>
             ${rows}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="5">Total</td>
               <td>${fmtAmt(total)}</td>
             </tr>
@@ -832,7 +832,7 @@ function buildDividendsSection(divRows) {
           </tr></thead>
           <tbody>
             ${rows}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="6">Total</td>
               <td>${fmtAmt(total)}</td>
             </tr>
@@ -904,7 +904,7 @@ async function buildDepositsSection(depositData, baseCcy) {
           </tr></thead>
           <tbody>
             ${rowHtml}
-            <tr style="border-top:2px solid var(--border);font-weight:600">
+            <tr style="border-top:2px solid #d9d0c7;font-weight:600">
               <td colspan="${showExtra ? 5 : 2}">Total</td>
               <td style="text-align:right">${fmtAmt(baseCcy, Math.round(total))}</td>
             </tr>
@@ -927,7 +927,7 @@ async function buildDepositsSection(depositData, baseCcy) {
       ${buildTable(currentAccounts, 'Current Accounts', false)}
       ${buildTable(timeDeposits, 'Time Deposits', true)}
       ${grandTotal > 0 ? `
-      <div style="background:var(--bg2);border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <div style="background:#f5f0eb;border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
         <span style="font-weight:600;color:var(--text1)">Total Cash &amp; Deposits</span>
         <span style="font-weight:700;font-size:16px;color:var(--brand)">${fmtAmt(baseCcy, Math.round(grandTotal))}</span>
       </div>` : ''}
@@ -1028,7 +1028,7 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
           </tr></thead>
           <tbody>
             ${tableRows}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="4">Weighted-average duration</td>
               <td colspan="2">${wavgDur} yrs</td>
             </tr>
@@ -1826,7 +1826,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
                 </div>
               </div>
             </div>
-            <div style="margin-top:1.25rem">
+              <div style="margin-top:1.25rem;page-break-before:always">
               <div style="font-size:13px;font-weight:600;margin-bottom:0.4rem">By Region (BCA grouping)</div>
               <table class="report-table">
                 <thead><tr><th>Region</th><th style="text-align:right">% of Equity</th></tr></thead>
@@ -2080,7 +2080,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <th>Unrealized PnL</th><th>Coupons Paid</th><th>Total PnL</th><th>Total PnL %</th>
           </tr></thead>
           <tbody>${bondPerfRows}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="8">Bonds total</td>
               <td style="color:${bondTotUnreal>=0?'#3b6d11':'#a32d2d'}">${bondTotUnreal>=0?'+':''}${fmtUSD(bondTotUnreal)}</td>
               <td>${fmtUSD(bondTotIncome)}</td>
@@ -2101,7 +2101,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <th>Unrealized PnL</th><th>Realized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="7">Stocks total</td>
               <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${stockTotUnreal>=0?'+':'−'}${fmtUSD(stockTotUnreal)}</td>
               <td style="color:${stockTotReal>=0?'#3b6d11':'#a32d2d'}">${stockTotReal!==0?(stockTotReal>=0?'+':'−')+fmtUSD(stockTotReal):'—'}</td>
@@ -2122,7 +2122,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
           <tbody>${fundPerfRows}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="7">Funds total</td>
               <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fundTotUnreal>=0?'+':''}${fmtUSD(fundTotUnreal)}</td>
               <td>${fmtUSD(fundTotIncome)}</td>
@@ -2157,7 +2157,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${fmtUSD(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
             </tr>` : ''}
-            <tr style="font-weight:600;background:var(--bg2)">
+            <tr style="font-weight:600;background:#f5f0eb">
               <td>PORTFOLIO TOTAL</td>
               <td>${fmtUSD(totalValue)}</td>
               <td>${fmtUSD(totalCostBasis)}</td>
