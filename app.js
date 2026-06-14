@@ -1947,6 +1947,11 @@ window.printReport = function() {
 
     /* ── Tables ── */
     .report-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 0.5rem; }
+    @media print {
+      .report-table thead { display: table-header-group; }
+      .report-table tr { page-break-inside: avoid; break-inside: avoid; }
+      .report-table tbody tr:last-child { page-break-before: avoid; break-before: avoid; }
+    }
     .report-table th {
       background: #5A7259;
       color: #fff;
