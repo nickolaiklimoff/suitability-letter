@@ -4451,12 +4451,13 @@ function runRebalance() {
       const price    = qtyNow > 0 ? (h.convertedHoldingValue||0) / qtyNow : (h.price || h.lastPrice || 0);
       const valAfter = qtyAfter * price;
       const newPct   = actualNewTotal > 0 ? valAfter / actualNewTotal : 0;
+      const beforePct = sleeveTotal > 0 ? (h.convertedHoldingValue||0) / sleeveTotal : 0;
       const sec = h.sector || '';
       const line = allLines.find(r => r.label === sec);
       const nH   = line ? Math.max(line.holdings.length,1) : 1;
       const tgtPct = line ? line.tgtPct / nH : null;
       const dev  = tgtPct !== null ? newPct - tgtPct : null;
-      afterRowsData.push({ name: h.fundName||h.name||'', qtyNow, qtyAfter, price: parseFloat(price.toFixed(2)), newVal: Math.round(valAfter), newPct, tgtPct, dev });
+      afterRowsData.push({ name: h.fundName||h.name||'', qtyNow, qtyAfter, price: parseFloat(price.toFixed(2)), newVal: Math.round(valAfter), beforePct, newPct, tgtPct, dev });
       prows += tdRow([
         `<span style="font-weight:600">${h.fundName||h.name||''}</span>`,
         qtyNow, qtyAfter,
