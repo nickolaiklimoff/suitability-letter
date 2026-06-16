@@ -4432,6 +4432,45 @@ function runRebalance() {
       html += tbl(['Holding','Price per unit','Units to buy','Amount'], brows);
     }
 
+    // ── Table 3: Equity portfolio after rebalancing ───────────────────────────
+    html += `<h4 style="margin:1.5rem 0 0.5rem;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">EQUITY PORTFOLIO AFTER REBALANCING</h4>`;
+    let prows = '';
+    const afterRowsData = [];
+    const tradeMap = {};
+    holdingTrades.forEach(t => {
+      const id = t.holding.isin || t.holding.fundName || t.holding.name;
+      if (!tradeMap[id]) tradeMap[id] = { qty:0, spent:0 };
+      tradeMap[id].qty   += t.qty;
+      tradeMap[id].spent += t.spent;
+    });
+    eqHoldings.forEach((h,i) => {
+      const id  = h.isin || h.fundName || h.name;
+      const tr  = tradeMap[id] || { qty:0, spent:0 };
+      const qtyNow   = h.quantity || h.qty || 0;
+      const qtyAfter = qtyNow + tr.qty;
+      const price    = qtyNow > 0 ? (h.convertedHoldingValue||0) / qtyNow : (h.price || h.lastPrice || 0);
+      const valAfter = qtyAfter * price;
+      const newPct   = actualNewTotal > 0 ? valAfter / actualNewTotal : 0;
+      const sec = h.sector || '';
+      const line = allLines.find(r => r.label === sec);
+      const nH   = line ? Math.max(line.holdings.length,1) : 1;
+      const tgtPct = line ? line.tgtPct / nH : null;
+      const dev  = tgtPct !== null ? newPct - tgtPct : null;
+      afterRowsData.push({ name: h.fundName||h.name||'', qtyNow, qtyAfter, price: parseFloat(price.toFixed(2)), newVal: Math.round(valAfter), newPct, tgtPct, dev });
+      prows += tdRow([
+        `<span style="font-weight:600">${h.fundName||h.name||''}</span>`,
+        qtyNow, qtyAfter,
+        fmtUSDabs(price),
+        fmtUSDabs(Math.round(valAfter)),
+        fmtPctAbs2(newPct),
+        tgtPct !== null ? fmtPctAbs2(tgtPct) : '—',
+        dev !== null ? `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>` : '—'
+      ], i);
+    });
+    window._rbLastAfterRows = afterRowsData;
+    prows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right">${fmtUSDabs(Math.round(actualNewTotal))}</td><td style="padding:8px 12px;text-align:right">100%</td><td></td><td></td></tr>`;
+    html += tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'], prows);
+
     window._rbLastAllLines = allLines;
   }
 
