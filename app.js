@@ -4055,8 +4055,8 @@ function runRebalance() {
 
   // ── Summary header ────────────────────────────────────────────────────────
   // Will be updated after effectiveBudget is known
-  const summaryPlaceholder = '___SUMMARY___';
-  html += summaryPlaceholder;
+  // Note: summary blocks (overweight warning, min budget, after-investing) are
+  // appended directly via html += inside each mode branch below.
 
   if (mode === 'full') {
     // ── Full allocation: buy-only rebalance vs IR benchmark ───────────────────
@@ -4290,6 +4290,139 @@ function runRebalance() {
     html += tbl(['Holding','Qty now','Qty after','Price','Value after','% after','Target %','Deviation'], prows);
 
     window._rbLastAllLines = allLines;  // save for Excel export
+  } else {
+    // ── Equity sleeve only: buy-only rebalance of equity sectors vs IR benchmark ──
+    const bm = (window._benchmark||{})[ir] || {};
+    const wSum = BP_SECTORS ? BP_SECTORS.reduce((s,x)=>s+x.w,0) : 1;
+
+    const allLines = [];
+    const sectorMap = {};
+    eqHoldings.forEach(h => {
+      const sec = h.sector || '';
+      (sectorMap[sec]||(sectorMap[sec]=[])).push(h);
+    });
+
+    const sleeveTotal = eqValue;  // base for current weights = equity sleeve only
+    if (BP_SECTORS) BP_SECTORS.forEach(s => {
+      // Within equity sleeve, target % = sector weight normalized to 100% of equity
+      const tgtPct = (bm.sectors?.[s.label] !== undefined ? bm.sectors[s.label] : W.eq*(s.w/wSum)) / (W.eq || 0.515);
+      const hh     = sectorMap[s.label] || [];
+      const curVal = hh.reduce((a,h)=>a+(h.convertedHoldingValue||0),0);
+      const curPct = sleeveTotal > 0 ? curVal / sleeveTotal : 0;
+      allLines.push({ label:s.label, tgtPct, curPct, curVal, holdings:hh });
+    });
+
+    const overweightItems = allLines.filter(r => r.curPct > r.tgtPct + 0.005);
+    if (overweightItems.length) {
+      html += `<div style="font-size:12px;color:#856404;background:#fff3cd;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
+        ⚠️ Overweight (buy-only mode, no action): ${overweightItems.map(r=>`${r.label} (+${((r.curPct-r.tgtPct)*100).toFixed(1)}pp)`).join(', ')}
+      </div>`;
+    }
+
+    let effectiveBudget = addCash;
+    if (addCash === 0) {
+      const underLines0 = allLines.filter(r => r.curPct < r.tgtPct);
+      const overLines0  = allLines.filter(r => r.curPct >= r.tgtPct);
+      const overVal  = overLines0.reduce((s,r)=>s+r.curVal, 0);
+      const underTgt = underLines0.reduce((s,r)=>s+r.tgtPct, 0);
+      const denom    = 1 - underTgt;
+      const newTotalM1 = denom > 0.001 ? overVal / denom : sleeveTotal;
+      effectiveBudget  = Math.max(0, newTotalM1 - sleeveTotal);
+      html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
+        💡 Minimum budget to bring all underweight equity sectors to target: <strong>${fmtUSDabs(Math.round(effectiveBudget))}</strong>
+      </div>`;
+    }
+
+    const newTotal = sleeveTotal + effectiveBudget;
+    allLines.forEach(r => {
+      r.targetVal = r.tgtPct * newTotal;
+      r.deficit   = Math.max(0, r.targetVal - r.curVal);
+    });
+    const underLines2  = allLines.filter(r => r.deficit > 0.01);
+    const totalDeficit = underLines2.reduce((s,r)=>s+r.deficit, 0);
+
+    holdingTrades = [];
+    let totalSpent = 0;
+    allLines.forEach(r => { r.buyAmt = 0; });
+
+    if (totalDeficit > 0.01 && effectiveBudget > 0) {
+      const budgetSufficient = effectiveBudget >= totalDeficit;
+      underLines2.forEach(r => {
+        const lineAlloc = budgetSufficient ? r.deficit : (r.deficit / totalDeficit) * effectiveBudget;
+        r.buyAmt = lineAlloc;
+        r.holdings.forEach(h => {
+          const qty_now = h.quantity || 0;
+          const price = qty_now > 0 ? (h.convertedHoldingValue||0) / qty_now : (h.price || h.lastPrice || 0);
+          if (price <= 0) return;
+          const hShare = r.curVal > 0 ? (h.convertedHoldingValue||0) / r.curVal : 1 / Math.max(r.holdings.length, 1);
+          const hAlloc = lineAlloc * hShare;
+          const qty    = Math.floor(hAlloc / price);
+          const spent  = qty * price;
+          holdingTrades.push({ holding:h, qty, spent, price, alloc:hAlloc });
+          totalSpent += spent;
+        });
+      });
+      holdingTrades
+        .filter(t => t.price > 0)
+        .sort((a,b) => (b.alloc % b.price) - (a.alloc % a.price))
+        .forEach(t => {
+          if (effectiveBudget - totalSpent >= t.price) {
+            t.qty += 1; t.spent += t.price; totalSpent += t.price;
+          }
+        });
+    }
+
+    const actualNewTotal = sleeveTotal + totalSpent;
+    allLines.forEach(r => {
+      r.afterVal = r.curVal + r.buyAmt;
+      r.afterPct = actualNewTotal > 0 ? r.afterVal / actualNewTotal : 0;
+      r.afterDev = r.afterPct - r.tgtPct;
+    });
+
+    const improved = allLines.filter(r => r.buyAmt >= 1).length;
+    const unchanged = allLines.filter(r => r.buyAmt < 1).length;
+    html += `<div style="font-size:13px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:10px 14px;margin-bottom:1rem">
+      After investing <strong>${fmtUSDabs(Math.round(totalSpent))}</strong> (unspent: ${fmtUSDabs(Math.round(effectiveBudget - totalSpent))}):
+      <span style="color:#2e7d52;font-weight:600">${improved} sectors buying</span> ·
+      <span style="color:var(--text3)">${unchanged} sectors unchanged (overweight or at target)</span>
+    </div>`;
+
+    html += `<h4 style="margin:0 0 0.5rem;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">EQUITY SLEEVE VS IR${ir} BENCHMARK</h4>`;
+    let rows = '';
+    const fmtPctAbs2 = v => (v*100).toFixed(1)+'%';
+    allLines.forEach((r,i) => {
+      const dev = r.curPct - r.tgtPct;
+      const hasBuy = r.buyAmt >= 1;
+      const afterColor = Math.abs(r.afterDev) < 0.005 ? '#2e7d52' : devCol(r.afterDev);
+      rows += tdRow([
+        r.label,
+        fmtPctAbs2(r.tgtPct),
+        fmtPctAbs2(r.curPct),
+        `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`,
+        hasBuy ? `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(Math.round(r.buyAmt))}</span>` : '—',
+        hasBuy ? `<span style="color:${afterColor};font-weight:600">${fmtPctAbs2(r.afterPct)} ↑</span>` : `<span style="color:var(--text3)">${fmtPctAbs2(r.curPct)}</span>`,
+        hasBuy ? `<span style="color:${afterColor}">${fmtDev(r.afterDev)}</span>` : `<span style="color:${devCol(dev)}">${fmtDev(dev)}</span>`
+      ], i);
+    });
+    rows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total</td><td></td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(Math.round(totalSpent))}</td><td></td><td></td></tr>`;
+    html += tbl(['Equity Sector','Target','Current','Dev. before','Buy','After %','Dev. after'], rows);
+
+    const activeTrades = holdingTrades.filter(t => t.qty > 0);
+    if (activeTrades.length) {
+      html += `<h4 style="margin:1.5rem 0 0.5rem;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3)">BUY ORDERS</h4>`;
+      let brows = '';
+      activeTrades.forEach((t,i) => {
+        brows += tdRow([
+          `<span style="font-weight:600">${t.holding.fundName||t.holding.name||''}</span>`,
+          fmtUSDabs(t.price), `${t.qty} units`,
+          `<span style="color:#2e7d52;font-weight:600">+${fmtUSDabs(Math.round(t.spent))}</span>`
+        ], i);
+      });
+      brows += `<tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:8px 12px">Total buys</td><td></td><td></td><td style="padding:8px 12px;text-align:right;color:#2e7d52">+${fmtUSDabs(Math.round(totalSpent))}</td></tr>`;
+      html += tbl(['Holding','Price per unit','Units to buy','Amount'], brows);
+    }
+
+    window._rbLastAllLines = allLines;
   }
 
   // Store trades for export
