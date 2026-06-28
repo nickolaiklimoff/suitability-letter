@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1781596957">
+<link rel="stylesheet" href="style.css?v=1782640059">
 <body>
 <div class="app">
 
@@ -378,9 +378,17 @@
 
         <div class="form-card">
           <h3>Report details</h3>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <input type="checkbox" id="r-showClientName" checked style="width:14px;height:14px;cursor:pointer">
             <label for="r-showClientName" style="font-size:12px;cursor:pointer;color:var(--text2)">Show client name on cover page</label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <input type="checkbox" id="r-generateCommentary" checked style="width:14px;height:14px;cursor:pointer">
+            <label for="r-generateCommentary" style="font-size:12px;cursor:pointer;color:var(--text2)">Generate AI commentary (requires API key)</label>
+          </div>
+          <div class="field">
+            <label>Portfolio inception date <span style="font-weight:400;color:var(--text3)">(optional — used for annualized return calculation)</span></label>
+            <input type="date" id="r-inceptionDate" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);width:160px">
           </div>
           <div class="field">
             <label>Client IR rating (for benchmark comparison)</label>
@@ -884,10 +892,10 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1781596957"></script>
+<script src="waar.js?v=1782640059"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1781596957"></script>
-<script src="app.js?v=1781596957"></script>
+<script src="report.js?v=1782640059"></script>
+<script src="app.js?v=1782640059"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
