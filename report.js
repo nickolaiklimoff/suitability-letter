@@ -1522,7 +1522,7 @@ function computeRiskContribution(positions, assetRetsMap, portfolioData, EUR_USD
 }
 
 // ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
-function buildAnalyticsSection(a, ccy, waarAssessment, clientIR) {
+function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, portfolioData) {
   const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
   const pct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + '%';
   const fmt = v => sym + Math.round(Math.abs(v)).toLocaleString('en-US');
@@ -1592,6 +1592,7 @@ function buildAnalyticsSection(a, ccy, waarAssessment, clientIR) {
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
+      ${tradeRows && portfolioData ? buildIRRSection(tradeRows, [], portfolioData) : ''}
 
     </div>`;
 }
@@ -2072,7 +2073,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     const realReturn = totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn;
     const realSharpe = a.vol > 0 ? (realReturn - (a.rf || 0.026)) / a.vol : a.sharpe;
     const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
-    analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR);
+    analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
     }
@@ -2269,7 +2270,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             </tr>
           </tbody>
         </table>
-        ${buildIRRSection(portfolioData.tradeRows || [], portfolioData.holdings || [], portfolioData)}
+        ${buildIRRSection.removed || ''}
       </div>
 
       ${breakdownSrc ? `
