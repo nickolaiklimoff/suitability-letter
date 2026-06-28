@@ -2169,7 +2169,16 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fmtUSD(totalIncome)}</td>
               <td style="color:${totalUnrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${totalUnrealizedPnL>=0?'+':''}${fmtUSD(totalUnrealizedPnL)}</td>
               <td style="color:${pc}">${totalPnL>=0?'+':''}${fmtUSD(totalPnL)}</td>
-              <td style="color:${pc}">${totalPnL>=0?'+':''}${totalPnLPct}</td>
+              <td style="color:${pc}">${totalPnL>=0?'+':''}${totalPnLPct}${(() => {
+                const inception = window._inceptionDate;
+                if (!inception || !totalCostBasis || totalCostBasis <= 0) return '';
+                const years = (Date.now() - new Date(inception).getTime()) / (365.25 * 24 * 3600 * 1000);
+                if (years < 0.05) return '';
+                const totalReturn = totalValue / totalCostBasis;
+                const annualized = (Math.pow(totalReturn, 1/years) - 1) * 100;
+                const c2 = annualized >= 0 ? '#3b6d11' : '#a32d2d';
+                return ` <span style="font-size:10px;color:${c2};font-weight:400">(${annualized>=0?'+':''}${annualized.toFixed(1)}% p.a.)</span>`;
+              })()}</td>
             </tr>
           </tbody>
         </table>
