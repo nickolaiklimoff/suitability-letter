@@ -1138,6 +1138,8 @@ window.runPortfolioReport = async function() {
     window._lastPortfolioData = portfolioData;
     window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
     const showClientName = document.getElementById('r-showClientName')?.checked !== false;
+    const inceptionDate  = document.getElementById('r-inceptionDate')?.value || null;
+    window._inceptionDate = inceptionDate;
     const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
     document.getElementById('r-reportContent').innerHTML = html;
     // Store key metrics for commentary generation
@@ -1171,7 +1173,9 @@ window.runPortfolioReport = async function() {
     }
 
     // Auto-generate commentary AFTER full analytics (so it has complete data)
-    autoGenerateCommentary();
+    if (document.getElementById('r-generateCommentary')?.checked !== false) {
+      autoGenerateCommentary();
+    }
 
     // Reset display currency to report base currency
     _displayCcy = portCcy;
