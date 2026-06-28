@@ -2082,7 +2082,28 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     const rf2 = a.rf || 0.026;
     // Annualize realReturn (period may be <1 year)
     const periodYears = a.n && a.freq ? a.n / a.freq : 1;
-    const annRealReturn = periodYears > 0.1 ? (Math.pow(1 + realReturn, 1/periodYears) - 1) : realReturn;
+    // Use IRR as the return for Sharpe if trade history available — it's the most accurate annualized return
+    let annRealReturn = periodYears > 0.1 ? (Math.pow(1 + realReturn, 1/periodYears) - 1) : realReturn;
+    if (portfolioData.tradeRows?.length > 0) {
+      const _today = new Date();
+      const _cfByDate = {};
+      portfolioData.tradeRows.forEach(r => {
+        const _date = r[0] ? new Date(r[0]) : null;
+        const _dir = String(r[2]||'').trim().toLowerCase();
+        const _val = parseFloat(r[15]) || parseFloat(r[12]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
+        if (!_date || !_val || isNaN(_val)) return;
+        const _key = _date.toISOString().slice(0,10);
+        _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
+      });
+      const _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v})).sort((a,b)=>a.date-b.date);
+      const _totalCV = [...(portfolioData.bonds||[]),...(portfolioData.funds||[]),...(portfolioData.stocks||[])].reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
+      const _income = (portfolioData.coupons||0)+(portfolioData.dividends||0);
+      if (_totalCV > 0) {
+        _cfs.push({date:_today, amount:_totalCV+_income});
+        const _irr = computeIRR(_cfs);
+        if (_irr !== null && Math.abs(_irr) < 5) annRealReturn = _irr;
+      }
+    }
     const realSharpe = a.vol > 0 ? (annRealReturn - rf2) / a.vol : a.sharpe;
     const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
     analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData);
