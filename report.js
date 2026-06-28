@@ -1009,19 +1009,24 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
 
   const fmtIRR = v => `${v>=0?'+':''}${(v*100).toFixed(1)}%`;
   const irrColor = v => v >= 0 ? '#3b6d11' : '#a32d2d';
+  const simpleAnn = years > 0 ? (Math.pow(totalCurrentValue / totalInvested, 1/years) - 1) : 0;
 
   return `
     <div class="report-section" style="margin-top:1rem;margin-bottom:0.5rem">
-      <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start">
-        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:180px">
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
+        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:160px">
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Portfolio IRR (MWR)</div>
-          <div style="font-size:26px;font-weight:700;color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">Since ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
+          <div style="font-size:24px;font-weight:700;color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Weighted by timing of each injection</div>
         </div>
-        <div style="font-size:11px;color:var(--text3);max-width:340px;padding-top:4px;line-height:1.6">
-          Money-Weighted Return accounts for the timing of each capital injection.
-          Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates,
-          total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>.
+        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:160px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Ann. return (TWR proxy)</div>
+          <div style="font-size:24px;font-weight:700;color:${irrColor(simpleAnn)}">${fmtIRR(simpleAnn)} p.a.</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Since ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);max-width:300px;padding-top:4px;line-height:1.6">
+          IRR accounts for timing — large recent injections reduce it. Ann. return treats all capital as invested from day one.
+          Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates, total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>.
         </div>
       </div>
     </div>`;
