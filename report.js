@@ -993,9 +993,12 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   // Add current portfolio value as final inflow
   const totalCurrentValue = [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]
     .reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
-  if (totalCurrentValue <= 0) return '';
+  // Add already-received income (coupons + dividends) — these are real cash returns not in holdingValue
+  const totalIncome = (portfolioData.coupons || 0) + (portfolioData.dividends || 0);
+  const totalFinalInflow = totalCurrentValue + totalIncome;
+  if (totalFinalInflow <= 0) return '';
 
-  cashflows.push({ date: today, amount: totalCurrentValue });
+  cashflows.push({ date: today, amount: totalFinalInflow });
 
   const portfolioIRR = computeIRR(cashflows);
   if (portfolioIRR === null) return '';
@@ -1005,11 +1008,9 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   const firstDate = cashflows[0].date;
   const years = (today - firstDate) / (365.25*24*3600*1000);
   const netInvested = totalInvested - totalReturned;
-  const simpleReturn = netInvested > 0 ? (totalCurrentValue / netInvested - 1) : 0;
-
+  const simpleAnn = years > 0 ? (Math.pow(totalFinalInflow / totalInvested, 1/years) - 1) : 0;
   const fmtIRR = v => `${v>=0?'+':''}${(v*100).toFixed(1)}%`;
   const irrColor = v => v >= 0 ? '#3b6d11' : '#a32d2d';
-  const simpleAnn = years > 0 ? (Math.pow(totalCurrentValue / totalInvested, 1/years) - 1) : 0;
 
   return `
     <div class="report-section" style="margin-top:1rem;margin-bottom:0.5rem">
