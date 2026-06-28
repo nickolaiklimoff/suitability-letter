@@ -968,10 +968,16 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
 
   // Aggregate all trades by date → net cash flows
   const cfByDate = {};
+  let debugCount = 0;
   tradeRows.forEach(r => {
     const date = r[0] ? new Date(r[0]) : null;
     const dir  = String(r[2]||'').trim().toLowerCase();
-    const value = parseFloat(r[15]) || parseFloat(r[12]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
+    // Try all possible trade value columns
+    const v15 = parseFloat(r[15]);
+    const v12 = parseFloat(r[12]);
+    const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
+    const value = (!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc;
+    if (debugCount < 3) { console.log('[IRR] row sample:', {date, dir, r6:r[6], r7:r[7], r12:r[12], r15:r[15], value}); debugCount++; }
     if (!date || !value || isNaN(value)) return;
     const key = date.toISOString().slice(0,10);
     const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
