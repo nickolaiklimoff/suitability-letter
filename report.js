@@ -1018,16 +1018,13 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
         <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:160px">
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Portfolio IRR (MWR)</div>
           <div style="font-size:24px;font-weight:700;color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Weighted by timing of each injection</div>
-        </div>
-        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:160px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Ann. return (TWR proxy)</div>
-          <div style="font-size:24px;font-weight:700;color:${irrColor(simpleAnn)}">${fmtIRR(simpleAnn)} p.a.</div>
           <div style="font-size:10px;color:var(--text3);margin-top:3px">Since ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
         </div>
-        <div style="font-size:11px;color:var(--text3);max-width:300px;padding-top:4px;line-height:1.6">
-          IRR accounts for timing — large recent injections reduce it. Ann. return treats all capital as invested from day one.
-          Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates, total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>.
+        <div style="font-size:11px;color:var(--text3);max-width:320px;padding-top:4px;line-height:1.6">
+          Money-Weighted Return — accounts for the timing of each capital injection.
+          Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates,
+          total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>,
+          income received <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
         </div>
       </div>
     </div>`;
