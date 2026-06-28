@@ -965,88 +965,66 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   if (!tradeRows || tradeRows.length === 0) return '';
 
   const today = new Date();
-  // Build per-holding cash flows from trade history
-  const holdingMap = {};
+
+  // Aggregate all trades by date → net cash flows
+  const cfByDate = {};
   tradeRows.forEach(r => {
-    const date  = r[0] ? new Date(r[0]) : null;
-    const dir   = String(r[2]||'').trim().toLowerCase();
-    const name  = String(r[4]||'').trim();
+    const date = r[0] ? new Date(r[0]) : null;
+    const dir  = String(r[2]||'').trim().toLowerCase();
     const value = parseFloat(r[15]) || parseFloat(r[12]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
-    if (!date || !name || !value) return;
-    if (!holdingMap[name]) holdingMap[name] = { cashflows: [], currentValue: 0 };
-    // Buy = outflow (negative), Sell = inflow (positive)
-    holdingMap[name].cashflows.push({
-      date,
-      amount: dir === 'buy' ? -Math.abs(value) : Math.abs(value)
-    });
+    if (!date || !value || isNaN(value)) return;
+    const key = date.toISOString().slice(0,10);
+    const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
+    cfByDate[key] = (cfByDate[key] || 0) + cf;
   });
 
-  // Match current values from holdings
-  const allH = [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])];
-  allH.forEach(h => {
-    const name = h.name || h.fundName || '';
-    // Try exact match first, then partial
-    const key = Object.keys(holdingMap).find(k => k === name || name.includes(k.slice(0,20)) || k.includes(name.slice(0,20)));
-    if (key) holdingMap[key].currentValue = h.convertedHoldingValue || 0;
-  });
+  const cashflows = Object.entries(cfByDate)
+    .map(([d, amount]) => ({ date: new Date(d), amount }))
+    .sort((a,b) => a.date - b.date);
 
-  // Compute IRR per holding
-  const rows = Object.entries(holdingMap)
-    .map(([name, data]) => {
-      if (!data.currentValue || data.cashflows.length === 0) return null;
-      const cfs = [...data.cashflows.sort((a,b) => a.date-b.date)];
-      cfs.push({ date: today, amount: data.currentValue });
-      const irr = computeIRR(cfs);
-      const totalInvested = Math.abs(cfs.filter(c=>c.amount<0).reduce((s,c)=>s+c.amount,0));
-      const firstDate = cfs[0].date;
-      const years = (today - firstDate) / (365.25*24*3600*1000);
-      return { name, irr, totalInvested, currentValue: data.currentValue, firstDate, years };
-    })
-    .filter(r => r && r.irr !== null && r.years > 0.05)
-    .sort((a,b) => b.currentValue - a.currentValue);
+  if (!cashflows.length) return '';
 
-  if (!rows.length) return '';
+  // Add current portfolio value as final inflow
+  const totalCurrentValue = [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]
+    .reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
+  if (totalCurrentValue <= 0) return '';
 
-  // Portfolio-level IRR
-  const allCFs = [];
-  Object.values(holdingMap).forEach(data => {
-    data.cashflows.forEach(cf => allCFs.push(cf));
-    if (data.currentValue) allCFs.push({ date: today, amount: data.currentValue });
-  });
-  allCFs.sort((a,b) => a.date-b.date);
-  const portfolioIRR = computeIRR(allCFs);
+  cashflows.push({ date: today, amount: totalCurrentValue });
 
-  const fmtIRR = v => v === null ? '—' : `${v>=0?'+':''}${(v*100).toFixed(1)}%`;
-  const irrColor = v => v === null ? '#888' : v >= 0 ? '#3b6d11' : '#a32d2d';
+  const portfolioIRR = computeIRR(cashflows);
+  if (portfolioIRR === null) return '';
 
-  const tRows = rows.map((r,i) => `<tr>
-    <td style="min-width:180px">${r.name}</td>
-    <td style="text-align:right;color:var(--text3);font-size:11px">${r.firstDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</td>
-    <td style="text-align:right">${fmtUSD(Math.round(r.totalInvested))}</td>
-    <td style="text-align:right">${fmtUSD(Math.round(r.currentValue))}</td>
-    <td style="text-align:right;font-weight:600;color:${irrColor(r.irr)}">${fmtIRR(r.irr)} p.a.</td>
-  </tr>`).join('');
+  const totalInvested = cashflows.filter(c=>c.amount<0).reduce((s,c)=>s-c.amount,0);
+  const totalReturned = cashflows.filter(c=>c.amount>0 && c.date<today).reduce((s,c)=>s+c.amount,0);
+  const firstDate = cashflows[0].date;
+  const years = (today - firstDate) / (365.25*24*3600*1000);
+  const netInvested = totalInvested - totalReturned;
+  const simpleReturn = netInvested > 0 ? (totalCurrentValue / netInvested - 1) : 0;
+
+  const fmtIRR = v => `${v>=0?'+':''}${(v*100).toFixed(1)}%`;
+  const irrColor = v => v >= 0 ? '#3b6d11' : '#a32d2d';
 
   return `
-    <div class="report-section report-section-numbered" style="page-break-before:always">
-      <div class="report-section-title">11b. Performance by Holding (IRR)</div>
-      <p style="font-size:11px;color:var(--text3);margin-bottom:0.75rem">
-        Money-weighted return (IRR) per holding, based on actual trade dates and amounts from trade history.
-        ${portfolioIRR !== null ? `Portfolio IRR: <strong style="color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</strong>` : ''}
-      </p>
-      <table class="report-table">
-        <thead><tr>
-          <th>Holding</th>
-          <th style="text-align:right">First purchase</th>
-          <th style="text-align:right">Total invested (USD)</th>
-          <th style="text-align:right">Current value (USD)</th>
-          <th style="text-align:right">IRR p.a.</th>
-        </tr></thead>
-        <tbody>${tRows}</tbody>
-      </table>
+    <div class="report-section" style="margin-bottom:1.5rem">
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start">
+        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:180px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Portfolio IRR (MWR)</div>
+          <div style="font-size:26px;font-weight:700;color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Since ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
+        </div>
+        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:180px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Simple return</div>
+          <div style="font-size:26px;font-weight:700;color:${irrColor(simpleReturn)}">${fmtIRR(simpleReturn)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Total over ${years.toFixed(1)} yr${years>=2?'s':''}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);max-width:320px;padding-top:4px;line-height:1.6">
+          IRR (Money-Weighted Return) accounts for the timing of each capital injection.
+          Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates,
+          total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>.
+        </div>
+      </div>
     </div>`;
 }
-
 function buildTradesSection(tradeRows) {
   if (!tradeRows || tradeRows.length === 0) return '';
 
@@ -2290,6 +2268,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             </tr>
           </tbody>
         </table>
+        ${buildIRRSection(portfolioData.tradeRows || [], portfolioData.holdings || [], portfolioData)}
       </div>
 
       ${breakdownSrc ? `
@@ -2309,8 +2288,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       ${buildCouponsSection(portfolioData.couponRows || [])}
 
       ${buildDividendsSection(portfolioData.divRows || [])}
-
-      ${buildIRRSection(portfolioData.tradeRows || [], portfolioData.holdings || [], portfolioData)}
 
       ${buildTradesSection(portfolioData.tradeRows || [])}
 
