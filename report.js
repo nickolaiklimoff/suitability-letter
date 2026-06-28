@@ -1272,7 +1272,10 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     const realReturn = costBasis > 0 ? totalPnL/costBasis : 0;
     const rfRates = {USD:0.043, EUR:0.026, GBP:0.044, CHF:0.008};
     const rf = rfRates[portfolioData.reportCcy||'USD'] || 0.043;
-    const sharpe = vol > 0 ? (realReturn - rf)/vol : 0;
+    // Annualize realReturn before comparing to annual rf and annual vol
+    const yearsFA = weightedRets.length > 0 ? (new Date(weightedRets[weightedRets.length-1].date) - new Date(weightedRets[0].date)) / (365.25*24*3600*1000) : 1;
+    const annReturnFA = yearsFA > 0.1 ? (Math.pow(1 + realReturn, 1/yearsFA) - 1) : realReturn;
+    const sharpe = vol > 0 ? (annReturnFA - rf)/vol : 0;
 
     // Max drawdown
     const equity = [1.0];
@@ -1665,8 +1668,10 @@ Include one data point per month (or more if visible). Be precise about values.`
     const variance = rets.reduce((s,r)=>s+(r-mean)**2,0)/(n-1);
     const vol = Math.sqrt(variance * freq);
     const totalReturn = (vals[vals.length-1]-vals[0])/vals[0];
-    const rfPer = rf/freq;
-    const sharpe = (totalReturn - rf) / vol;
+    // Annualize total return for Sharpe (compare apples to apples with annual rf and annual vol)
+    const years = n / freq;
+    const annReturn = years > 0 ? (Math.pow(1 + totalReturn, 1/years) - 1) : totalReturn;
+    const sharpe = vol > 0 ? (annReturn - rf) / vol : 0;
 
     // Max drawdown
     let peak=vals[0], maxDD=0, peakIdx=0, ddStart=dates[0], ddTrough=dates[0];
@@ -2074,7 +2079,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   if (portfolioData._analytics) {
     const a = portfolioData._analytics;
     const realReturn = totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn;
-    const realSharpe = a.vol > 0 ? (realReturn - (a.rf || 0.026)) / a.vol : a.sharpe;
+    const rf2 = a.rf || 0.026;
+    // Annualize realReturn (period may be <1 year)
+    const periodYears = a.n && a.freq ? a.n / a.freq : 1;
+    const annRealReturn = periodYears > 0.1 ? (Math.pow(1 + realReturn, 1/periodYears) - 1) : realReturn;
+    const realSharpe = a.vol > 0 ? (annRealReturn - rf2) / a.vol : a.sharpe;
     const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
     analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData);
     if (a.mode === 'full' && a.riskContrib) {
