@@ -1005,20 +1005,15 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   const irrColor = v => v >= 0 ? '#3b6d11' : '#a32d2d';
 
   return `
-    <div class="report-section" style="margin-bottom:1.5rem">
+    <div class="report-section" style="margin-top:1rem;margin-bottom:0.5rem">
       <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start">
         <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:180px">
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Portfolio IRR (MWR)</div>
           <div style="font-size:26px;font-weight:700;color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</div>
           <div style="font-size:11px;color:var(--text3);margin-top:4px">Since ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
         </div>
-        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:180px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Simple return</div>
-          <div style="font-size:26px;font-weight:700;color:${irrColor(simpleReturn)}">${fmtIRR(simpleReturn)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">Total over ${years.toFixed(1)} yr${years>=2?'s':''}</div>
-        </div>
-        <div style="font-size:11px;color:var(--text3);max-width:320px;padding-top:4px;line-height:1.6">
-          IRR (Money-Weighted Return) accounts for the timing of each capital injection.
+        <div style="font-size:11px;color:var(--text3);max-width:340px;padding-top:4px;line-height:1.6">
+          Money-Weighted Return accounts for the timing of each capital injection.
           Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates,
           total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>.
         </div>
