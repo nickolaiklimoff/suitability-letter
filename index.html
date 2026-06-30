@@ -27,6 +27,7 @@
       <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="bpOpen()">→ Base Portfolios</button>
       <div id="dailyBriefSidebarStatus" style="font-size:11px;color:var(--text3)"></div>
       <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="dbOpen()">→ Daily Brief</button>
+      <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="macroOpen()">→ Macro View</button>
       <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="settingsOpen()">⚙ Settings</button>
     </div>
   </aside>
@@ -926,5 +927,236 @@ window.addEventListener('afterprint', function() {
   cover.style.cssText = '';
 });
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MACRO VIEW PANEL
+════════════════════════════════════════════════════════════ -->
+<div id="macroPanel" class="panel-view hidden" style="padding:2rem;overflow-y:auto">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:4px">Orion Ridge Capital</div>
+      <h2 style="font-size:20px;font-weight:600;color:var(--text1)">Macro Dashboard</h2>
+      <div style="font-size:13px;color:var(--text3);margin-top:2px">Business Cycle Analysis — Fidelity AART Framework</div>
+    </div>
+    <button class="btn-secondary" onclick="macroClose()" style="font-size:13px;padding:6px 14px">← Back to clients</button>
+  </div>
+
+  <!-- GitHub Token input -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:8px">GitHub Access</h3>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="password" id="macro-gh-token" placeholder="GitHub Personal Access Token (repo + actions)"
+        style="flex:1;font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"
+        oninput="macroSaveToken()">
+      <span id="macro-token-status" style="font-size:11px;color:var(--text3)"></span>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">Token saved locally. Needs: repo, actions:write, actions:read scopes.</div>
+  </div>
+
+  <!-- Actions -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">Actions</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+      <!-- Update Data -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:16px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">📊 Update Data</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Fetch FRED + ECB indicators, run cycle analysis via Claude API, update xlsx.</div>
+        <button class="btn-primary" onclick="macroRunWorkflow('update')" style="font-size:13px;width:100%">▶ Run Update</button>
+        <div id="macro-update-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+      </div>
+
+      <!-- Generate PPTX -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:16px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">📑 Generate Presentation</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Build macro_outlook_YYYYMM.pptx from latest xlsx data.</div>
+        <button class="btn-primary" onclick="macroRunWorkflow('generate_pptx')" style="font-size:13px;width:100%;background:#5b6abf">▶ Generate PPTX</button>
+        <div id="macro-pptx-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Artifacts -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">Download Latest</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-secondary" onclick="macroDownloadArtifact('xlsx')" style="font-size:13px">⬇ Download xlsx</button>
+      <button class="btn-secondary" onclick="macroDownloadArtifact('pptx')" style="font-size:13px">⬇ Download PPTX</button>
+    </div>
+    <div id="macro-download-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+  </div>
+
+  <!-- Workflow run log -->
+  <div id="macro-run-log" class="form-card hidden">
+    <h3 style="margin-bottom:8px">Run Status</h3>
+    <div id="macro-run-log-body" style="font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-wrap;font-family:monospace"></div>
+  </div>
+</div>
+
+<script>
+// ── Macro View ─────────────────────────────────────────────────
+const MACRO_REPO = 'nickolaiklimoff/macro-dashboard';
+const GH_API     = 'https://api.github.com';
+
+function macroOpen() {
+  document.querySelectorAll('.panel-view, #appContent').forEach(el => el.classList.add('hidden'));
+  document.getElementById('macroPanel').classList.remove('hidden');
+  const saved = localStorage.getItem('macro_gh_token');
+  if (saved) {
+    document.getElementById('macro-gh-token').value = saved;
+    document.getElementById('macro-token-status').textContent = '✓ Token loaded';
+  }
+}
+
+function macroClose() {
+  document.getElementById('macroPanel').classList.add('hidden');
+  document.getElementById('appContent').classList.remove('hidden');
+}
+
+function macroSaveToken() {
+  const t = document.getElementById('macro-gh-token').value.trim();
+  if (t) {
+    localStorage.setItem('macro_gh_token', t);
+    document.getElementById('macro-token-status').textContent = '✓ Saved';
+  }
+}
+
+function macroToken() {
+  return localStorage.getItem('macro_gh_token') || document.getElementById('macro-gh-token').value.trim();
+}
+
+async function macroRunWorkflow(workflowId) {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const statusEl = workflowId === 'update'
+    ? document.getElementById('macro-update-status')
+    : document.getElementById('macro-pptx-status');
+
+  const workflowFile = workflowId === 'update' ? 'update.yml' : 'generate_pptx.yml';
+
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Triggering workflow...';
+
+  try {
+    const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ref: 'main' })
+    });
+
+    if (resp.status === 204) {
+      statusEl.style.color = '#2e7d52';
+      statusEl.textContent = '✓ Workflow triggered — check GitHub Actions for progress';
+      macroWatchRun(token, workflowFile, statusEl);
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      statusEl.style.color = '#c62828';
+      statusEl.textContent = `✗ Error ${resp.status}: ${err.message || 'Unknown error'}`;
+    }
+  } catch(e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+
+async function macroWatchRun(token, workflowFile, statusEl) {
+  // Poll for the latest run every 10s for up to 5 minutes
+  const logDiv = document.getElementById('macro-run-log');
+  const logBody = document.getElementById('macro-run-log-body');
+  logDiv.classList.remove('hidden');
+
+  let attempts = 0;
+  const poll = setInterval(async () => {
+    attempts++;
+    if (attempts > 30) { clearInterval(poll); return; }
+
+    try {
+      const resp = await fetch(
+        `${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/runs?per_page=1`,
+        { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+      );
+      const data = await resp.json();
+      const run  = data.workflow_runs?.[0];
+      if (!run) return;
+
+      const started = new Date(run.created_at).toLocaleTimeString();
+      const status  = run.status;       // queued | in_progress | completed
+      const conclusion = run.conclusion; // success | failure | null
+
+      let icon = status === 'completed'
+        ? (conclusion === 'success' ? '✓' : '✗')
+        : '⏳';
+      let color = status === 'completed'
+        ? (conclusion === 'success' ? '#2e7d52' : '#c62828')
+        : 'var(--text3)';
+
+      logBody.textContent = `Run #${run.run_number} | Started: ${started}\nStatus: ${status} ${conclusion ? '→ ' + conclusion : ''}\nURL: ${run.html_url}`;
+      statusEl.style.color = color;
+      statusEl.textContent = `${icon} ${status}${conclusion ? ' — ' + conclusion : ''}`;
+
+      if (status === 'completed') {
+        clearInterval(poll);
+        if (conclusion === 'success') {
+          statusEl.textContent += ' — artifacts ready to download';
+        }
+      }
+    } catch(e) { /* silently continue polling */ }
+  }, 10000);
+}
+
+async function macroDownloadArtifact(type) {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const statusEl = document.getElementById('macro-download-status');
+  statusEl.textContent = '⏳ Looking for latest artifact...';
+
+  try {
+    // Get latest successful run for the relevant workflow
+    const workflow = type === 'pptx' ? 'generate_pptx.yml' : 'update.yml';
+    const runsResp = await fetch(
+      `${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflow}/runs?status=success&per_page=1`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+    );
+    const runsData = await runsResp.json();
+    const run = runsData.workflow_runs?.[0];
+    if (!run) { statusEl.textContent = '✗ No successful runs found'; return; }
+
+    // Get artifacts for that run
+    const artResp = await fetch(
+      `${GH_API}/repos/${MACRO_REPO}/actions/runs/${run.id}/artifacts`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+    );
+    const artData = await artResp.json();
+    const artifact = artData.artifacts?.[0];
+    if (!artifact) { statusEl.textContent = '✗ No artifacts in latest run'; return; }
+
+    // Download — GitHub redirects to a zip
+    statusEl.textContent = `⬇ Downloading ${artifact.name}.zip...`;
+    const dlResp = await fetch(
+      `${GH_API}/repos/${MACRO_REPO}/actions/artifacts/${artifact.id}/zip`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+    );
+    const blob = await dlResp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${artifact.name}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    statusEl.style.color = '#2e7d52';
+    statusEl.textContent = `✓ Downloaded ${artifact.name}.zip`;
+  } catch(e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+</script>
+
 </body>
 </html>
