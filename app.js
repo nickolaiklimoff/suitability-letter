@@ -3653,6 +3653,29 @@ window.settingsClose = function() {
     document.getElementById('emptyState').classList.remove('hidden');
   }
 };
+window.macroOpen = function() {
+  ['emptyState','appContent','basePortfoliosPanel','dailyBriefPanel','settingsPanel'].forEach(id => {
+    document.getElementById(id)?.classList.add('hidden');
+  });
+  document.getElementById('macroPanel').classList.remove('hidden');
+  const saved = localStorage.getItem('macro_gh_token');
+  if (saved) {
+    const el = document.getElementById('macro-gh-token');
+    if (el) el.value = saved;
+    const st = document.getElementById('macro-token-status');
+    if (st) st.textContent = '✓ Token loaded';
+  }
+};
+
+window.macroClose = function() {
+  document.getElementById('macroPanel').classList.add('hidden');
+  if (window.currentClientId) {
+    document.getElementById('appContent').classList.remove('hidden');
+  } else {
+    document.getElementById('emptyState').classList.remove('hidden');
+  }
+};
+
 
 
 // ─── Rebalancing Tab ──────────────────────────────────────────────────────────

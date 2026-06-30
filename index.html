@@ -896,7 +896,7 @@
 <script src="waar.js?v=1782644409"></script>
 <script src="portfolio-import.js"></script>
 <script src="report.js?v=1782644409"></script>
-<script src="app.js?v=1782644409"></script>
+<script src="app.js?v=1782819595"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -997,21 +997,6 @@ window.addEventListener('afterprint', function() {
 // ── Macro View ─────────────────────────────────────────────────
 const MACRO_REPO = 'nickolaiklimoff/macro-dashboard';
 const GH_API     = 'https://api.github.com';
-
-function macroOpen() {
-  document.querySelectorAll('.panel-view, #appContent').forEach(el => el.classList.add('hidden'));
-  document.getElementById('macroPanel').classList.remove('hidden');
-  const saved = localStorage.getItem('macro_gh_token');
-  if (saved) {
-    document.getElementById('macro-gh-token').value = saved;
-    document.getElementById('macro-token-status').textContent = '✓ Token loaded';
-  }
-}
-
-function macroClose() {
-  document.getElementById('macroPanel').classList.add('hidden');
-  document.getElementById('appContent').classList.remove('hidden');
-}
 
 function macroSaveToken() {
   const t = document.getElementById('macro-gh-token').value.trim();
