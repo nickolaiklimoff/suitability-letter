@@ -2135,9 +2135,19 @@ function bpRenderBcaTable() {
       return;
     }
     const view = _bpBcaViews[item.key] || {prev: item.prev, curr: item.curr};
+    const mkSelect = (field, val) => `<select data-key="${item.key}" data-field="${field}"
+      onchange="bpUpdateView(this)"
+      style="font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:10px;cursor:pointer;
+             background:${val==='overweight'?'#e8f5e9':val==='underweight'?'#fdecea':'#f0f0f0'};
+             color:${val==='overweight'?'#2e7d32':val==='underweight'?'#c62828':'#555'};
+             font-weight:600;outline:none">
+      <option value="overweight" ${val==='overweight'?'selected':''}>Overweight</option>
+      <option value="neutral"    ${val==='neutral'   ?'selected':''}>Neutral</option>
+      <option value="underweight"${val==='underweight'?'selected':''}>Underweight</option>
+    </select>`;
     html += `<tr style="border-top:0.5px solid var(--border)">
       <td style="padding:5px 8px">${item.label}</td>
-      <td style="text-align:center;padding:5px 8px">${pill(view.curr)}</td>
+      <td style="text-align:center;padding:3px 8px">${mkSelect('curr', view.curr)}</td>
     </tr>`;
   });
 
@@ -2990,7 +3000,7 @@ window.bpLoadBcaPdf = async function(input) {
               },
               {
                 type: 'text',
-                text: `This is the "Recommended Allocation" table from a BCA Research Global Asset Allocation monthly report. The table shows investment views using filled squares: CRITICAL: Each row has exactly 5 boxes numbered 1-5 left to right. Box 1=Strong Underweight, Box 2=Underweight, Box 3=NEUTRAL (middle), Box 4=Overweight, Box 5=Strong Overweight. The dark filled square = CURRENT view. Lighter/green square = PREVIOUS view. To determine the view: count which box (1-5) contains the dark square. Box 3 = neutral. Boxes 1-2 = underweight. Boxes 4-5 = overweight. Do NOT guess — count carefully left to right.\n\nExtract all views and return ONLY valid JSON, no markdown:
+                text: `This is the "Recommended Allocation" table from a BCA Research Global Asset Allocation monthly report. The table shows investment views using filled squares: CRITICAL INSTRUCTIONS for reading the 5-box scale:\n- Each row has EXACTLY 5 boxes from left(-) to right(+)\n- The DARKER/BLACK filled square = CURRENT position\n- The lighter/green filled square = PREVIOUS position (IGNORE this one)\n- Box positions: 1=Strong UW, 2=Underweight, 3=NEUTRAL, 4=Overweight, 5=Strong OW\n- If dark square is in the CENTER (3rd box out of 5) = "neutral"\n- Count ALL 5 boxes carefully. Many rows will have the dark square in box 3 = neutral.\n- DO NOT confuse the lighter previous square with the current dark square\n\nExtract all views and return ONLY valid JSON, no markdown:
 {
   "reportTitle": "string",
   "reportDate": "string",
