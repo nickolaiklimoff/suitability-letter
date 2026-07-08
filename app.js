@@ -2994,9 +2994,7 @@ window.bpLoadBcaPdf = async function(input) {
               },
               {
                 type: 'text',
-                text: `This is the "Recommended Allocation" table from a BCA Research Global Asset Allocation monthly report. The table shows investment views using filled squares: dark filled square = current position, lighter/outline square = previous position. Each row has 5 squares on a scale from — (far left) to + (far right). The middle position = neutral, right of middle = overweight, left of middle = underweight.
-
-Extract all views and return ONLY valid JSON, no markdown:
+                text: `This is the "Recommended Allocation" table from a BCA Research Global Asset Allocation monthly report. The table shows investment views using filled squares: CRITICAL: Each row has exactly 5 boxes numbered 1-5 left to right. Box 1=Strong Underweight, Box 2=Underweight, Box 3=NEUTRAL (middle), Box 4=Overweight, Box 5=Strong Overweight. The dark filled square = CURRENT view. Lighter/green square = PREVIOUS view. To determine the view: count which box (1-5) contains the dark square. Box 3 = neutral. Boxes 1-2 = underweight. Boxes 4-5 = overweight. Do NOT guess — count carefully left to right.\n\nExtract all views and return ONLY valid JSON, no markdown:
 {
   "reportTitle": "string",
   "reportDate": "string",
