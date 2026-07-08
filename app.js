@@ -2125,22 +2125,18 @@ function bpRenderBcaTable() {
 
   let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr>
-      <th style="text-align:left;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500;width:50%"></th>
-      <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Previous</th>
-      <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Current</th>
+      <th style="text-align:left;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500;width:70%"></th>
+      <th style="text-align:center;padding:0 8px 8px;font-size:10px;color:var(--text3);font-weight:500">Current view</th>
     </tr></thead><tbody>`;
 
   BP_BCA_ITEMS.forEach(item => {
     if (item.section) {
-      html += `<tr><td colspan="3" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 8px 3px;border-top:1px solid var(--border);background:var(--bg2)">${item.section}</td></tr>`;
+      html += `<tr><td colspan="2" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);padding:8px 8px 3px;border-top:1px solid var(--border);background:var(--bg2)">${item.section}</td></tr>`;
       return;
     }
     const view = _bpBcaViews[item.key] || {prev: item.prev, curr: item.curr};
-    const changed = view.prev !== view.curr;
-    const changedBadge = changed ? `<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:600">changed</span>` : '';
     html += `<tr style="border-top:0.5px solid var(--border)">
-      <td style="padding:5px 8px">${item.label}${changedBadge}</td>
-      <td style="text-align:center;padding:5px 8px">${pill(view.prev)}</td>
+      <td style="padding:5px 8px">${item.label}</td>
       <td style="text-align:center;padding:5px 8px">${pill(view.curr)}</td>
     </tr>`;
   });
@@ -2998,49 +2994,48 @@ window.bpLoadBcaPdf = async function(input) {
 {
   "reportTitle": "string",
   "reportDate": "string",
-  "topTakeaway": "string",
   "source": "BCA Research GAA, [Month Year]",
   "views": {
-    "gaa_eq":  {"prev":"overweight|neutral|underweight", "curr":"overweight|neutral|underweight"},
-    "gaa_fi":  {"prev":"...","curr":"..."},
-    "gaa_ca":  {"prev":"...","curr":"..."},
-    "eq_us":   {"prev":"...","curr":"..."},
-    "eq_eu":   {"prev":"...","curr":"..."},
-    "eq_jp":   {"prev":"...","curr":"..."},
-    "eq_ca":   {"prev":"...","curr":"..."},
-    "eq_au":   {"prev":"...","curr":"..."},
-    "eq_uk":   {"prev":"...","curr":"..."},
-    "eq_cn":   {"prev":"...","curr":"..."},
-    "eq_em":   {"prev":"...","curr":"..."},
-    "fi_gov":  {"prev":"...","curr":"..."},
-    "fi_ig":   {"prev":"...","curr":"..."},
-    "fi_hy":   {"prev":"...","curr":"..."},
-    "fi_em":   {"prev":"...","curr":"..."},
-    "fi_dur":  {"prev":"...","curr":"..."},
-    "fi_inf":  {"prev":"...","curr":"..."},
-    "sec_fin": {"prev":"...","curr":"..."},
-    "sec_it":  {"prev":"...","curr":"..."},
-    "sec_hc":  {"prev":"...","curr":"..."},
-    "sec_cs2": {"prev":"...","curr":"..."},
-    "sec_ind": {"prev":"...","curr":"..."},
-    "sec_cd":  {"prev":"...","curr":"..."},
-    "sec_cst": {"prev":"...","curr":"..."},
-    "sec_en":  {"prev":"...","curr":"..."},
-    "sec_mat": {"prev":"...","curr":"..."},
-    "sec_re":  {"prev":"...","curr":"..."},
-    "sec_ut":  {"prev":"...","curr":"..."},
-    "fx_usd":  {"prev":"...","curr":"..."},
-    "fx_eur":  {"prev":"...","curr":"..."},
-    "fx_jpy":  {"prev":"...","curr":"..."},
-    "fx_gbp":  {"prev":"...","curr":"..."},
-    "fx_aud":  {"prev":"...","curr":"..."},
-    "fx_cad":  {"prev":"...","curr":"..."},
-    "fx_chf":  {"prev":"...","curr":"..."},
-    "fx_cny":  {"prev":"...","curr":"..."},
-    "fx_em":   {"prev":"...","curr":"..."}
+    "gaa_eq":  "overweight|neutral|underweight",
+    "gaa_fi":  "...",
+    "gaa_ca":  "...",
+    "eq_us":   "...",
+    "eq_eu":   "...",
+    "eq_jp":   "...",
+    "eq_ca":   "...",
+    "eq_au":   "...",
+    "eq_uk":   "...",
+    "eq_cn":   "...",
+    "eq_em":   "...",
+    "fi_gov":  "...",
+    "fi_ig":   "...",
+    "fi_hy":   "...",
+    "fi_em":   "...",
+    "fi_dur":  "...",
+    "fi_inf":  "...",
+    "sec_fin": "...",
+    "sec_it":  "...",
+    "sec_hc":  "...",
+    "sec_cs2": "...",
+    "sec_ind": "...",
+    "sec_cd":  "...",
+    "sec_cst": "...",
+    "sec_en":  "...",
+    "sec_mat": "...",
+    "sec_re":  "...",
+    "sec_ut":  "...",
+    "fx_usd":  "...",
+    "fx_eur":  "...",
+    "fx_jpy":  "...",
+    "fx_gbp":  "...",
+    "fx_aud":  "...",
+    "fx_cad":  "...",
+    "fx_chf":  "...",
+    "fx_cny":  "...",
+    "fx_em":   "..."
   }
 }
-Use ONLY: overweight, neutral, underweight. If a category is not visible, use neutral.`
+For each key return ONLY one of: overweight, neutral, underweight (for the CURRENT dark square only). Ignore the lighter/previous squares completely. If not visible, use neutral.`
               }
             ]
           }]
@@ -3087,9 +3082,17 @@ Use ONLY: overweight, neutral, underweight. If a category is not visible, use ne
         }
       }
 
-      // Apply views
+      // Apply views — normalize: new format returns strings, old format {prev,curr} objects
       if (parsed.views) {
-        Object.entries(parsed.views).forEach(([k, v]) => { _bpBcaViews[k] = v; });
+        Object.entries(parsed.views).forEach(([k, v]) => {
+          // New format: v is a string like "overweight"
+          // Old format: v is {prev: "...", curr: "..."}
+          if (typeof v === 'string') {
+            _bpBcaViews[k] = { curr: v, prev: v };  // no prev data — set same as curr
+          } else {
+            _bpBcaViews[k] = v;
+          }
+        });
         try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
       }
       if (parsed.source) {
