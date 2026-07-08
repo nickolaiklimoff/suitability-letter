@@ -3149,10 +3149,12 @@ window.bpParseAllocText = function() {
   if (!text.trim()) { status.textContent = 'Paste text first'; return; }
 
   // Normalise: lowercase, collapse whitespace, strip dates like "01 Jun 2026"
-  const norm = text
+  let norm = text
     .replace(/\d{2}\s+[A-Za-z]{3}\s+\d{4}/g, '') // remove dates
     .replace(/\s+/g, ' ')
     .trim();
+  // Split stuck view words: "neutralUnderweight" → "neutral Underweight"
+  norm = norm.replace(/(overweight|underweight|neutral)(overweight|underweight|neutral)/gi, '$1 $2');
 
   // Extract allocation % for Equities/Bonds/Cash (top-level)
   function extractTopAlloc(label) {
