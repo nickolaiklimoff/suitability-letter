@@ -3197,10 +3197,15 @@ window.bpParseAllocText = function() {
 
   // Extract performance numbers
   function extractPerf(section, period) {
-    const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(escaped + '[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
-    const m = text.match(re);
-    console.log('[extractPerf]', section, period, '->', m ? m[1] : 'null', '| text snippet:', text.slice(text.indexOf(section.slice(0,15)), text.indexOf(section.slice(0,15))+100));
+    // Search in normalized text (tabs/newlines collapsed to spaces)
+    const searchText = norm; // use norm, not raw text
+    const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                           .replace(/\\\*/g, '\\*'); // also escape asterisks
+    // Also try without asterisks (section name without ****)
+    const reWithStars = new RegExp(escaped + '[\\*\\s]{0,10}[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
+    const reNoStars   = new RegExp(escaped.replace(/\\\\\*/g,'') + '[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
+    const m = searchText.match(reWithStars) || searchText.match(reNoStars);
+    console.log('[extractPerf]', section, period, '->', m ? m[1] : 'null');
     return m ? { gaa: parseFloat(m[1]), bm: parseFloat(m[2]) } : null;
   }
 
