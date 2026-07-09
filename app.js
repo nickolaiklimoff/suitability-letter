@@ -3202,7 +3202,6 @@ window.bpParseAllocText = function() {
     const loosePat = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.{0,15}');
     const re = new RegExp(loosePat + '.{0,200}?' + period + '\\s+([\\-\\d\\.]+)', 'i');
     const m = norm.match(re);
-    console.log('[extractPerf]', section, period, '->', m ? m[1] : 'null');
     return m ? { gaa: parseFloat(m[1]), bm: null } : null;
   }
 
@@ -3219,9 +3218,6 @@ window.bpParseAllocText = function() {
   if (eq5y)  document.getElementById('bp-ret-eq-5y').value  = eq5y.gaa;
   if (bd12m) document.getElementById('bp-ret-bd-12m').value = bd12m.gaa;
   if (bd5y)  document.getElementById('bp-ret-bd-5y').value  = bd5y.gaa;
-  console.log('[bpParse] eq12m:', eq12m, 'bd12m:', bd12m, 'eq5y:', eq5y, 'bd5y:', bd5y);
-  console.log('[bpParse] bp-ret-eq-12m after set:', document.getElementById('bp-ret-eq-12m').value);
-  console.log('[bpParse] BP_SECTORS after update:', BP_SECTORS.map(s=>({label:s.label,w:s.w})));
 
   // Map label → key, extract prev+curr
   const VIEW_MAP = [
