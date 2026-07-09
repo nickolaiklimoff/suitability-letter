@@ -3276,6 +3276,65 @@ window.bpParseAllocText = function() {
   try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
   try { localStorage.setItem('suitability-bp-alloc-text', text); } catch(e) {}
 
+  // Update BP_SECTORS weights from BCA Allocation % (benchmark for sector weights)
+  // Format in text: "Info Tech Neutral 31.7% 31.7%"  — first % = GAA allocation, second = benchmark
+  // We use the Allocation % (first number) as the sector weight
+  const SECTOR_LABEL_MAP = [
+    {label:'Financials',        bpLabel:'Financials'},
+    {label:'Info Tech',         bpLabel:'Info Tech'},
+    {label:'Health Care',       bpLabel:'Health Care'},
+    {label:'Comsumer Discretionary', bpLabel:'Consumer Discretionary'},  // BCA typo
+    {label:'Consumer Discretionary', bpLabel:'Consumer Discretionary'},
+    {label:'Industrials',       bpLabel:'Industrials'},
+    {label:'Communication Services', bpLabel:'Communication Services'},
+    {label:'Consumer Staples',  bpLabel:'Consumer Staples'},
+    {label:'Energy',            bpLabel:'Energy'},
+    {label:'Materials',         bpLabel:'Materials'},
+    {label:'Utilities',         bpLabel:'Utilities'},
+    {label:'Real Estate',       bpLabel:'Real Estate'},
+  ];
+  let sectorWeightsUpdated = 0;
+  SECTOR_LABEL_MAP.forEach(({label, bpLabel}) => {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match: "Label [view] XX.X% YY.Y%" — first % after label = allocation
+    const re = new RegExp(escaped + '[^\\d]{0,60}?([\\d\\.]+)%', 'i');
+    const m = norm.match(re);
+    if (m) {
+      const pct = parseFloat(m[1]) / 100;
+      const sec = BP_SECTORS.find(s => s.label === bpLabel);
+      if (sec && pct > 0.001 && pct < 1) {
+        sec.w = parseFloat(pct.toFixed(4));
+        sectorWeightsUpdated++;
+      }
+    }
+  });
+
+  // Also update bond segment weights from BCA Bond Allocation %
+  const BOND_LABEL_MAP = [
+    {label:'Government',       bpLabel:'Government'},
+    {label:'Investment Grade', bpLabel:'Investment Grade'},
+    {label:'High-Yield',       bpLabel:'High Yield'},
+    {label:'EM Debt',          bpLabel:'EM Debt'},
+  ];
+  BOND_LABEL_MAP.forEach(({label, bpLabel}) => {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped + '[^\\d]{0,60}?([\\d\\.]+)%', 'i');
+    const m = norm.match(re);
+    if (m) {
+      const pct = parseFloat(m[1]) / 100;
+      const seg = BP_BOND_SEGS.find(s => s.label === bpLabel);
+      if (seg && pct > 0.001 && pct < 1) {
+        seg.w = parseFloat(pct.toFixed(4));
+      }
+    }
+  });
+
+  // Renormalize BP_SECTORS weights to sum to 1
+  const secSum = BP_SECTORS.reduce((s,x) => s+x.w, 0);
+  if (secSum > 0.5) BP_SECTORS.forEach(s => { s.w = parseFloat((s.w/secSum).toFixed(4)); });
+  const bondSum = BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
+  if (bondSum > 0.5) BP_BOND_SEGS.forEach(s => { s.w = parseFloat((s.w/bondSum).toFixed(4)); });
+
   const parts = [];
   if (eq !== null) parts.push(`Eq ${eq}%`);
   if (bd !== null) parts.push(`Bd ${bd}%`);
