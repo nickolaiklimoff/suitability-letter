@@ -3346,7 +3346,8 @@ window.bpParseAllocText = function() {
   status.textContent = `✓ Parsed: ${parts.join(' · ')}`;
   status.style.color = '#3b6d11';
 
-  bpSaveAndGenerate();
+  // Defer generate to ensure DOM input values are updated first
+  setTimeout(() => bpSaveAndGenerate(), 50);
 };
 
 // ─── Cash & Deposits ──────────────────────────────────────────────────────────
