@@ -3197,16 +3197,13 @@ window.bpParseAllocText = function() {
 
   // Extract performance numbers
   function extractPerf(section, period) {
-    // Search in normalized text (tabs/newlines collapsed to spaces)
-    const searchText = norm; // use norm, not raw text
-    const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                           .replace(/\\\*/g, '\\*'); // also escape asterisks
-    // Also try without asterisks (section name without ****)
-    const reWithStars = new RegExp(escaped + '[\\*\\s]{0,10}[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
-    const reNoStars   = new RegExp(escaped.replace(/\\\\\*/g,'') + '[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
-    const m = searchText.match(reWithStars) || searchText.match(reNoStars);
+    // Build loose pattern: match key words from section name, then find period value
+    const words = section.replace(/[()]/g, '').split(/\s+/).filter(w => w.length > 2);
+    const loosePat = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.{0,15}');
+    const re = new RegExp(loosePat + '.{0,200}?' + period + '\\s+([\\-\\d\\.]+)', 'i');
+    const m = norm.match(re);
     console.log('[extractPerf]', section, period, '->', m ? m[1] : 'null');
-    return m ? { gaa: parseFloat(m[1]), bm: parseFloat(m[2]) } : null;
+    return m ? { gaa: parseFloat(m[1]), bm: null } : null;
   }
 
   const eq12m = extractPerf('Equity Allocation \\(Sectors\\)', '12 Months');
