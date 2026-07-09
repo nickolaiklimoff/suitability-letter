@@ -3206,8 +3206,8 @@ window.bpParseAllocText = function() {
     return m ? { gaa: parseFloat(m[1]), bm: null } : null;
   }
 
-  const eq12m = extractPerf('Equity Allocation \\(Sectors\\)', '12 Months');
-  const eq5y  = extractPerf('Equity Allocation \\(Sectors\\)', '5 Years');
+  const eq12m = extractPerf('Equity Allocation (Sectors)', '12 Months');
+  const eq5y  = extractPerf('Equity Allocation (Sectors)', '5 Years');
   const bd12m = extractPerf('Bond Allocation', '12 Months');
   const bd5y  = extractPerf('Bond Allocation', '5 Years');
 
