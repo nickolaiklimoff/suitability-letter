@@ -3200,6 +3200,7 @@ window.bpParseAllocText = function() {
     const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(escaped + '[\\s\\S]{0,300}?' + period + '\\s+([\\-\\d\\.]+)\\s+([\\-\\d\\.]+)', 'i');
     const m = text.match(re);
+    console.log('[extractPerf]', section, period, '->', m ? m[1] : 'null', '| text snippet:', text.slice(text.indexOf(section.slice(0,15)), text.indexOf(section.slice(0,15))+100));
     return m ? { gaa: parseFloat(m[1]), bm: parseFloat(m[2]) } : null;
   }
 
