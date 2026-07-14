@@ -769,9 +769,10 @@ function decodeObjective(v) {
 }
 
 // ─── Section 7: Coupons ───────────────────────────────────────────────────────
-function buildCouponsSection(couponRows) {
+function buildCouponsSection(couponRows, reportCcySym) {
   if (!couponRows || couponRows.length === 0) return '';
 
+  const ccySym = reportCcySym || '$';
   const fmtDate = v => {
     if (!v) return '—';
     const d = v instanceof Date ? v : new Date(v);
@@ -779,7 +780,7 @@ function buildCouponsSection(couponRows) {
   };
   const fmtAmt = v => {
     const n = parseFloat(v) || 0;
-    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return ccySym + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
 
   const sorted = [...couponRows].sort((a, b) => new Date(b[0]) - new Date(a[0]));
@@ -805,7 +806,7 @@ function buildCouponsSection(couponRows) {
         <table class="report-table">
           <thead><tr>
             <th>Date</th><th>Bond</th><th>Coupon Rate</th>
-            <th>Amount</th><th>CCY</th><th>Converted (USD)</th>
+            <th>Amount</th><th>CCY</th><th>Converted (${(reportCcySym==='£'?'GBP':reportCcySym==='€'?'EUR':reportCcySym==='Fr '?'CHF':'USD')})</th>
           </tr></thead>
           <tbody>
             ${rows}
@@ -2349,7 +2350,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
       ${benchmarkHtml}
 
-      ${buildCouponsSection(portfolioData.couponRows || [])}
+      ${buildCouponsSection(portfolioData.couponRows || [], portfolioData.reportCcySym)}
 
       ${buildDividendsSection(portfolioData.divRows || [])}
 
