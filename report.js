@@ -225,8 +225,9 @@ window.parseCbondsExport = function(file) {
           const currency = (() => {
             const ccy = String(r[12]||'').trim();
             if (ccy) return ccy;
-            // Infer from exchange: European exchanges → EUR, US exchanges → USD
+            // Infer from exchange when Trading Currency cell is blank
             const exch = String(r[1]||'').toLowerCase();
+            if (exch.includes('london')) return 'GBX'; // LSE stocks quote in pence
             if (exch.includes('frankfurt') || exch.includes('xetra') || exch.includes('berlin') ||
                 exch.includes('munich') || exch.includes('stuttgart') || exch.includes('hamburg')) return 'EUR';
             return 'USD';
