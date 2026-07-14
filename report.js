@@ -353,13 +353,20 @@ window.parseCbondsExport = function(file) {
         // sees this cash inflow while still counting the bond's coupon history.
         const redemptionRows = getSheet('redemptions').slice(1).filter(r => r[0]);
 
+        // External deposits/withdrawals — the ONLY genuine external cashflows for
+        // Money-Weighted Return purposes. Buy/sell trades are internal reallocation
+        // funded from cash already inside the account (e.g. rotating a matured
+        // bond's proceeds into stocks) and must NOT be treated as client capital
+        // movements — doing so was the root cause of an inflated IRR.
+        const depositWithdrawalRows = getSheet('deposits and withdrawals').slice(1).filter(r => r[0]);
+
         resolve({
           holdings, bonds, funds, stocks,
           cash, totalValue, totalUnrealizedPnL,
           dividends, coupons,
           totalIncome: dividends + coupons,
           divRows, couponRows,
-          tradeRows, firstPurchaseMap, redemptionRows,
+          tradeRows, firstPurchaseMap, redemptionRows, depositWithdrawalRows,
           _detectedPortCcy: detectedPortCcy,
         });
       } catch(err) { reject(err); }
@@ -999,53 +1006,56 @@ function computeIRR(cashflows) {
 }
 
 function buildIRRSection(tradeRows, holdings, portfolioData) {
-  if (!tradeRows || tradeRows.length === 0) return '';
-
   const today = new Date();
+  const dwRows = portfolioData.depositWithdrawalRows || [];
 
-  // Aggregate all trades by date → net cash flows
-  const cfByDate = {};
-  let debugCount = 0;
-  tradeRows.forEach(r => {
-    const date = r[0] ? new Date(r[0]) : null;
-    const dir  = String(r[2]||'').trim().toLowerCase();
-    // Try all possible trade value columns
-    const v15 = parseFloat(r[15]);
-    const v12 = parseFloat(r[12]);
-    const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
-    const value = (!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc;
-    if (debugCount < 3) { console.log('[IRR] row sample:', {date, dir, r6:r[6], r7:r[7], r12:r[12], r15:r[15], value}); debugCount++; }
-    if (!date || !value || isNaN(value)) return;
-    const key = date.toISOString().slice(0,10);
-    const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
-    cfByDate[key] = (cfByDate[key] || 0) + cf;
-  });
-
-  const cashflows = Object.entries(cfByDate)
-    .map(([d, amount]) => ({ date: new Date(d), amount }))
-    .sort((a,b) => a.date - b.date);
-
-  // Redemptions (matured/called bonds): principal returned is a positive cash
-  // inflow on the redemption date. Without this a matured bond simply disappears
-  // from the IRR calc with no exit cashflow, while its coupon history still
-  // counts as income below — understating returns.
-  (portfolioData.redemptionRows||[]).forEach(r => {
-    const date = r[0] ? new Date(r[0]) : null;
-    const val  = parseFloat(r[5]) || parseFloat(r[3]) || 0;
-    if (!date || !val) return;
-    cashflows.push({ date, amount: Math.abs(val) });
-  });
-  cashflows.sort((a,b) => a.date - b.date);
-
-  if (!cashflows.length) return '';
-
-  // Add current portfolio value as final inflow
-  const totalCurrentValue = [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]
-    .reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
-  // Add already-received income (coupons + dividends) — these are real cash returns not in holdingValue
-  const totalIncome = (portfolioData.coupons || 0) + (portfolioData.dividends || 0);
-  const totalFinalInflow = totalCurrentValue + totalIncome;
+  // Full current portfolio value (securities + cash) — the correct terminal
+  // cashflow for MWR. Trades, coupons and redemptions are all already reflected
+  // in this figure (they moved money between bonds/stocks/cash within the same
+  // account), so none of them should be added again as separate cashflows.
+  const totalFinalInflow = portfolioData.totalValue || 0;
   if (totalFinalInflow <= 0) return '';
+
+  let cashflows = [];
+  let basisLabel = '';
+
+  if (dwRows.length > 0) {
+    // Correct methodology: only genuine external capital movements count.
+    // Buy/sell trades funded from cash already inside the account (e.g. rotating
+    // a matured bond's proceeds into stocks) are internal and must NOT be
+    // treated as client deposits/withdrawals — doing so inflates IRR.
+    cashflows = dwRows.map(r => {
+      const date = r[1] ? new Date(r[1]) : null;
+      const dir  = String(r[0]||'').trim().toLowerCase();
+      const amount = parseFloat(r[4]) || 0;
+      if (!date || !amount) return null;
+      return { date, amount: dir === 'deposit' ? -Math.abs(amount) : Math.abs(amount) };
+    }).filter(Boolean);
+    basisLabel = `<strong>${dwRows.length}</strong> deposit/withdrawal event${dwRows.length===1?'':'s'}`;
+  } else if (tradeRows && tradeRows.length > 0) {
+    // Fallback for exports without a deposits/withdrawals sheet — approximates
+    // using trade cashflows (may overstate IRR if trades are internal rotations).
+    const cfByDate = {};
+    tradeRows.forEach(r => {
+      const date = r[0] ? new Date(r[0]) : null;
+      const dir  = String(r[2]||'').trim().toLowerCase();
+      const v15 = parseFloat(r[15]);
+      const v12 = parseFloat(r[12]);
+      const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
+      const value = (!isNaN(v12) && v12 > 0) ? v12 : (!isNaN(v15) && v15 > 0) ? v15 : vCalc;
+      if (!date || !value || isNaN(value)) return;
+      const key = date.toISOString().slice(0,10);
+      const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
+      cfByDate[key] = (cfByDate[key] || 0) + cf;
+    });
+    cashflows = Object.entries(cfByDate).map(([d, amount]) => ({ date: new Date(d), amount }));
+    basisLabel = `<strong>${Object.keys(cfByDate).length}</strong> trade dates (approximate — no deposit ledger found)`;
+  } else {
+    return '';
+  }
+
+  cashflows.sort((a,b) => a.date - b.date);
+  if (!cashflows.length) return '';
 
   cashflows.push({ date: today, amount: totalFinalInflow });
 
@@ -1053,11 +1063,8 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   if (portfolioIRR === null) return '';
 
   const totalInvested = cashflows.filter(c=>c.amount<0).reduce((s,c)=>s-c.amount,0);
-  const totalReturned = cashflows.filter(c=>c.amount>0 && c.date<today).reduce((s,c)=>s+c.amount,0);
+  const totalIncome = (portfolioData.coupons || 0) + (portfolioData.dividends || 0);
   const firstDate = cashflows[0].date;
-  const years = (today - firstDate) / (365.25*24*3600*1000);
-  const netInvested = totalInvested - totalReturned;
-  const simpleAnn = years > 0 ? (Math.pow(totalFinalInflow / totalInvested, 1/years) - 1) : 0;
   const fmtIRR = v => `${v>=0?'+':''}${(v*100).toFixed(1)}%`;
   const irrColor = v => v >= 0 ? '#3b6d11' : '#a32d2d';
 
@@ -1071,9 +1078,9 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
         </div>
         <div style="font-size:11px;color:var(--text3);max-width:320px;padding-top:4px;line-height:1.6">
           Money-Weighted Return — accounts for the timing of each capital injection.
-          Based on <strong>${Object.keys(cfByDate).length}</strong> trade dates,
+          Based on ${basisLabel},
           total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>,
-          income received <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
+          income received (coupons/dividends, already reflected in current value) <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
         </div>
       </div>
     </div>`;
@@ -2136,32 +2143,38 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     const periodYears = a.n && a.freq ? a.n / a.freq : 1;
     // Use IRR as the return for Sharpe if trade history available — it's the most accurate annualized return
     let annRealReturn = periodYears > 0.1 ? (Math.pow(1 + realReturn, 1/periodYears) - 1) : realReturn;
-    if (portfolioData.tradeRows?.length > 0) {
+    if ((portfolioData.depositWithdrawalRows?.length > 0) || (portfolioData.tradeRows?.length > 0)) {
       const _today = new Date();
-      const _cfByDate = {};
-      portfolioData.tradeRows.forEach(r => {
-        const _date = r[0] ? new Date(r[0]) : null;
-        const _dir = String(r[2]||'').trim().toLowerCase();
-        const _val = parseFloat(r[15]) || parseFloat(r[12]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
-        if (!_date || !_val || isNaN(_val)) return;
-        const _key = _date.toISOString().slice(0,10);
-        _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
-      });
-      // Redemptions (matured/called bonds): principal returned is a positive cash
-      // inflow on the redemption date — without this, matured bonds vanish from
-      // the IRR calc (no exit cashflow) while their coupons still count as income.
-      (portfolioData.redemptionRows||[]).forEach(r => {
-        const _date = r[0] ? new Date(r[0]) : null;
-        const _val = parseFloat(r[5]) || parseFloat(r[3]) || 0;
-        if (!_date || !_val) return;
-        const _key = _date.toISOString().slice(0,10);
-        _cfByDate[_key] = (_cfByDate[_key]||0) + Math.abs(_val);
-      });
-      const _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v})).sort((a,b)=>a.date-b.date);
-      const _totalCV = [...(portfolioData.bonds||[]),...(portfolioData.funds||[]),...(portfolioData.stocks||[])].reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
-      const _income = (portfolioData.coupons||0)+(portfolioData.dividends||0);
-      if (_totalCV > 0) {
-        _cfs.push({date:_today, amount:_totalCV+_income});
+      let _cfs = [];
+      if (portfolioData.depositWithdrawalRows?.length > 0) {
+        // Correct: only genuine external capital movements (see buildIRRSection).
+        _cfs = portfolioData.depositWithdrawalRows.map(r => {
+          const _date = r[1] ? new Date(r[1]) : null;
+          const _dir  = String(r[0]||'').trim().toLowerCase();
+          const _amt  = parseFloat(r[4]) || 0;
+          if (!_date || !_amt) return null;
+          return { date: _date, amount: _dir === 'deposit' ? -Math.abs(_amt) : Math.abs(_amt) };
+        }).filter(Boolean);
+      } else {
+        // Fallback approximation for exports without a deposit ledger.
+        const _cfByDate = {};
+        portfolioData.tradeRows.forEach(r => {
+          const _date = r[0] ? new Date(r[0]) : null;
+          const _dir = String(r[2]||'').trim().toLowerCase();
+          const _val = parseFloat(r[12]) || parseFloat(r[15]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
+          if (!_date || !_val || isNaN(_val)) return;
+          const _key = _date.toISOString().slice(0,10);
+          _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
+        });
+        _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v}));
+      }
+      _cfs.sort((a,b)=>a.date-b.date);
+      // Terminal cashflow = full current portfolio value (securities + cash).
+      // Trades, coupons and redemptions are already reflected in this figure —
+      // adding them again would double-count internal cash movements.
+      const _totalCV = portfolioData.totalValue || 0;
+      if (_totalCV > 0 && _cfs.length > 0) {
+        _cfs.push({date:_today, amount:_totalCV});
         const _irr = computeIRR(_cfs);
         if (_irr !== null && Math.abs(_irr) < 5) annRealReturn = _irr;
       }
