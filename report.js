@@ -347,13 +347,19 @@ window.parseCbondsExport = function(file) {
           if (!firstPurchaseMap[name] || date < firstPurchaseMap[name]) firstPurchaseMap[name] = date;
         });
 
+        // Redemptions (matured/called bonds) — principal returned to the client.
+        // Not reflected anywhere else: the bond has already dropped off the 'bonds'
+        // sheet by the time it matures, so without this the IRR calc simply never
+        // sees this cash inflow while still counting the bond's coupon history.
+        const redemptionRows = getSheet('redemptions').slice(1).filter(r => r[0]);
+
         resolve({
           holdings, bonds, funds, stocks,
           cash, totalValue, totalUnrealizedPnL,
           dividends, coupons,
           totalIncome: dividends + coupons,
           divRows, couponRows,
-          tradeRows, firstPurchaseMap,
+          tradeRows, firstPurchaseMap, redemptionRows,
           _detectedPortCcy: detectedPortCcy,
         });
       } catch(err) { reject(err); }
@@ -1018,6 +1024,18 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   const cashflows = Object.entries(cfByDate)
     .map(([d, amount]) => ({ date: new Date(d), amount }))
     .sort((a,b) => a.date - b.date);
+
+  // Redemptions (matured/called bonds): principal returned is a positive cash
+  // inflow on the redemption date. Without this a matured bond simply disappears
+  // from the IRR calc with no exit cashflow, while its coupon history still
+  // counts as income below — understating returns.
+  (portfolioData.redemptionRows||[]).forEach(r => {
+    const date = r[0] ? new Date(r[0]) : null;
+    const val  = parseFloat(r[5]) || parseFloat(r[3]) || 0;
+    if (!date || !val) return;
+    cashflows.push({ date, amount: Math.abs(val) });
+  });
+  cashflows.sort((a,b) => a.date - b.date);
 
   if (!cashflows.length) return '';
 
@@ -2128,6 +2146,16 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         if (!_date || !_val || isNaN(_val)) return;
         const _key = _date.toISOString().slice(0,10);
         _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
+      });
+      // Redemptions (matured/called bonds): principal returned is a positive cash
+      // inflow on the redemption date — without this, matured bonds vanish from
+      // the IRR calc (no exit cashflow) while their coupons still count as income.
+      (portfolioData.redemptionRows||[]).forEach(r => {
+        const _date = r[0] ? new Date(r[0]) : null;
+        const _val = parseFloat(r[5]) || parseFloat(r[3]) || 0;
+        if (!_date || !_val) return;
+        const _key = _date.toISOString().slice(0,10);
+        _cfByDate[_key] = (_cfByDate[_key]||0) + Math.abs(_val);
       });
       const _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v})).sort((a,b)=>a.date-b.date);
       const _totalCV = [...(portfolioData.bonds||[]),...(portfolioData.funds||[]),...(portfolioData.stocks||[])].reduce((s,h)=>s+(h.convertedHoldingValue||0),0);
