@@ -495,28 +495,35 @@ function classifyHolding(h) {
     if (['INTC','INL','AMD','NVDA','AAPL','MSFT','GOOGL','GOOG','META','FB2A','AMZN','TSLA','ORCL','CRM','ADBE','AVGO','QCOM','TXN','AMAT','MU','MRVL','UPST'].includes(ticker)) return { assetClass: 'equity', sector: 'Info Tech' };
     if (['BBAI','28K1'].includes(ticker) || name.includes('bigbear') || name.includes('ai holdings')) return { assetClass: 'equity', sector: 'Info Tech' };
     // Communication Services
-    if (['META','FB2A','GOOGL','GOOG','NFLX','DIS','CMCSA','T','VZ','TMUS'].includes(ticker)) return { assetClass: 'equity', sector: 'Communication Services' };
-    if (name.includes('meta platforms') || name.includes('alphabet') || name.includes('google')) return { assetClass: 'equity', sector: 'Communication Services' };
+    if (['META','FB2A','GOOGL','GOOG','NFLX','DIS','CMCSA','T','VZ','TMUS','VOD','BT.A','BATS.L'].includes(ticker)) return { assetClass: 'equity', sector: 'Communication Services' };
+    if (name.includes('meta platforms') || name.includes('alphabet') || name.includes('google') || name.includes('vodafone')) return { assetClass: 'equity', sector: 'Communication Services' };
     // Financials
-    if (['V','MA','JPM','BAC','GS','MS','WFC','BLK','SCHW'].includes(ticker)) return { assetClass: 'equity', sector: 'Financials' };
-    if (name.includes('visa') || name.includes('mastercard')) return { assetClass: 'equity', sector: 'Financials' };
+    if (['V','MA','JPM','BAC','GS','MS','WFC','BLK','SCHW','HSBA','BARC','LLOY','NWG','STAN','PRU','LGEN','AV.','III'].includes(ticker)) return { assetClass: 'equity', sector: 'Financials' };
+    if (name.includes('visa') || name.includes('mastercard') || name.includes('hsbc') || name.includes('barclays') ||
+        name.includes('lloyds') || name.includes('natwest') || name.includes('standard chartered')) return { assetClass: 'equity', sector: 'Financials' };
     // Health Care
-    if (['JNJ','UNH','PFE','ABBV','MRK','TMO','ABT','DHR','BMY','AMGN','GILD','ISRG','VRTX'].includes(ticker)) return { assetClass: 'equity', sector: 'Health Care' };
+    if (['JNJ','UNH','PFE','ABBV','MRK','TMO','ABT','DHR','BMY','AMGN','GILD','ISRG','VRTX','AZN','GSK','SN.'].includes(ticker)) return { assetClass: 'equity', sector: 'Health Care' };
+    if (name.includes('astrazeneca') || name.includes('glaxosmithkline') || name.includes('smith & nephew')) return { assetClass: 'equity', sector: 'Health Care' };
     // Consumer Discretionary
-    if (['AMZN','TSLA','HD','MCD','NKE','SBUX','TJX','BKNG','OPAD'].includes(ticker)) return { assetClass: 'equity', sector: 'Consumer Discretionary' };
-    if (name.includes('offerpad') || name.includes('amazon')) return { assetClass: 'equity', sector: 'Consumer Discretionary' };
+    if (['AMZN','TSLA','HD','MCD','NKE','SBUX','TJX','BKNG','OPAD','NXT','WPP'].includes(ticker)) return { assetClass: 'equity', sector: 'Consumer Discretionary' };
+    if (name.includes('offerpad') || name.includes('amazon') || name.includes('next, ord') || name.includes('wpp')) return { assetClass: 'equity', sector: 'Consumer Discretionary' };
     // Industrials
-    if (['GE','HON','UPS','BA','CAT','LMT','RTX','DE','EMR','ETN','12DA'].includes(ticker)) return { assetClass: 'equity', sector: 'Industrials' };
-    if (name.includes('dell') || name.includes('eaton')) return { assetClass: 'equity', sector: 'Industrials' };
+    if (['GE','HON','UPS','BA','CAT','LMT','RTX','DE','EMR','ETN','12DA','RR.','BA.','MGGT','SMIN'].includes(ticker)) return { assetClass: 'equity', sector: 'Industrials' };
+    if (name.includes('dell') || name.includes('eaton') || name.includes('rolls-royce') || name.includes('bae systems')) return { assetClass: 'equity', sector: 'Industrials' };
     // Energy
-    if (['XOM','CVX','COP','SLB','EOG','MPC','PSX','VLO','OXY','MP','55H0'].includes(ticker)) return { assetClass: 'equity', sector: 'Energy' };
-    if (name.includes('mp materials') || name.includes('exxon') || name.includes('chevron')) return { assetClass: 'equity', sector: 'Energy' };
+    if (['XOM','CVX','COP','SLB','EOG','MPC','PSX','VLO','OXY','MP','55H0','BP.','SHEL'].includes(ticker)) return { assetClass: 'equity', sector: 'Energy' };
+    if (name.includes('mp materials') || name.includes('exxon') || name.includes('chevron') ||
+        name.includes('bp, ord') || name.includes('shell, ord')) return { assetClass: 'equity', sector: 'Energy' };
     // Materials
-    if (['LIN','APD','ECL','DD','NEM','FCX','NUE'].includes(ticker)) return { assetClass: 'equity', sector: 'Materials' };
+    if (['LIN','APD','ECL','DD','NEM','FCX','NUE','RIO','GLEN','AAL'].includes(ticker)) return { assetClass: 'equity', sector: 'Materials' };
+    if (name.includes('rio tinto') || name.includes('glencore') || name.includes('anglo american')) return { assetClass: 'equity', sector: 'Materials' };
     // Consumer Staples
-    if (['PG','KO','PEP','WMT','COST','PM','MO','CL','GIS'].includes(ticker)) return { assetClass: 'equity', sector: 'Consumer Staples' };
+    if (['PG','KO','PEP','WMT','COST','PM','MO','CL','GIS','ULVR','ABF','BATS','IMB','DGE','TSCO'].includes(ticker)) return { assetClass: 'equity', sector: 'Consumer Staples' };
+    if (name.includes('unilever') || name.includes('associated british foods') || name.includes('british american tobacco') ||
+        name.includes('imperial brands') || name.includes('diageo') || name.includes('tesco, ord')) return { assetClass: 'equity', sector: 'Consumer Staples' };
     // Utilities
-    if (['NEE','DUK','SO','D','AEP','XEL','EXC','SRE'].includes(ticker)) return { assetClass: 'equity', sector: 'Utilities' };
+    if (['NEE','DUK','SO','D','AEP','XEL','EXC','SRE','NG.','SSE','SVT','UU.'].includes(ticker)) return { assetClass: 'equity', sector: 'Utilities' };
+    if (name.includes('national grid, ord') || name.includes('sse, ord') || name.includes('severn trent') || name.includes('united utilities, ord')) return { assetClass: 'equity', sector: 'Utilities' };
     // Real Estate
     if (['AMT','PLD','CCI','EQIX','PSA','SPG','WELL','DLR'].includes(ticker)) return { assetClass: 'equity', sector: 'Real Estate' };
     // Aerospace / Defense → Industrials
@@ -1894,7 +1901,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const sectorRows = allSectors.map(s => {
     const rec = bm.sectors?.[s]||0, cli = sectors[s]||0, dev = cli - rec;
     return `<tr><td>${s}</td><td>${fmtPct(rec)}</td><td>${fmtPct(cli)}</td><td style="color:${devColor(dev)}">${fmtDev(dev)}</td></tr>`;
-  }).join('');
+  }).join('') + (sectors['Other'] > 0.0005 ? `<tr><td>Other / Unclassified</td><td>—</td><td>${fmtPct(sectors['Other'])}</td><td>—</td></tr>` : '');
 
   // Bond segment rows
   const allSegs = ['Government','Investment Grade','High Yield','EM Debt'];
