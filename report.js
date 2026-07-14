@@ -1159,14 +1159,19 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
     </tr>`;
   }).join('');
 
-  let wavgNum = 0, wavgDen = 0;
+  let wavgNum = 0, wavgDen = 0, missingDurCount = 0;
   bonds.forEach(b => {
     const w = b.convertedHoldingValue || 0;
-    const d = b.durationDays > 0 ? b.durationDays / 365.25 : 0;
-    wavgNum += w * d;
-    wavgDen += w;
+    if (b.durationDays > 0) {
+      wavgNum += w * (b.durationDays / 365.25);
+      wavgDen += w;
+    } else {
+      missingDurCount++; // excluded — no live duration quote for this bond, don't treat as 0yr
+    }
   });
   const wavgDur = wavgDen > 0 ? (wavgNum / wavgDen).toFixed(2) : '—';
+  const wavgNote = missingDurCount > 0
+    ? ` <span style="font-weight:400;font-size:11px;color:var(--text3)">(excl. ${missingDurCount} bond${missingDurCount>1?'s':''} with no duration quote)</span>` : '';
 
   return `
     <div class="report-section report-section-numbered">
@@ -1180,7 +1185,7 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
           <tbody>
             ${tableRows}
             <tr style="font-weight:600;background:#f5f0eb">
-              <td colspan="4">Weighted-average duration</td>
+              <td colspan="4">Weighted-average duration${wavgNote}</td>
               <td colspan="2">${wavgDur} yrs</td>
             </tr>
           </tbody>
