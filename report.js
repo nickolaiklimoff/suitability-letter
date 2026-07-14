@@ -2382,9 +2382,9 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       </div>
 
       ${breakdownSrc ? `
-      <div class="report-section report-section-numbered" style="page-break-inside:avoid;break-inside:avoid;page-break-before:always;break-before:page">
+      <div class="report-section report-section-numbered" style="page-break-inside:avoid;break-inside:avoid">
         <div class="report-section-title">Holdings Breakdown</div>
-        <img src="${breakdownSrc}" style="max-width:100%;height:auto;display:block;border-radius:6px;margin-top:0.5rem" />
+        <img src="${breakdownSrc}" style="max-width:100%;max-height:820px;object-fit:contain;display:block;border-radius:6px;margin-top:0.5rem" />
       </div>` : ''}
 
       ${buildBondAnalysisSection(portfolioData.bonds || [], analytics?.securitiesTotalValue || analytics_?.securitiesTotalValue || totalValue)}
