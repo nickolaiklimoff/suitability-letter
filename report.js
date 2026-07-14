@@ -185,44 +185,44 @@ window.parseCbondsExport = function(file) {
           pctOfPortfolio:        parseFloat(r[29]) || 0,
         }));
 
+        // NOTE on GBX holdings: cbonds' "Converted Holding Value" column is unreliable for
+        // GBX-priced (LSE, pence-quoted) stocks — it divides by 100 a second time on top of
+        // an already-lot-adjusted "Holding Value", understating the position ~100x. The raw
+        // "Holding Value" column is the correct GBP figure for these. Confirmed against real
+        // client positions (2026-07-14). Non-GBX currencies keep using the converted column
+        // as before since that path hasn't shown the same issue.
+        const fixGbxConversion = (ccy, holdingValueOrig, convertedRaw) =>
+          ccy === 'GBX' ? holdingValueOrig : (convertedRaw || holdingValueOrig || 0);
+
         // Parse funds/ETFs — verified col indices
         const fundRows = getSheet('funds').slice(1).filter(r => r[0]);
-        const funds = fundRows.map(r => ({
-          name:                  String(r[0]).trim(),
-          type:                  'etf',
-          exchange:              String(r[1]||'').trim(),
-          quantity:              parseFloat(r[2]) || 0,
-          price:                 parseFloat(r[3]) || 0,
-          holdingValueOrig:      parseFloat(r[4]) || 0,  // in original ccy (EUR/USD)
-          holdingValue:          parseFloat(r[4]) || 0,
-          purchasePrice:         parseFloat(r[5]) || 0,
-          convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
-          unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
-          unrealizedPnL:         parseFloat(r[7]) || 0,
-          ticker:                String(r[10]||'').trim(),
-          isin:                  String(r[14]||'').trim(),
-          pctOfPortfolio:        parseFloat(r[18]) || 0,
-        }));
+        const funds = fundRows.map(r => {
+          const holdingValueOrig = parseFloat(r[4]) || 0;
+          const ccy = String(r[11]||'').trim() || 'USD';
+          return {
+            name:                  String(r[0]).trim(),
+            type:                  'etf',
+            exchange:              String(r[1]||'').trim(),
+            quantity:              parseFloat(r[2]) || 0,
+            price:                 parseFloat(r[3]) || 0,
+            holdingValueOrig,  // in original ccy (EUR/USD/GBX)
+            holdingValue:          holdingValueOrig,
+            purchasePrice:         parseFloat(r[5]) || 0,
+            convertedHoldingValue: fixGbxConversion(ccy, holdingValueOrig, parseFloat(r[6])),
+            unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
+            unrealizedPnL:         parseFloat(r[7]) || 0,
+            currency:              ccy,
+            ticker:                String(r[10]||'').trim(),
+            isin:                  String(r[14]||'').trim(),
+            pctOfPortfolio:        parseFloat(r[18]) || 0,
+          };
+        });
 
         // Parse stocks — col: 0=Name,1=Exchange,2=Qty,3=Price,4=HoldingVal,5=PurchPrice,6=ConvHoldingVal,7=UnrealPnL,8=RealPnL,12=TradingCcy,16=Ticker,18=%Port
         const stockRows = getSheet('stocks').slice(1).filter(r => r[0]);
-        const stocks = stockRows.map(r => ({
-          name:                  String(r[0]).trim(),
-          type:                  'equity',
-          exchange:              String(r[1]||'').trim(),
-          quantity:              parseFloat(r[2]) || 0,
-          price:                 parseFloat(r[3]) || 0,
-          holdingValueOrig:      parseFloat(r[4]) || 0,  // in original ccy (EUR/USD)
-          holdingValue:          parseFloat(r[4]) || 0,
-          purchasePrice:         parseFloat(r[5]) || 0,
-          convertedHoldingValue: parseFloat(r[6]) || parseFloat(r[4]) || 0,
-          unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
-          unrealizedPnL:         parseFloat(r[7]) || 0,
-          realizedPnLOrig:       parseFloat(r[8]) || 0,  // in original ccy
-          realizedPnL:           parseFloat(r[8]) || 0,
-          interestIncomeOrig:    parseFloat(r[9]) || 0,  // in original ccy
-          interestIncome:        parseFloat(r[9]) || 0,
-          currency:              (() => {
+        const stocks = stockRows.map(r => {
+          const holdingValueOrig = parseFloat(r[4]) || 0;
+          const currency = (() => {
             const ccy = String(r[12]||'').trim();
             if (ccy) return ccy;
             // Infer from exchange: European exchanges → EUR, US exchanges → USD
@@ -230,10 +230,28 @@ window.parseCbondsExport = function(file) {
             if (exch.includes('frankfurt') || exch.includes('xetra') || exch.includes('berlin') ||
                 exch.includes('munich') || exch.includes('stuttgart') || exch.includes('hamburg')) return 'EUR';
             return 'USD';
-          })(),
-          ticker:                String(r[16]||'').trim(),
-          pctOfPortfolio:        parseFloat(r[18]) || 0,
-        }));
+          })();
+          return {
+            name:                  String(r[0]).trim(),
+            type:                  'equity',
+            exchange:              String(r[1]||'').trim(),
+            quantity:              parseFloat(r[2]) || 0,
+            price:                 parseFloat(r[3]) || 0,
+            holdingValueOrig,  // in original ccy (EUR/USD/GBX)
+            holdingValue:          holdingValueOrig,
+            purchasePrice:         parseFloat(r[5]) || 0,
+            convertedHoldingValue: fixGbxConversion(currency, holdingValueOrig, parseFloat(r[6])),
+            unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
+            unrealizedPnL:         parseFloat(r[7]) || 0,
+            realizedPnLOrig:       parseFloat(r[8]) || 0,  // in original ccy
+            realizedPnL:           parseFloat(r[8]) || 0,
+            interestIncomeOrig:    parseFloat(r[9]) || 0,  // in original ccy
+            interestIncome:        parseFloat(r[9]) || 0,
+            currency,
+            ticker:                String(r[16]||'').trim(),
+            pctOfPortfolio:        parseFloat(r[18]) || 0,
+          };
+        });
 
         // Auto-detect portfolio base currency from currencies sheet
         let detectedPortCcy = 'USD';
@@ -519,7 +537,11 @@ function classifyHolding(h) {
       return { assetClass: 'bond', bondSegment: 'Government' };
     if (name.includes('high yield') || name.includes('junk') || name.includes('sub-') || name.includes('subordinated'))
       return { assetClass: 'bond', bondSegment: 'High Yield' };
-    if (name.includes('emerging') || name.includes('em ') || isin.startsWith('XS') || isin.startsWith('RU'))
+    // NOTE: 'XS' ISIN prefix means Euroclear/Clearstream international settlement —
+    // used broadly by UK/European corporate Eurobonds. It is NOT an EM indicator and
+    // was previously misclassifying UK corporates (e.g. British American Tobacco,
+    // HSBC, Tesco Eurobonds) as EM Debt. Removed 2026-07-14.
+    if (name.includes('emerging') || name.includes('em ') || isin.startsWith('RU'))
       return { assetClass: 'bond', bondSegment: 'EM Debt' };
     return { assetClass: 'bond', bondSegment: 'Investment Grade' };
   }
