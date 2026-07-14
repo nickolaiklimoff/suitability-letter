@@ -1903,14 +1903,17 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const sectorRows = allSectors.map(s => {
     const rec = bm.sectors?.[s]||0, cli = sectors[s]||0, dev = cli - rec;
     return `<tr><td>${s}</td><td>${fmtPct(rec)}</td><td>${fmtPct(cli)}</td><td style="color:${devColor(dev)}">${fmtDev(dev)}</td></tr>`;
-  }).join('') + (sectors['Other'] > 0.0005 ? `<tr><td>Other / Unclassified</td><td>—</td><td>${fmtPct(sectors['Other'])}</td><td>—</td></tr>` : '');
+  }).join('')
+    + (sectors['Other'] > 0.0005 ? `<tr><td>Other / Unclassified</td><td>—</td><td>${fmtPct(sectors['Other'])}</td><td>—</td></tr>` : '')
+    + `<tr style="font-weight:600;background:#f5f0eb"><td>Total (= Equities, Section 2)</td><td>${fmtPct(bm.equities||0)}</td><td>${fmtPct(equityPct)}</td><td>—</td></tr>`;
 
   // Bond segment rows
   const allSegs = ['Government','Investment Grade','High Yield','EM Debt'];
   const segmentRows = allSegs.map(s => {
     const rec = bm.bondSegments?.[s]||0, cli = bondSegments[s]||0, dev = cli - rec;
     return `<tr><td>${s}</td><td>${fmtPct(rec)}</td><td>${fmtPct(cli)}</td><td style="color:${devColor(dev)}">${fmtDev(dev)}</td></tr>`;
-  }).join('');
+  }).join('')
+    + `<tr style="font-weight:600;background:#f5f0eb"><td>Total (= Bonds, Section 2)</td><td>${fmtPct(bm.bonds||0)}</td><td>${fmtPct(bondPct)}</td><td>—</td></tr>`;
 
   // ── Country Exposure (equity funds + stocks) ──────────────────────────────
   const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
