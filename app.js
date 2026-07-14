@@ -8,8 +8,8 @@ let isDirty = false;
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
-  loadFromStorage();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadFromStorage();
   renderClientList();
   buildProfileForm();
   initLetterForm();
@@ -35,16 +35,79 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
+// Client data (incl. base64 chart/breakdown images and generated report HTML)
+// is stored in IndexedDB instead of localStorage: localStorage caps out around
+// 5-10MB per origin and a handful of clients with uploaded images blows past
+// that quota ("setItem exceeded the quota"). IndexedDB's quota is typically a
+// large share of free disk space, so this removes the practical ceiling.
 
-function loadFromStorage() {
+const IDB_NAME = 'suitability-db';
+const IDB_STORE = 'kv';
+let _idbHandle = null;
+
+function idbOpen() {
+  if (_idbHandle) return _idbHandle;
+  _idbHandle = new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+        req.result.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _idbHandle;
+}
+
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function loadFromStorage() {
+  try {
+    const fromIdb = await idbGet('suitability-clients');
+    if (fromIdb) { clients = fromIdb; return; }
+  } catch (e) {
+    console.error('IndexedDB read failed, falling back to localStorage', e);
+  }
+  // First run after upgrade (or IndexedDB unavailable): migrate any existing
+  // localStorage data into IndexedDB, then free up the localStorage quota.
   try {
     const raw = localStorage.getItem('suitability-clients');
-    if (raw) clients = JSON.parse(raw);
-  } catch (e) { clients = {}; }
+    if (raw) {
+      clients = JSON.parse(raw);
+      try {
+        await idbSet('suitability-clients', clients);
+        localStorage.removeItem('suitability-clients');
+      } catch (e) {
+        console.error('Migration to IndexedDB failed, keeping localStorage copy', e);
+      }
+    }
+  } catch (e) { clients = clients || {}; }
 }
 
 function saveToStorage() {
-  localStorage.setItem('suitability-clients', JSON.stringify(clients));
+  idbSet('suitability-clients', clients).catch(err => {
+    console.error('Failed to save client data', err);
+    alert('Error saving client data: ' + err.message);
+  });
 }
 
 // ─── Client list ─────────────────────────────────────────────────────────────
