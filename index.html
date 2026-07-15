@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1784112834">
+<link rel="stylesheet" href="style.css?v=1783598061">
 <body>
 <div class="app">
 
@@ -22,6 +22,7 @@
         onblur="saveClientName()" onkeydown="if(event.key==='Enter')this.blur()" />
     </div>
     <div class="sidebar-divider"></div>
+    <div id="storageHealthBar" style="padding:6px 12px;font-size:10px;color:var(--text3)"></div>
     <div style="padding:8px 12px;display:flex;flex-direction:column;gap:5px">
       <div id="basePortfoliosSidebarStatus" style="font-size:11px;color:var(--text3)"></div>
       <button class="btn-secondary" style="font-size:11px;padding:5px 8px;text-align:left;cursor:pointer;width:100%" onclick="bpOpen()">→ Base Portfolios</button>
@@ -893,10 +894,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1784112834"></script>
+<script src="waar.js?v=1783598061"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1784112834"></script>
-<script src="app.js?v=1784112834"></script>
+<script src="report.js?v=1783598061"></script>
+<script src="app.js?v=1783598061"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
