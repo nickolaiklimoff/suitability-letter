@@ -4553,7 +4553,6 @@ function runRebalance() {
       const budgetSufficient = effectiveBudget >= totalDeficit;
       underLines2.forEach(r => {
         const lineAlloc = budgetSufficient ? r.deficit : (r.deficit / totalDeficit) * effectiveBudget;
-        r.buyAmt = lineAlloc;
         r.holdings.forEach(h => {
           const qty_now = h.quantity || 0;
           const price = qty_now > 0 ? (h.convertedHoldingValue||0) / qty_now : (h.price || h.lastPrice || 0);
@@ -4562,7 +4561,7 @@ function runRebalance() {
           const hAlloc = lineAlloc * hShare;
           const qty    = Math.floor(hAlloc / price);
           const spent  = qty * price;
-          holdingTrades.push({ holding:h, qty, spent, price, alloc:hAlloc });
+          holdingTrades.push({ holding:h, qty, spent, price, alloc:hAlloc, row:r });
           totalSpent += spent;
         });
       });
@@ -4574,6 +4573,12 @@ function runRebalance() {
             t.qty += 1; t.spent += t.price; totalSpent += t.price;
           }
         });
+      // Use actual (post-rounding) spend per row — not the pre-rounding planned
+      // allocation — so the displayed Buy $ and the After% figures reconcile
+      // with actualNewTotal instead of drifting apart (After column previously
+      // didn't sum to 100%, since numerators used planned $ but the total used
+      // actual spend).
+      holdingTrades.forEach(t => { t.row.buyAmt += t.spent; });
     }
 
     const actualNewTotal = sleeveTotal + totalSpent;
