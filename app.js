@@ -3940,15 +3940,37 @@ window.crmSwitchTab = function(tab) {
 };
 
 // ── Clients tab: activity/task summary per existing client ─────────────────
+function crmUpcomingBirthdays(withinDays) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const people = [];
+  Object.entries(clients).forEach(([id, c]) => {
+    if (c.crm?.birthday) people.push({ type: 'client', id, name: c.name || 'Unnamed', birthday: c.crm.birthday });
+  });
+  Object.entries(prospects).forEach(([id, p]) => {
+    if (p.birthday) people.push({ type: 'prospect', id, name: p.name, birthday: p.birthday });
+  });
+  return people.map(p => {
+    let next = new Date(today.getFullYear(), p.birthday.month - 1, p.birthday.day);
+    if (next < today) next = new Date(today.getFullYear() + 1, p.birthday.month - 1, p.birthday.day);
+    const daysUntil = Math.round((next - today) / 86400000);
+    return { ...p, daysUntil };
+  }).filter(p => p.daysUntil <= withinDays).sort((a, b) => a.daysUntil - b.daysUntil);
+}
+
 function crmRenderClients() {
   const el = document.getElementById('crmClientsView');
   if (!el) return;
   const ids = Object.keys(clients);
+  const upcoming = crmUpcomingBirthdays(30);
+  const bdayHtml = upcoming.length ? `<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:12px">
+    <span style="font-weight:600;color:var(--text2)">🎂 Upcoming birthdays:</span>
+    ${upcoming.map(p => `<span onclick="crmOpenDetail('${p.type}','${p.id}')" style="cursor:pointer;margin-left:10px;color:var(--text1)">${crmEsc(p.name)} <span style="color:var(--text3)">(${p.daysUntil===0?'today':p.daysUntil===1?'tomorrow':'in '+p.daysUntil+'d'})</span></span>`).join('')}
+  </div>` : '';
   if (!ids.length) {
-    el.innerHTML = '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No clients yet — add one from the sidebar first.</div>';
+    el.innerHTML = bdayHtml + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No clients yet — add one from the sidebar first.</div>';
     return;
   }
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">` + ids.map(id => {
+  el.innerHTML = bdayHtml + `<div style="display:flex;flex-direction:column;gap:6px">` + ids.map(id => {
     const c = clients[id];
     const crm = c.crm || { activities: [], tasks: [] };
     const openTasks = (crm.tasks || []).filter(t => !t.done);
@@ -4079,6 +4101,33 @@ function crmRenderDetail() {
         <button onclick="crmCloseDetail()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1">×</button>
       </div>
     </div>
+    <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:12px;color:var(--text2);margin-bottom:8px">Personal <span style="font-weight:400;color:var(--text3)">(minimal — no year of birth, no other PII)</span></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Birthday (day/month only)</label>
+          <div style="display:flex;gap:4px">
+            <select id="crmBdayDay" onchange="crmSetBirthday()" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+              <option value="">Day</option>
+              ${Array.from({length:31},(_,i)=>i+1).map(d=>`<option value="${d}" ${bucket.birthday?.day===d?'selected':''}>${d}</option>`).join('')}
+            </select>
+            <select id="crmBdayMonth" onchange="crmSetBirthday()" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+              <option value="">Month</option>
+              ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=>`<option value="${i+1}" ${bucket.birthday?.month===i+1?'selected':''}>${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Interests / plans (free text)</label>
+          <input id="crmInterests" value="${crmEsc(bucket.interests || '')}" placeholder="e.g. Arsenal FC, golf, sailing, expanding to Kazakhstan..." onchange="crmSetInterests(this.value)" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <button onclick="crmCheckNews()" class="btn-secondary" style="font-size:11px;padding:4px 10px" ${bucket.interests ? '' : 'disabled title="Add interests first"'}>🔎 Check relevant news</button>
+        <span id="crmNewsStatus" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
+        ${bucket.newsCheck ? `<div style="margin-top:8px;font-size:12px;color:var(--text1);background:var(--bg);border-radius:6px;padding:8px 10px;white-space:pre-wrap">${crmEsc(bucket.newsCheck.text)}<div style="font-size:10px;color:var(--text3);margin-top:6px">Checked ${crmFmtDate(bucket.newsCheck.date)}</div></div>` : ''}
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
       <div>
         <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Tasks</div>
@@ -4176,6 +4225,68 @@ window.crmSetCompany = function(val) {
   prospects[ref.id].company = val.trim();
   saveProspectsToStorage();
   crmRefreshActiveView();
+};
+
+window.crmSetBirthday = function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const d = parseInt(document.getElementById('crmBdayDay').value, 10);
+  const m = parseInt(document.getElementById('crmBdayMonth').value, 10);
+  bucket.birthday = (d && m) ? { day: d, month: m } : null; // no year stored — data minimisation
+  crmSaveBucket(ref);
+  crmRefreshActiveView();
+};
+
+window.crmSetInterests = function(val) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  bucket.interests = val.trim();
+  crmSaveBucket(ref);
+};
+
+// Manual, on-demand only — never runs automatically, so it never polls the news
+// or spends API credits without the person explicitly asking for this client.
+window.crmCheckNews = async function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const name = crmGetName(ref);
+  const interests = (bucket.interests || '').trim();
+  if (!interests) return;
+  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
+  const statusEl = document.getElementById('crmNewsStatus');
+  if (!apiKey) { if (statusEl) statusEl.textContent = 'Set an API key in Settings first.'; return; }
+  if (statusEl) statusEl.textContent = 'Searching...';
+
+  const prompt = `You help a wealth manager prepare small talk / relationship-building talking points for a client meeting.
+Client's stated interests/plans: "${interests}"
+Search for genuinely recent, relevant news tied to these specific interests (e.g. a sports team's recent result, a notable development in a stated hobby or business area). Ignore anything generic or not clearly tied to what's listed.
+Reply with 2-4 short bullet points, each one fact + a one-line "why it's useful to mention" note. If nothing relevant and recent is found, reply exactly: "No relevant recent news found."
+Do not use the client's name in the reply. Keep it under 100 words total.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 700,
+        messages: [{ role: 'user', content: prompt }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || 'API error');
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    bucket.newsCheck = { date: new Date().toISOString(), text: text || 'No relevant recent news found.' };
+    crmSaveBucket(ref);
+    if (statusEl) statusEl.textContent = '';
+    crmRenderDetail();
+  } catch (e) {
+    console.error('crmCheckNews failed', e);
+    if (statusEl) statusEl.textContent = 'Search failed: ' + e.message;
+  }
 };
 
 
