@@ -48,6 +48,7 @@ function updateStorageHealthBar() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadFromStorage();
+  await loadProspects();
   updateStorageHealthBar();
   renderClientList();
   buildProfileForm();
@@ -3809,7 +3810,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ─── SETTINGS PANEL ──────────────────────────────────────────────────────────
 window.settingsOpen = function() {
-  ['emptyState','appContent','basePortfoliosPanel','dailyBriefPanel'].forEach(id => {
+  ['emptyState','appContent','basePortfoliosPanel','dailyBriefPanel','crmPanel'].forEach(id => {
     document.getElementById(id)?.classList.add('hidden');
   });
   document.getElementById('settingsPanel').classList.remove('hidden');
@@ -3831,7 +3832,7 @@ window.settingsClose = function() {
   }
 };
 window.macroOpen = function() {
-  ['emptyState','appContent','basePortfoliosPanel','dailyBriefPanel','settingsPanel'].forEach(id => {
+  ['emptyState','appContent','basePortfoliosPanel','dailyBriefPanel','settingsPanel','crmPanel'].forEach(id => {
     document.getElementById(id)?.classList.add('hidden');
   });
   document.getElementById('macroPanel').classList.remove('hidden');
@@ -3852,6 +3853,331 @@ window.macroClose = function() {
     document.getElementById('emptyState').classList.remove('hidden');
   }
 };
+
+// ─── CRM ─────────────────────────────────────────────────────────────────────
+// Two kinds of CRM subjects:
+//  - "client"   → activity log/tasks are stored ON the existing client record
+//                 (clients[id].crm), so they travel with the client and are
+//                 already persisted via saveToStorage()/IndexedDB.
+//  - "prospect" → separate lightweight records (not yet full clients), stored
+//                 under their own IndexedDB key and a simple stage pipeline.
+
+let prospects = {};
+let crmCurrentTab = 'clients';
+let crmDetailPersonRef = null; // {type:'client'|'prospect', id}
+const CRM_STAGES = ['Prospecting', 'Meeting', 'Proposal', 'Client'];
+
+async function loadProspects() {
+  try {
+    const fromIdb = await idbGet('crm-prospects');
+    if (fromIdb) { prospects = fromIdb; return; }
+  } catch (e) {
+    console.error('Failed to load CRM prospects', e);
+  }
+  prospects = {};
+}
+
+function saveProspectsToStorage() {
+  idbSet('crm-prospects', prospects).catch(err => {
+    console.error('Failed to save CRM prospects', err);
+    alert('⚠️ Failed to save prospect data — browser storage is full.\n\n' + err.message);
+  });
+}
+
+function crmEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function crmFmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return String(d);
+  return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function crmGetBucket(ref) {
+  if (!ref) return null;
+  if (ref.type === 'client') {
+    if (!clients[ref.id]) return null;
+    if (!clients[ref.id].crm) clients[ref.id].crm = { activities: [], tasks: [] };
+    return clients[ref.id].crm;
+  }
+  return prospects[ref.id] || null;
+}
+function crmSaveBucket(ref) {
+  if (ref.type === 'client') saveToStorage(); else saveProspectsToStorage();
+}
+function crmGetName(ref) {
+  return ref.type === 'client' ? (clients[ref.id]?.name || 'Unnamed') : (prospects[ref.id]?.name || 'Unnamed');
+}
+function crmRefreshActiveView() {
+  if (crmCurrentTab === 'clients') crmRenderClients(); else crmRenderProspects();
+}
+
+window.crmOpen = function() {
+  ['emptyState', 'appContent', 'basePortfoliosPanel', 'dailyBriefPanel', 'settingsPanel', 'macroPanel'].forEach(id => {
+    document.getElementById(id)?.classList.add('hidden');
+  });
+  document.getElementById('crmPanel').classList.remove('hidden');
+  crmSwitchTab(crmCurrentTab || 'clients');
+};
+
+window.crmClose = function() {
+  document.getElementById('crmPanel').classList.add('hidden');
+  document.getElementById('crmDetailModal').classList.add('hidden');
+  if (window.currentClientId) {
+    document.getElementById('appContent').classList.remove('hidden');
+  } else {
+    document.getElementById('emptyState').classList.remove('hidden');
+  }
+};
+
+window.crmSwitchTab = function(tab) {
+  crmCurrentTab = tab;
+  document.getElementById('crmTabClients').classList.toggle('active', tab === 'clients');
+  document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
+  document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
+  document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
+  crmRefreshActiveView();
+};
+
+// ── Clients tab: activity/task summary per existing client ─────────────────
+function crmRenderClients() {
+  const el = document.getElementById('crmClientsView');
+  if (!el) return;
+  const ids = Object.keys(clients);
+  if (!ids.length) {
+    el.innerHTML = '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No clients yet — add one from the sidebar first.</div>';
+    return;
+  }
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">` + ids.map(id => {
+    const c = clients[id];
+    const crm = c.crm || { activities: [], tasks: [] };
+    const openTasks = (crm.tasks || []).filter(t => !t.done);
+    const overdue = openTasks.some(t => t.due && new Date(t.due) < new Date(new Date().toDateString()));
+    const lastAct = (crm.activities || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    return `<div onclick="crmOpenDetail('client','${id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--bg)">
+      <div style="min-width:0">
+        <div style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(c.name || 'Unnamed client')}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lastAct ? crmFmtDate(lastAct.date) + ' — ' + crmEsc(lastAct.text) : 'No activity logged'}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        ${overdue ? '<span style="background:#fdecea;color:#c62828;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap">overdue</span>' : ''}
+        ${openTasks.length ? `<span style="background:#eaf4fb;color:#1a5276;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap">${openTasks.length} task${openTasks.length > 1 ? 's' : ''}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+// ── Prospects tab: pipeline kanban ──────────────────────────────────────────
+window.crmAddProspect = function() {
+  const name = prompt('Prospect name:');
+  if (!name || !name.trim()) return;
+  const id = 'p_' + Date.now();
+  prospects[id] = { id, name: name.trim(), company: '', stage: 'Prospecting', activities: [], tasks: [], createdAt: Date.now() };
+  saveProspectsToStorage();
+  crmRenderProspects();
+  crmOpenDetail('prospect', id);
+};
+
+window.crmMoveStage = function(id, delta) {
+  const p = prospects[id]; if (!p) return;
+  const idx = CRM_STAGES.indexOf(p.stage);
+  p.stage = CRM_STAGES[Math.max(0, Math.min(CRM_STAGES.length - 1, idx + delta))];
+  saveProspectsToStorage();
+  crmRenderProspects();
+};
+
+window.crmConvertToClient = function(id) {
+  const p = prospects[id]; if (!p) return;
+  if (!confirm(`Convert "${p.name}" to a full client? This creates a new client record in the sidebar (with the activity log and tasks carried over) and removes them from the prospect pipeline.`)) return;
+  const cid = 'c_' + Date.now();
+  clients[cid] = { name: p.name, profile: {}, letters: [], crm: { activities: p.activities || [], tasks: p.tasks || [] } };
+  saveToStorage();
+  renderClientList();
+  delete prospects[id];
+  saveProspectsToStorage();
+  crmRenderProspects();
+  alert(`${p.name} is now a client — find them in the sidebar list.`);
+};
+
+window.crmDeleteProspect = function(id) {
+  const p = prospects[id]; if (!p) return;
+  if (!confirm(`Delete prospect "${p.name}"? This cannot be undone.`)) return;
+  delete prospects[id];
+  saveProspectsToStorage();
+  crmRenderProspects();
+  document.getElementById('crmDetailModal').classList.add('hidden');
+};
+
+function crmRenderProspects() {
+  const el = document.getElementById('crmProspectsView');
+  if (!el) return;
+  let html = `<div style="margin-bottom:1rem"><button class="btn-primary" onclick="crmAddProspect()" style="font-size:13px;padding:7px 16px">+ New prospect</button></div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">`;
+  CRM_STAGES.forEach((stage, stageIdx) => {
+    const items = Object.values(prospects).filter(p => p.stage === stage).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    html += `<div style="background:var(--bg2);border-radius:8px;padding:10px;min-height:140px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${stage} (${items.length})</div>
+      ${items.map(p => {
+        const openTasks = (p.tasks || []).filter(t => !t.done);
+        const overdue = openTasks.some(t => t.due && new Date(t.due) < new Date(new Date().toDateString()));
+        return `<div onclick="crmOpenDetail('prospect','${p.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer">
+          <div style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(p.name)}</div>
+          ${p.company ? `<div style="font-size:11px;color:var(--text3)">${crmEsc(p.company)}</div>` : ''}
+          <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+            ${overdue ? '<span style="background:#fdecea;color:#c62828;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600">overdue</span>' : ''}
+            ${openTasks.length ? `<span style="background:#eaf4fb;color:#1a5276;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600">${openTasks.length} task${openTasks.length > 1 ? 's' : ''}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:4px;margin-top:6px" onclick="event.stopPropagation()">
+            ${stageIdx > 0 ? `<button onclick="crmMoveStage('${p.id}',-1)" title="Move back" style="font-size:10px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:none;cursor:pointer;color:var(--text2)">←</button>` : ''}
+            ${stageIdx < CRM_STAGES.length - 1
+              ? `<button onclick="crmMoveStage('${p.id}',1)" title="Move forward" style="font-size:10px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:none;cursor:pointer;color:var(--text2)">→</button>`
+              : `<button onclick="crmConvertToClient('${p.id}')" title="Convert to client" style="font-size:10px;padding:2px 6px;border:none;border-radius:4px;background:var(--green-text);color:#fff;cursor:pointer;font-weight:600">✓ Onboard</button>`}
+          </div>
+        </div>`;
+      }).join('') || `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
+    </div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+// ── Shared detail modal: activity log + tasks (clients and prospects) ──────
+window.crmOpenDetail = function(type, id) {
+  crmDetailPersonRef = { type, id };
+  document.getElementById('crmDetailModal').classList.remove('hidden');
+  crmRenderDetail();
+};
+
+window.crmCloseDetail = function() {
+  document.getElementById('crmDetailModal').classList.add('hidden');
+  crmDetailPersonRef = null;
+};
+
+function crmRenderDetail() {
+  const ref = crmDetailPersonRef; if (!ref) return;
+  const bucket = crmGetBucket(ref); if (!bucket) return;
+  const name = crmGetName(ref);
+  const tasks = (bucket.tasks || []).slice().sort((a, b) => {
+    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
+  });
+  const activities = (bucket.activities || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  const isProspect = ref.type === 'prospect';
+
+  document.getElementById('crmDetailContent').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+      <div style="flex:1">
+        <h3 style="font-size:17px;font-weight:600;color:var(--text1);margin:0">${crmEsc(name)}</h3>
+        ${isProspect ? `<input value="${crmEsc(prospects[ref.id].company || '')}" placeholder="Company / context" onchange="crmSetCompany(this.value)" style="margin-top:6px;width:100%;max-width:340px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">` : ''}
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        ${isProspect ? `
+        <select onchange="crmSetStage(this.value)" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          ${CRM_STAGES.map(s => `<option value="${s}" ${prospects[ref.id].stage === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <button onclick="crmDeleteProspect('${ref.id}')" title="Delete prospect" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">🗑</button>` : ''}
+        <button onclick="crmCloseDetail()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+      <div>
+        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Tasks</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="crmNewTaskText" placeholder="New task..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <button onclick="crmAddTask()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
+          ${tasks.length ? tasks.map(t => {
+            const overdue = !t.done && t.due && new Date(t.due) < new Date(new Date().toDateString());
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;${t.done ? 'opacity:0.5' : ''}">
+              <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:var(--text1);${t.done ? 'text-decoration:line-through' : ''}">${crmEsc(t.text)}</div>
+                ${t.due ? `<div style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'}">${overdue ? '⚠ overdue · ' : ''}${crmFmtDate(t.due)}</div>` : ''}
+              </div>
+              <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+            </div>`;
+          }).join('') : '<div style="font-size:12px;color:var(--text3)">No tasks yet.</div>'}
+        </div>
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Activity Log</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <select id="crmNewActType" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            <option value="note">Note</option>
+            <option value="call">Call</option>
+            <option value="meeting">Meeting</option>
+            <option value="email">Email</option>
+          </select>
+          <input id="crmNewActText" placeholder="What happened..." onkeydown="if(event.key==='Enter')crmAddActivity()" style="flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <button onclick="crmAddActivity()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Log</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
+          ${activities.length ? activities.map(a => `
+            <div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px">
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3)">${crmEsc(a.type)}</span>
+                <span style="font-size:10px;color:var(--text3)">${crmFmtDate(a.date)}</span>
+              </div>
+              <div style="font-size:12px;color:var(--text1);margin-top:2px">${crmEsc(a.text)}</div>
+            </div>`).join('') : '<div style="font-size:12px;color:var(--text3)">No activity logged yet.</div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+window.crmAddTask = function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const textEl = document.getElementById('crmNewTaskText');
+  const dueEl = document.getElementById('crmNewTaskDue');
+  const text = textEl.value.trim(); if (!text) return;
+  if (!bucket.tasks) bucket.tasks = [];
+  bucket.tasks.push({ id: 't_' + Date.now(), text, due: dueEl.value || null, done: false });
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmToggleTask = function(taskId) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.done = !t.done;
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmDeleteTask = function(taskId) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  bucket.tasks = (bucket.tasks || []).filter(x => x.id !== taskId);
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmAddActivity = function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const typeEl = document.getElementById('crmNewActType');
+  const textEl = document.getElementById('crmNewActText');
+  const text = textEl.value.trim(); if (!text) return;
+  if (!bucket.activities) bucket.activities = [];
+  bucket.activities.push({ id: 'a_' + Date.now(), type: typeEl.value, text, date: new Date().toISOString() });
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmSetStage = function(stage) {
+  const ref = crmDetailPersonRef; if (!ref || ref.type !== 'prospect') return;
+  prospects[ref.id].stage = stage;
+  saveProspectsToStorage();
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmSetCompany = function(val) {
+  const ref = crmDetailPersonRef; if (!ref || ref.type !== 'prospect') return;
+  prospects[ref.id].company = val.trim();
+  saveProspectsToStorage();
+  crmRefreshActiveView();
+};
+
 
 
 
