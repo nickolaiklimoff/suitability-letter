@@ -7,21 +7,48 @@ const TOTAL_STEPS = 7;
 let isDirty = false;
 
 function lsSet(key, value) {
+  let ok = false;
   try {
     localStorage.setItem(key, value);
-    return true;
+    // Read back and verify — some browsers/conditions can silently truncate
+    // or fail a write without throwing, so don't just trust a clean setItem.
+    ok = (localStorage.getItem(key) === value);
+    if (!ok) throw new Error('write did not verify on read-back');
   } catch (e) {
     console.error('localStorage save failed for', key, e);
     alert('⚠️ Failed to save "' + key + '" — browser storage is full.\n\n' +
           'This change will NOT persist after reload. Free up space (e.g. remove unused client breakdown images) and try again.\n\n' + e.message);
-    return false;
   }
+  updateStorageHealthBar();
+  return ok;
+}
+
+function updateStorageHealthBar() {
+  const el = document.getElementById('storageHealthBar');
+  if (!el) return;
+  try {
+    let bytes = 0;
+    for (const k in localStorage) {
+      if (!Object.prototype.hasOwnProperty.call(localStorage, k)) continue;
+      bytes += (k.length + (localStorage[k]||'').length) * 2; // UTF-16
+    }
+    // Browsers typically cap localStorage around 5MB/origin; used as a
+    // conservative reference point since there's no exact quota API for it.
+    const ASSUMED_QUOTA = 5 * 1024 * 1024;
+    const pct = Math.min(100, Math.round((bytes / ASSUMED_QUOTA) * 100));
+    const kb = Math.round(bytes / 1024);
+    let color = 'var(--text3)', label = 'OK';
+    if (pct >= 90) { color = '#a32d2d'; label = 'FULL — saves may fail'; }
+    else if (pct >= 70) { color = '#b8860b'; label = 'getting full'; }
+    el.innerHTML = `<span style="color:${color}">● Storage: ${kb} KB (~${pct}%) ${label}</span>`;
+  } catch (e) { el.innerHTML = ''; }
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadFromStorage();
+  updateStorageHealthBar();
   renderClientList();
   buildProfileForm();
   initLetterForm();
