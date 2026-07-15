@@ -4102,7 +4102,13 @@ function crmRenderDetail() {
       </div>
     </div>
     <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:1.25rem">
-      <div style="font-weight:600;font-size:12px;color:var(--text2);margin-bottom:8px">Personal <span style="font-weight:400;color:var(--text3)">(minimal — no year of birth, no other PII)</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:600;font-size:12px;color:var(--text2)">Personal <span style="font-weight:400;color:var(--text3)">(minimal — no year of birth, no other PII, all data stays local — nothing sent to any third party)</span></div>
+        <div style="display:flex;gap:6px">
+          <button onclick="crmExportPerson()" title="Export all CRM data held on this person (GDPR Art. 15)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg);color:var(--text2);cursor:pointer">⬇ Export</button>
+          <button onclick="crmEraseCrmData()" title="Erase all CRM data held on this person (GDPR Art. 17) — keeps the client record itself, only clears activity/tasks/personal fields" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg);color:#c62828;cursor:pointer">🗑 Erase CRM data</button>
+        </div>
+      </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
         <div>
           <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Birthday (day/month only)</label>
@@ -4121,11 +4127,6 @@ function crmRenderDetail() {
           <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Interests / plans (free text)</label>
           <input id="crmInterests" value="${crmEsc(bucket.interests || '')}" placeholder="e.g. Arsenal FC, golf, sailing, expanding to Kazakhstan..." onchange="crmSetInterests(this.value)" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
         </div>
-      </div>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-        <button onclick="crmCheckNews()" class="btn-secondary" style="font-size:11px;padding:4px 10px" ${bucket.interests ? '' : 'disabled title="Add interests first"'}>🔎 Check relevant news</button>
-        <span id="crmNewsStatus" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
-        ${bucket.newsCheck ? `<div style="margin-top:8px;font-size:12px;color:var(--text1);background:var(--bg);border-radius:6px;padding:8px 10px;white-space:pre-wrap">${crmEsc(bucket.newsCheck.text)}<div style="font-size:10px;color:var(--text3);margin-top:6px">Checked ${crmFmtDate(bucket.newsCheck.date)}</div></div>` : ''}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
@@ -4242,54 +4243,48 @@ window.crmSetInterests = function(val) {
   crmSaveBucket(ref);
 };
 
-// Manual, on-demand only — never runs automatically, so it never polls the news
-// or spends API credits without the person explicitly asking for this client.
-window.crmCheckNews = async function() {
+// GDPR Art. 15 — right of access: export everything CRM-related held on this person.
+window.crmExportPerson = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const name = crmGetName(ref);
-  const interests = (bucket.interests || '').trim();
-  if (!interests) return;
-  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
-  const statusEl = document.getElementById('crmNewsStatus');
-  if (!apiKey) { if (statusEl) statusEl.textContent = 'Set an API key in Settings first.'; return; }
-  if (statusEl) statusEl.textContent = 'Searching...';
-
-  const prompt = `You help a wealth manager prepare small talk / relationship-building talking points for a client meeting.
-Client's stated interests/plans: "${interests}"
-Search for genuinely recent, relevant news tied to these specific interests (e.g. a sports team's recent result, a notable development in a stated hobby or business area). Ignore anything generic or not clearly tied to what's listed.
-Reply with 2-4 short bullet points, each one fact + a one-line "why it's useful to mention" note. If nothing relevant and recent is found, reply exactly: "No relevant recent news found."
-Do not use the client's name in the reply. Keep it under 100 words total.`;
-
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 700,
-        messages: [{ role: 'user', content: prompt }],
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }]
-      })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error.message || 'API error');
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-    bucket.newsCheck = { date: new Date().toISOString(), text: text || 'No relevant recent news found.' };
-    crmSaveBucket(ref);
-    if (statusEl) statusEl.textContent = '';
-    crmRenderDetail();
-  } catch (e) {
-    console.error('crmCheckNews failed', e);
-    if (statusEl) statusEl.textContent = 'Search failed: ' + e.message;
-  }
+  const record = {
+    name,
+    type: ref.type,
+    company: ref.type === 'prospect' ? (prospects[ref.id].company || null) : null,
+    stage: ref.type === 'prospect' ? (prospects[ref.id].stage || null) : null,
+    birthday: bucket.birthday ? `${String(bucket.birthday.day).padStart(2,'0')}/${String(bucket.birthday.month).padStart(2,'0')} (no year stored)` : null,
+    interests: bucket.interests || null,
+    activities: bucket.activities || [],
+    tasks: bucket.tasks || [],
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `crm-data-${name.replace(/[^a-z0-9]+/gi,'_')}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
-
+// GDPR Art. 17 — right to erasure: clears all CRM fields for this person. For an
+// existing client this only clears the CRM bucket (activities/tasks/birthday/
+// interests) — it does NOT touch their suitability letter / portfolio records,
+// which are a separate processing activity with its own retention basis.
+window.crmEraseCrmData = function() {
+  const ref = crmDetailPersonRef; if (!ref) return;
+  const name = crmGetName(ref);
+  if (!confirm(`Erase all CRM data (activity log, tasks, birthday, interests) held on "${name}"? This cannot be undone.${ref.type === 'client' ? ' The client record itself and their portfolio/letter data are not affected.' : ' This will delete the prospect entirely.'}`)) return;
+  if (ref.type === 'client') {
+    if (clients[ref.id]) clients[ref.id].crm = { activities: [], tasks: [] };
+    saveToStorage();
+  } else {
+    delete prospects[ref.id];
+    saveProspectsToStorage();
+  }
+  crmCloseDetail();
+  crmRefreshActiveView();
+};
 
 
 // ─── Rebalancing Tab ──────────────────────────────────────────────────────────
