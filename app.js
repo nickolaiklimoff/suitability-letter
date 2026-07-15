@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (label) { label.textContent = '✓ Loaded'; label.style.color = '#3b6d11'; }
     }
   } catch(e) {}
+  crmShowTodayTasks();
 });
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -3940,6 +3941,44 @@ window.crmSwitchTab = function(tab) {
 };
 
 // ── Clients tab: activity/task summary per existing client ─────────────────
+function crmTodaysTasks() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const items = [];
+  Object.entries(clients).forEach(([id, c]) => {
+    (c.crm?.tasks || []).forEach(t => {
+      if (!t.done && t.due === todayStr) items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', task: t });
+    });
+  });
+  Object.entries(prospects).forEach(([id, p]) => {
+    (p.tasks || []).forEach(t => {
+      if (!t.done && t.due === todayStr) items.push({ personType: 'prospect', personId: id, personName: p.name, task: t });
+    });
+  });
+  return items;
+}
+
+window.crmShowTodayTasks = function() {
+  const items = crmTodaysTasks();
+  if (!items.length) return;
+  const modal = document.getElementById('crmTodayModal');
+  document.getElementById('crmTodayContent').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h3 style="font-size:16px;font-weight:600;color:var(--text1);margin:0">📋 Today's tasks (${items.length})</h3>
+      <button onclick="document.getElementById('crmTodayModal').classList.add('hidden')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${items.map(it => `
+        <div onclick="document.getElementById('crmTodayModal').classList.add('hidden');crmOpen();crmSwitchTab('${it.personType}s');crmOpenDetail('${it.personType}','${it.personId}')" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg2)">
+          <div style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(it.personName)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${crmEsc(it.task.text)}</div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:1rem;text-align:right">
+      <button onclick="document.getElementById('crmTodayModal').classList.add('hidden')" class="btn-secondary" style="font-size:12px">Dismiss</button>
+    </div>`;
+  modal.classList.remove('hidden');
+};
+
 function crmUpcomingBirthdays(withinDays) {
   const today = new Date(); today.setHours(0,0,0,0);
   const people = [];
@@ -4128,19 +4167,60 @@ function crmRenderDetail() {
           <input id="crmInterests" value="${crmEsc(bucket.interests || '')}" placeholder="e.g. Arsenal FC, golf, sailing, expanding to Kazakhstan..." onchange="crmSetInterests(this.value)" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
         </div>
       </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <button onclick="crmCheckNews()" class="btn-secondary" style="font-size:11px;padding:4px 10px" ${bucket.interests ? '' : 'disabled title="Add interests first"'}>🔎 Check relevant news</button>
+        <span id="crmNewsStatus" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
+        <span style="font-size:10px;color:var(--text3);margin-left:8px">— sends only the Interests text above to Anthropic's API. Name and birthday are never included.</span>
+        ${bucket.newsCheck ? `<div style="margin-top:8px;font-size:12px;color:var(--text1);background:var(--bg);border-radius:6px;padding:8px 10px;white-space:pre-wrap">${crmEsc(bucket.newsCheck.text)}<div style="font-size:10px;color:var(--text3);margin-top:6px">Checked ${crmFmtDate(bucket.newsCheck.date)}</div></div>` : ''}
+      </div>
     </div>
+
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">Log a contact</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Date</label>
+          <input id="crmContactDate" type="date" value="${new Date().toISOString().slice(0,10)}" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Type</label>
+          <select id="crmNewActType" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+            <option value="note">Note</option>
+            <option value="call">Call</option>
+            <option value="meeting">Meeting</option>
+            <option value="email">Email</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">What happened</label>
+          <input id="crmNewActText" placeholder="e.g. discussed Q3 rebalancing, happy with performance" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Next contact date</label>
+          <input id="crmNextDate" type="date" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+        <div style="flex:1;min-width:200px">
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Next contact — what for</label>
+          <input id="crmNextText" placeholder="e.g. follow up on Q4 statement" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+        <button onclick="crmLogContact()" class="btn-primary" style="font-size:12px;padding:6px 16px">Save</button>
+      </div>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
       <div>
-        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Tasks</div>
+        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Next contacts / tasks</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="crmNewTaskText" placeholder="New task..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
-          <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <input id="crmNewTaskText" placeholder="Ad-hoc task..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+          <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
           <button onclick="crmAddTask()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
           ${tasks.length ? tasks.map(t => {
             const overdue = !t.done && t.due && new Date(t.due) < new Date(new Date().toDateString());
-            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;${t.done ? 'opacity:0.5' : ''}">
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
               <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
               <div style="flex:1;min-width:0">
                 <div style="font-size:12px;color:var(--text1);${t.done ? 'text-decoration:line-through' : ''}">${crmEsc(t.text)}</div>
@@ -4152,18 +4232,8 @@ function crmRenderDetail() {
         </div>
       </div>
       <div>
-        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Activity Log</div>
-        <div style="display:flex;gap:6px;margin-bottom:10px">
-          <select id="crmNewActType" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
-            <option value="note">Note</option>
-            <option value="call">Call</option>
-            <option value="meeting">Meeting</option>
-            <option value="email">Email</option>
-          </select>
-          <input id="crmNewActText" placeholder="What happened..." onkeydown="if(event.key==='Enter')crmAddActivity()" style="flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
-          <button onclick="crmAddActivity()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Log</button>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
+        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Contact history</div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto">
           ${activities.length ? activities.map(a => `
             <div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px">
               <div style="display:flex;justify-content:space-between;gap:8px">
@@ -4203,13 +4273,33 @@ window.crmDeleteTask = function(taskId) {
   crmRenderDetail();
   crmRefreshActiveView();
 };
-window.crmAddActivity = function() {
+window.crmLogContact = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const dateEl = document.getElementById('crmContactDate');
   const typeEl = document.getElementById('crmNewActType');
   const textEl = document.getElementById('crmNewActText');
-  const text = textEl.value.trim(); if (!text) return;
-  if (!bucket.activities) bucket.activities = [];
-  bucket.activities.push({ id: 'a_' + Date.now(), type: typeEl.value, text, date: new Date().toISOString() });
+  const nextDateEl = document.getElementById('crmNextDate');
+  const nextTextEl = document.getElementById('crmNextText');
+
+  const text = textEl.value.trim();
+  const nextDate = nextDateEl.value;
+  const nextText = nextTextEl.value.trim();
+
+  if (!text && !nextDate && !nextText) return; // nothing to save
+
+  if (text) {
+    if (!bucket.activities) bucket.activities = [];
+    bucket.activities.push({
+      id: 'a_' + Date.now(),
+      type: typeEl.value,
+      text,
+      date: dateEl.value ? new Date(dateEl.value).toISOString() : new Date().toISOString(),
+    });
+  }
+  if (nextDate || nextText) {
+    if (!bucket.tasks) bucket.tasks = [];
+    bucket.tasks.push({ id: 't_' + Date.now(), text: nextText || 'Follow up', due: nextDate || null, done: false });
+  }
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
@@ -4244,6 +4334,51 @@ window.crmSetInterests = function(val) {
 };
 
 // GDPR Art. 15 — right of access: export everything CRM-related held on this person.
+// Manual, on-demand only. Sends ONLY the interests text to the API — never the
+// person's name, birthday, or any other identifying field.
+window.crmCheckNews = async function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const interests = (bucket.interests || '').trim();
+  if (!interests) return;
+  const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
+  const statusEl = document.getElementById('crmNewsStatus');
+  if (!apiKey) { if (statusEl) statusEl.textContent = 'Set an API key in Settings first.'; return; }
+  if (statusEl) statusEl.textContent = 'Searching...';
+
+  const prompt = `You help prepare small talk / relationship-building talking points for a meeting with someone whose stated interests/plans are: "${interests}"
+Search for genuinely recent, relevant news tied to these specific interests (e.g. a sports team's recent result, a notable development in a stated hobby or business area). Ignore anything generic or not clearly tied to what's listed.
+Reply with 2-4 short bullet points, each one fact + a one-line "why it's useful to mention" note. If nothing relevant and recent is found, reply exactly: "No relevant recent news found."
+Keep it under 100 words total.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 700,
+        messages: [{ role: 'user', content: prompt }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || 'API error');
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    bucket.newsCheck = { date: new Date().toISOString(), text: text || 'No relevant recent news found.' };
+    crmSaveBucket(ref);
+    if (statusEl) statusEl.textContent = '';
+    crmRenderDetail();
+  } catch (e) {
+    console.error('crmCheckNews failed', e);
+    if (statusEl) statusEl.textContent = 'Search failed: ' + e.message;
+  }
+};
+
 window.crmExportPerson = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const name = crmGetName(ref);
