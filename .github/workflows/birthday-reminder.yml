@@ -1,0 +1,56 @@
+name: Birthday Reminder
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC daily
+  workflow_dispatch: {}    # allows manual "Run workflow" trigger for testing
+
+jobs:
+  check-birthdays:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check birthdays and notify via Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - << 'PYEOF'
+          import json, datetime, os, urllib.request, urllib.parse
+
+          try:
+              with open('birthdays.json') as f:
+                  people = json.load(f)
+          except FileNotFoundError:
+              people = []
+
+          today = datetime.date.today()
+          LOOKAHEAD_DAYS = [0, 3]  # notify on the day itself, and 3 days ahead
+
+          messages = []
+          for p in people:
+              try:
+                  bday_this_year = datetime.date(today.year, int(p['month']), int(p['day']))
+              except (ValueError, KeyError):
+                  continue
+              delta = (bday_this_year - today).days
+              if delta in LOOKAHEAD_DAYS:
+                  when = 'today! 🎉' if delta == 0 else f'in {delta} days'
+                  messages.append(f"🎂 {p['name']}'s birthday is {when} ({int(p['day']):02d}/{int(p['month']):02d})")
+
+          if not messages:
+              print('No matching birthdays today.')
+          else:
+              text = '\n'.join(messages)
+              token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+              chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+              if not token or not chat_id:
+                  print('Missing TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets — cannot send:')
+                  print(text)
+              else:
+                  url = f'https://api.telegram.org/bot{token}/sendMessage'
+                  data = urllib.parse.urlencode({'chat_id': chat_id, 'text': text}).encode()
+                  urllib.request.urlopen(url, data=data)
+                  print('Sent:', text)
+          PYEOF
