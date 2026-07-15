@@ -3819,9 +3819,11 @@ window.settingsOpen = function() {
   const apiKey = localStorage.getItem('suitability-api-key');
   const tok    = localStorage.getItem('suitability-tg-token');
   const chat   = localStorage.getItem('suitability-tg-chat');
+  const crmGh  = localStorage.getItem('suitability-crm-gh-token');
   if (apiKey) document.getElementById('apiKey').value = apiKey;
   if (tok)    document.getElementById('tgBotToken').value = tok;
   if (chat)   document.getElementById('tgChatId').value = chat;
+  if (crmGh)  document.getElementById('crmGhToken').value = crmGh;
 };
 
 window.settingsClose = function() {
@@ -3977,6 +3979,39 @@ window.crmShowTodayTasks = function() {
       <button onclick="document.getElementById('crmTodayModal').classList.add('hidden')" class="btn-secondary" style="font-size:12px">Dismiss</button>
     </div>`;
   modal.classList.remove('hidden');
+};
+
+window.crmSyncBirthdays = async function() {
+  const token = (document.getElementById('crmGhToken')?.value || localStorage.getItem('suitability-crm-gh-token') || '').trim();
+  const statusEl = document.getElementById('crmSyncStatus');
+  if (!token) { if (statusEl) statusEl.textContent = 'Add a GitHub token above first.'; return; }
+
+  const people = [];
+  Object.values(clients).forEach(c => { if (c.crm?.birthday) people.push({ name: c.name || 'Unnamed', day: c.crm.birthday.day, month: c.crm.birthday.month }); });
+  Object.values(prospects).forEach(p => { if (p.birthday) people.push({ name: p.name, day: p.birthday.day, month: p.birthday.month }); });
+
+  if (statusEl) statusEl.textContent = 'Syncing...';
+  const REPO = 'nickolaiklimoff/suitability-letter';
+  const PATH = 'birthdays.json';
+  try {
+    let sha = null;
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) { const d = await getResp.json(); sha = d.sha; }
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(people, null, 2))));
+    const putResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: sync birthdays (${people.length} entries)`, content, sha: sha || undefined, branch: 'main' })
+    });
+    if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
+    if (statusEl) { statusEl.textContent = `✓ Synced ${people.length} birthdays`; statusEl.style.color = '#3b6d11'; }
+  } catch (e) {
+    console.error('crmSyncBirthdays failed', e);
+    if (statusEl) { statusEl.textContent = 'Sync failed: ' + e.message; statusEl.style.color = '#c62828'; }
+  }
 };
 
 function crmUpcomingBirthdays(withinDays) {
