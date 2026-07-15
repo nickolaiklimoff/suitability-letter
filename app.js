@@ -6,6 +6,18 @@ let currentStep = 0;
 const TOTAL_STEPS = 7;
 let isDirty = false;
 
+function lsSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.error('localStorage save failed for', key, e);
+    alert('⚠️ Failed to save "' + key + '" — browser storage is full.\n\n' +
+          'This change will NOT persist after reload. Free up space (e.g. remove unused client breakdown images) and try again.\n\n' + e.message);
+    return false;
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1077,7 +1089,7 @@ window.loadBenchmarkFile = async function(input) {
   if (label) { label.textContent = 'Loading...'; label.style.color = '#854f0b'; }
   try {
     _benchmark = await parseBenchmarkExcel(file);
-    try { localStorage.setItem('suitability-benchmark', JSON.stringify(_benchmark)); } catch(e) {}
+    lsSet('suitability-benchmark', JSON.stringify(_benchmark));
     const month = file.name.match(/\w+_\d{4}/)?.[0] || file.name.replace('.xlsx','');
     if (label) { label.textContent = '✓ ' + month; label.style.color = '#3b6d11'; }
   } catch(e) {
@@ -2220,7 +2232,7 @@ function bpRenderBcaTable() {
 
 window.bpSaveReportText = function() {
   const text = document.getElementById('bp-report-text')?.value || '';
-  try { localStorage.setItem('suitability-bp-alloc-text', text); } catch(e) {}
+  lsSet('suitability-bp-alloc-text', text);
   const st = document.getElementById('bp-report-text-status');
   if (st) { st.textContent = '✓ Saved'; st.style.color = '#3b6d11'; setTimeout(()=>{ st.textContent=''; }, 2000); }
 };
@@ -2229,7 +2241,7 @@ window.bpUpdateView = function(sel) {
   const key = sel.dataset.key, field = sel.dataset.field;
   if (!_bpBcaViews[key]) _bpBcaViews[key] = {};
   _bpBcaViews[key][field] = sel.value;
-  try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
+  lsSet('suitability-bp-bca-views', JSON.stringify(_bpBcaViews));
   // Re-render to update changed badge
   bpRenderBcaTable();
 };
@@ -2282,7 +2294,7 @@ window.bpLoadEtfQuotes = async function(input) {
       } catch(e) {}
       done++;
       if (done === files.length) {
-        try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
+        lsSet('suitability-bp-etf', JSON.stringify(_bpEtfData));
         const keys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
         if (status) status.textContent = `Loaded: ${keys.join(', ')} · Fetching cash rates from FRED...`;
         bpFetchFredGS1(status);
@@ -2334,7 +2346,7 @@ async function bpFetchFredGS1(statusEl) {
 
     const m = calcCashMetrics(yields);
     _bpEtfData['BIL'] = m;
-    try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
+    lsSet('suitability-bp-etf', JSON.stringify(_bpEtfData));
 
     const etfKeys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
     if (statusEl) {
@@ -2383,7 +2395,7 @@ async function bpFetchFredGS1(statusEl) {
 
     const m = calcCashMetrics(yields);
     _bpEtfData['BIL'] = m;
-    try { localStorage.setItem('suitability-bp-etf', JSON.stringify(_bpEtfData)); } catch(e) {}
+    lsSet('suitability-bp-etf', JSON.stringify(_bpEtfData));
 
     const etfKeys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
     if (statusEl) {
@@ -2428,7 +2440,7 @@ window.bpSaveAndGenerate = function() {
 
   // Save to localStorage so report tab can use it
   const bpData = {ir3eq, ir3bd, ir3ca, rets, W, source, etf: _bpEtfData, bcaViews: _bpBcaViews, updatedAt: new Date().toISOString()};
-  try { localStorage.setItem('suitability-bp-data', JSON.stringify(bpData)); } catch(e) {}
+  lsSet('suitability-bp-data', JSON.stringify(bpData));
 
   // Also build _benchmark object for report tab compatibility
   _benchmark = {};
@@ -2441,7 +2453,7 @@ window.bpSaveAndGenerate = function() {
     BP_SECTORS.forEach(s => { _benchmark[ir].sectors[s.label] = W[ir].eq * s.w; });
     BP_BOND_SEGS.forEach(s => { _benchmark[ir].bondSegments[s.label] = W[ir].bd * s.w; });
   });
-  try { localStorage.setItem('suitability-benchmark', JSON.stringify(_benchmark)); } catch(e) {}
+  lsSet('suitability-benchmark', JSON.stringify(_benchmark));
 
   // Render table
   bpRenderOutputTable(W, rets, source);
@@ -3166,7 +3178,7 @@ For each key return ONLY one of: overweight, neutral, underweight (for the CURRE
             _bpBcaViews[k] = v;
           }
         });
-        try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
+        lsSet('suitability-bp-bca-views', JSON.stringify(_bpBcaViews));
       }
       if (parsed.source) {
         document.getElementById('bp-bca-source').value = parsed.source;
@@ -3174,7 +3186,7 @@ For each key return ONLY one of: overweight, neutral, underweight (for the CURRE
         if (srcEl) srcEl.textContent = parsed.source;
       }
       if (parsed.topTakeaway) {
-        try { localStorage.setItem('suitability-bp-takeaway', parsed.topTakeaway); } catch(e) {}
+        lsSet('suitability-bp-takeaway', parsed.topTakeaway);
       }
 
       status.textContent = `✓ ${parsed.reportDate || file.name} — views extracted`;
@@ -3338,8 +3350,8 @@ window.bpParseAllocText = function() {
     }
   });
 
-  try { localStorage.setItem('suitability-bp-bca-views', JSON.stringify(_bpBcaViews)); } catch(e) {}
-  try { localStorage.setItem('suitability-bp-alloc-text', text); } catch(e) {}
+  lsSet('suitability-bp-bca-views', JSON.stringify(_bpBcaViews));
+  lsSet('suitability-bp-alloc-text', text);
 
   // Update BP_SECTORS weights from BCA Allocation % (benchmark for sector weights)
   // Format in text: "Info Tech Neutral 31.7% 31.7%"  — first % = GAA allocation, second = benchmark
@@ -3438,7 +3450,7 @@ window.addDepositRow = function(containerId) {
 window.saveDepositData = function() {
   if (!currentClientId) return;
   const data = getDepositData();
-  try { localStorage.setItem(`suitability-deposits-${currentClientId}`, JSON.stringify(data)); } catch(e) {}
+  lsSet(`suitability-deposits-${currentClientId}`, JSON.stringify(data));
 };
 
 function makeEmptyRow(isDeposit) {
