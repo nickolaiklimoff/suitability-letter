@@ -4144,6 +4144,9 @@ function crmUpcomingBirthdays(withinDays) {
   const people = [];
   Object.entries(clients).forEach(([id, c]) => {
     if (c.crm?.birthday) people.push({ type: 'client', id, name: c.name || 'Unnamed', birthday: c.crm.birthday });
+    (c.crm?.family || []).forEach(f => {
+      if (f.day && f.month) people.push({ type: 'client', id, name: `${c.name || 'Unnamed'}'s ${f.relation.toLowerCase()}${f.name ? ' ' + f.name : ''}`, birthday: { day: f.day, month: f.month } });
+    });
   });
   Object.entries(prospects).forEach(([id, p]) => {
     if (p.birthday) people.push({ type: 'prospect', id, name: p.name, birthday: p.birthday });
@@ -4401,6 +4404,48 @@ function crmRenderDetail() {
         }).join('') : '<div style="font-size:12px;color:var(--text3)">No open opportunities yet.</div>'}
       </div>
     </div>` : ''}
+
+    ${!isProspect ? `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">Family <span style="font-weight:400;color:var(--text3);font-size:11px">(same minimal approach — name + day/month only, no year)</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Relation</label>
+          <select id="crmFamRelation" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+            <option>Wife</option><option>Husband</option><option>Son</option><option>Daughter</option><option>Mother</option><option>Father</option><option>Other</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Name</label>
+          <input id="crmFamName" placeholder="First name" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Birthday</label>
+          <div style="display:flex;gap:4px">
+            <select id="crmFamDay" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+              <option value="">Day</option>
+              ${Array.from({length:31},(_,i)=>i+1).map(d=>`<option value="${d}">${d}</option>`).join('')}
+            </select>
+            <select id="crmFamMonth" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+              <option value="">Month</option>
+              ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=>`<option value="${i+1}">${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <button onclick="crmAddFamily()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${(bucket.family || []).length ? bucket.family.map(f => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+            <div style="flex:1;min-width:0;font-size:12px;color:var(--text1)"><span style="font-weight:600">${crmEsc(f.relation)}</span>${f.name ? ' — ' + crmEsc(f.name) : ''}</div>
+            <span style="font-size:11px;color:var(--text3)">${f.day && f.month ? String(f.day).padStart(2,'0')+'/'+String(f.month).padStart(2,'0') : 'no birthday'}</span>
+            <button onclick="crmDeleteFamily('${f.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+          </div>`).join('') : '<div style="font-size:12px;color:var(--text3)">No family members added yet.</div>'}
+      </div>
+    </div>` : ''}
+
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">Log a contact</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
         <div>
           <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Date</label>
@@ -4602,6 +4647,29 @@ window.crmSetOpportunityNext = function(id) {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+};
+window.crmAddFamily = function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const relEl = document.getElementById('crmFamRelation');
+  const nameEl = document.getElementById('crmFamName');
+  const dayEl = document.getElementById('crmFamDay');
+  const monthEl = document.getElementById('crmFamMonth');
+  if (!bucket.family) bucket.family = [];
+  bucket.family.push({
+    id: 'f_' + Date.now(),
+    relation: relEl.value,
+    name: nameEl.value.trim(),
+    day: parseInt(dayEl.value, 10) || null,
+    month: parseInt(monthEl.value, 10) || null,
+  });
+  crmSaveBucket(ref);
+  crmRenderDetail();
+};
+window.crmDeleteFamily = function(id) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  bucket.family = (bucket.family || []).filter(x => x.id !== id);
+  crmSaveBucket(ref);
+  crmRenderDetail();
 };
 window.crmDeleteOpportunity = function(id) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
