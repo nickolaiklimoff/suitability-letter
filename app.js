@@ -4382,6 +4382,10 @@ function crmRenderDetail() {
           <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Note</label>
           <input id="crmOppNote" placeholder="optional context" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
         </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">When (next action)</label>
+          <input id="crmOppNextDateNew" type="date" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
         <button onclick="crmAddOpportunity()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
@@ -4628,9 +4632,10 @@ window.crmAddOpportunity = function() {
   const typeEl = document.getElementById('crmOppType');
   const statusEl = document.getElementById('crmOppStatus');
   const noteEl = document.getElementById('crmOppNote');
+  const nextDateEl = document.getElementById('crmOppNextDateNew');
   const type = typeEl.value.trim(); if (!type) return;
   if (!bucket.opportunities) bucket.opportunities = [];
-  bucket.opportunities.push({ id: 'o_' + Date.now(), type, status: statusEl.value, note: noteEl.value.trim() });
+  bucket.opportunities.push({ id: 'o_' + Date.now(), type, status: statusEl.value, note: noteEl.value.trim(), nextDate: nextDateEl.value || null, nextText: '' });
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
