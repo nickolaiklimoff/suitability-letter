@@ -3950,6 +3950,11 @@ function crmTodaysTasks() {
     (c.crm?.tasks || []).forEach(t => {
       if (!t.done && t.due === todayStr) items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', task: t });
     });
+    (c.crm?.opportunities || []).forEach(o => {
+      if (o.nextDate === todayStr && o.status !== 'Won' && o.status !== 'Lost') {
+        items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', task: { text: `[${o.type}] ${o.nextText || 'follow up'}` } });
+      }
+    });
   });
   Object.entries(prospects).forEach(([id, p]) => {
     (p.tasks || []).forEach(t => {
@@ -4252,17 +4257,28 @@ function crmRenderDetail() {
         <button onclick="crmAddOpportunity()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        ${(bucket.opportunities || []).length ? bucket.opportunities.map(o => `
-          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600;color:var(--text1)">${crmEsc(o.type)}</div>
-              ${o.note ? `<div style="font-size:11px;color:var(--text3)">${crmEsc(o.note)}</div>` : ''}
+        ${(bucket.opportunities || []).length ? bucket.opportunities.map(o => {
+          const overdue = o.nextDate && new Date(o.nextDate) < new Date(new Date().toDateString());
+          return `
+          <div style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;color:var(--text1)">${crmEsc(o.type)}</div>
+                ${o.note ? `<div style="font-size:11px;color:var(--text3)">${crmEsc(o.note)}</div>` : ''}
+              </div>
+              <select onchange="crmSetOpportunityStatus('${o.id}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:${o.status==='Won'?'#3b6d11':o.status==='Lost'?'#c62828':'var(--text2)'};font-weight:600">
+                ${['Open','In progress','Won','Lost'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
+              </select>
+              <button onclick="crmDeleteOpportunity('${o.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
             </div>
-            <select onchange="crmSetOpportunityStatus('${o.id}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:${o.status==='Won'?'#3b6d11':o.status==='Lost'?'#c62828':'var(--text2)'};font-weight:600">
-              ${['Open','In progress','Won','Lost'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
-            </select>
-            <button onclick="crmDeleteOpportunity('${o.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
-          </div>`).join('') : '<div style="font-size:12px;color:var(--text3)">No open opportunities yet.</div>'}
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              ${o.nextDate ? `<span style="font-size:11px;color:${overdue?'#c62828':'var(--text2)'};font-weight:600">${overdue?'⚠ ':''}Next: ${crmFmtDate(o.nextDate)}${o.nextText?' — '+crmEsc(o.nextText):''}</span>` : ''}
+              <input type="date" id="crmOppNextDate_${o.id}" value="${o.nextDate||''}" style="font-size:11px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+              <input type="text" id="crmOppNextText_${o.id}" value="${crmEsc(o.nextText||'')}" placeholder="what to do" style="flex:1;min-width:100px;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+              <button onclick="crmSetOpportunityNext('${o.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Set</button>
+            </div>
+          </div>`;
+        }).join('') : '<div style="font-size:12px;color:var(--text3)">No open opportunities yet.</div>'}
       </div>
     </div>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
@@ -4438,6 +4454,17 @@ window.crmSetOpportunityStatus = function(id, status) {
   const o = (bucket.opportunities || []).find(x => x.id === id); if (!o) return;
   o.status = status;
   crmSaveBucket(ref);
+  crmRefreshActiveView();
+};
+window.crmSetOpportunityNext = function(id) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const o = (bucket.opportunities || []).find(x => x.id === id); if (!o) return;
+  const dateEl = document.getElementById('crmOppNextDate_' + id);
+  const textEl = document.getElementById('crmOppNextText_' + id);
+  o.nextDate = dateEl.value || null;
+  o.nextText = textEl.value.trim();
+  crmSaveBucket(ref);
+  crmRenderDetail();
   crmRefreshActiveView();
 };
 window.crmDeleteOpportunity = function(id) {
