@@ -4434,12 +4434,12 @@ function crmRenderDetail() {
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-      <div>
-        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Next contacts / tasks</div>
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px">
+        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">📋 Tasks</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="crmNewTaskText" placeholder="Ad-hoc task..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
-          <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
-          <button onclick="crmAddTask()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
+          <input id="crmNewTaskText" placeholder="e.g. renew deposit, prepare meeting..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+          <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+          <button onclick="crmAddTask()" class="btn-primary" style="font-size:12px;padding:6px 12px">Add</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
           ${tasks.length ? tasks.map(t => {
@@ -4452,14 +4452,14 @@ function crmRenderDetail() {
               </div>
               <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
             </div>`;
-          }).join('') : '<div style="font-size:12px;color:var(--text3)">No tasks yet.</div>'}
+          }).join('') : '<div style="font-size:12px;color:var(--text3)">No tasks yet — add one above.</div>'}
         </div>
       </div>
-      <div>
-        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Contact history</div>
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px">
+        <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">Contact history</div>
         <div style="display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto">
           ${activities.length ? activities.map(a => `
-            <div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px">
+            <div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
               <div style="display:flex;justify-content:space-between;gap:8px">
                 <span style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3)">${crmEsc(a.type)}</span>
                 <span style="font-size:10px;color:var(--text3)">${crmFmtDate(a.date)}</span>
