@@ -4446,9 +4446,9 @@ function crmRenderDetail() {
             const overdue = !t.done && t.due && new Date(t.due) < new Date(new Date().toDateString());
             return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
               <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;color:var(--text1);${t.done ? 'text-decoration:line-through' : ''}">${crmEsc(t.text)}</div>
-                ${t.due ? `<div style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'}">${overdue ? '⚠ overdue · ' : ''}${crmFmtDate(t.due)}</div>` : ''}
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <input value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
+                <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
               </div>
               <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
             </div>`;
@@ -4478,6 +4478,22 @@ window.crmAddTask = function() {
   const text = textEl.value.trim(); if (!text) return;
   if (!bucket.tasks) bucket.tasks = [];
   bucket.tasks.push({ id: 't_' + Date.now(), text, due: dueEl.value || null, done: false });
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmEditTaskText = function(taskId, val) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const text = val.trim(); if (!text) return;
+  t.text = text;
+  crmSaveBucket(ref);
+  crmRefreshActiveView();
+};
+window.crmEditTaskDue = function(taskId, val) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.due = val || null;
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
