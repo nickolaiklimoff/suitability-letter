@@ -4112,7 +4112,12 @@ window.crmSyncBirthdays = async function() {
   if (!token) { if (statusEl) statusEl.textContent = 'Add a GitHub token above first.'; return; }
 
   const people = [];
-  Object.values(clients).forEach(c => { if (c.crm?.birthday) people.push({ name: c.name || 'Unnamed', day: c.crm.birthday.day, month: c.crm.birthday.month }); });
+  Object.values(clients).forEach(c => {
+    if (c.crm?.birthday) people.push({ name: c.name || 'Unnamed', day: c.crm.birthday.day, month: c.crm.birthday.month });
+    (c.crm?.family || []).forEach(f => {
+      if (f.day && f.month) people.push({ name: `${c.name || 'Unnamed'}'s ${f.relation.toLowerCase()}${f.name ? ' ' + f.name : ''}`, day: f.day, month: f.month });
+    });
+  });
   Object.values(prospects).forEach(p => { if (p.birthday) people.push({ name: p.name, day: p.birthday.day, month: p.birthday.month }); });
 
   if (statusEl) statusEl.textContent = 'Syncing...';
