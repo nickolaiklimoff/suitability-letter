@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1784223481">
+<link rel="stylesheet" href="style.css?v=1783598061">
 <body>
 <div class="app">
 
@@ -892,13 +892,15 @@
     </div>
 
     <div style="display:flex;gap:4px;margin-bottom:1.25rem;border-bottom:1px solid var(--border)">
-      <button id="crmTabClients" class="tab active" onclick="crmSwitchTab('clients')">Clients</button>
+      <button id="crmTabToday" class="tab active" onclick="crmSwitchTab('today')">Today</button>
+      <button id="crmTabClients" class="tab" onclick="crmSwitchTab('clients')">Clients</button>
       <button id="crmTabProspects" class="tab" onclick="crmSwitchTab('prospects')">Prospects</button>
       <button id="crmTabTasks" class="tab" onclick="crmSwitchTab('tasks')">Tasks</button>
       <button id="crmTabBiz" class="tab" onclick="crmSwitchTab('biz')">Business Expansion</button>
     </div>
 
-    <div id="crmClientsView"></div>
+    <div id="crmTodayView"></div>
+    <div id="crmClientsView" class="hidden"></div>
     <div id="crmProspectsView" class="hidden"></div>
     <div id="crmTasksView" class="hidden"></div>
     <div id="crmBizView" class="hidden"></div>
@@ -953,10 +955,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1784223481"></script>
+<script src="waar.js?v=1783598061"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1784223481"></script>
-<script src="app.js?v=1784223481"></script>
+<script src="report.js?v=1783598061"></script>
+<script src="app.js?v=1783598061"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
