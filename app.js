@@ -3914,7 +3914,8 @@ function crmGetName(ref) {
 function crmRefreshActiveView() {
   if (crmCurrentTab === 'clients') crmRenderClients();
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
-  else crmRenderTasks();
+  else if (crmCurrentTab === 'tasks') crmRenderTasks();
+  else crmRenderBizExpansion();
 }
 
 window.crmOpen = function() {
@@ -3940,9 +3941,11 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabClients').classList.toggle('active', tab === 'clients');
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
+  document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
   document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
+  document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
   crmRefreshActiveView();
 };
 
@@ -3973,20 +3976,18 @@ function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
   if (!el) return;
   const todayStr = new Date().toISOString().slice(0, 10);
-  let items = crmAllTasks();
+  let items = crmAllTasks().filter(i => i.kind === 'task');
   if (!crmShowCompletedTasks) items = items.filter(i => !i.done);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
   });
-  const regularTasks = items.filter(i => i.kind === 'task');
-  const oppTasks = items.filter(i => i.kind === 'opportunity');
 
   const renderRow = it => {
     const overdue = !it.done && it.due && it.due < todayStr;
     const isToday = it.due === todayStr;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
-      ${it.kind === 'task' ? `<input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">` : `<span title="Opportunity next action" style="font-size:14px">💰</span>`}
+      <input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">
       <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
         <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
         <span style="color:var(--text3);font-size:12px"> — </span>
@@ -3996,25 +3997,59 @@ function crmRenderTasks() {
     </div>`;
   };
 
-  const header = `<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem">
+  const header = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <div style="font-size:12px;color:var(--text3)">${items.length} task${items.length===1?'':'s'}</div>
     <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
       <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderTasks()"> Show completed
     </label>
   </div>`;
 
-  el.innerHTML = header + `
-    <div style="margin-bottom:1.5rem">
-      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">📋 Client tasks <span style="font-weight:400;color:var(--text3)">(${regularTasks.length})</span></div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${regularTasks.length ? regularTasks.map(renderRow).join('') : '<div style="color:var(--text3);font-size:12px;padding:0.5rem 0">No tasks — nice and clear.</div>'}
-      </div>
-    </div>
-    <div>
-      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">💰 Business expansion <span style="font-weight:400;color:var(--text3)">(${oppTasks.length})</span></div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${oppTasks.length ? oppTasks.map(renderRow).join('') : '<div style="color:var(--text3);font-size:12px;padding:0.5rem 0">No open opportunity actions scheduled.</div>'}
-      </div>
-    </div>`;
+  el.innerHTML = header + (items.length
+    ? `<div style="display:flex;flex-direction:column;gap:6px">${items.map(renderRow).join('')}</div>`
+    : '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>');
+}
+
+function crmRenderBizExpansion() {
+  const el = document.getElementById('crmBizView');
+  if (!el) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const rows = [];
+  Object.entries(clients).forEach(([id, c]) => {
+    (c.crm?.opportunities || []).forEach(o => rows.push({ id, name: c.name || 'Unnamed', opp: o }));
+  });
+
+  if (!rows.length) {
+    el.innerHTML = '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No opportunities logged yet — add one from a client\'s card.</div>';
+    return;
+  }
+
+  const types = [...new Set(rows.map(r => r.opp.type))];
+  const statusColor = s => s === 'Won' ? '#3b6d11' : s === 'Lost' ? '#c62828' : s === 'In progress' ? '#8a6100' : 'var(--text2)';
+
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(${Math.max(types.length,1)},1fr);gap:12px">` +
+    types.map(type => {
+      const items = rows.filter(r => r.opp.type === type)
+        .sort((a, b) => {
+          const order = { 'In progress': 0, 'Open': 1, 'Won': 2, 'Lost': 3 };
+          return (order[a.opp.status] ?? 4) - (order[b.opp.status] ?? 4);
+        });
+      const openCount = items.filter(r => r.opp.status === 'Open' || r.opp.status === 'In progress').length;
+      return `<div style="background:var(--bg2);border-radius:8px;padding:10px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${crmEsc(type)} <span style="font-weight:400">(${openCount} open)</span></div>
+        ${items.map(r => {
+          const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
+          return `<div onclick="crmOpenDetail('client','${r.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
+              <span style="font-size:10px;font-weight:600;color:${statusColor(r.opp.status)}">${crmEsc(r.opp.status)}</span>
+            </div>
+            ${r.opp.note ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${crmEsc(r.opp.note)}</div>` : ''}
+            ${r.opp.nextDate ? `<div style="font-size:11px;margin-top:4px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}Next: ${crmFmtDate(r.opp.nextDate)}${r.opp.nextText?' — '+crmEsc(r.opp.nextText):''}</div>` : ''}
+          </div>`;
+        }).join('') || `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
+      </div>`;
+    }).join('') + `</div>`;
 }
 
 window.crmToggleTaskFromList = function(personType, personId, taskId) {
