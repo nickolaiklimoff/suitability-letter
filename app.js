@@ -4040,20 +4040,36 @@ function crmRenderClients() {
     <span style="font-weight:600;color:var(--text2)">🎂 Upcoming birthdays:</span>
     ${upcoming.map(p => `<span onclick="crmOpenDetail('${p.type}','${p.id}')" style="cursor:pointer;margin-left:10px;color:var(--text1)">${crmEsc(p.name)} <span style="color:var(--text3)">(${p.daysUntil===0?'today':p.daysUntil===1?'tomorrow':'in '+p.daysUntil+'d'})</span></span>`).join('')}
   </div>` : '';
+
+  // Opportunity summary — counts of Open/In progress items by type across all clients
+  const oppCounts = {};
+  ids.forEach(id => {
+    (clients[id].crm?.opportunities || []).forEach(o => {
+      if (o.status === 'Open' || o.status === 'In progress') oppCounts[o.type] = (oppCounts[o.type] || 0) + 1;
+    });
+  });
+  const oppTypes = Object.keys(oppCounts);
+  const oppSummaryHtml = oppTypes.length ? `<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:12px">
+    <span style="font-weight:600;color:var(--text2)">💰 Open opportunities:</span>
+    ${oppTypes.map(t => `<span style="margin-left:10px;color:var(--text1)">${crmEsc(t)} <span style="color:var(--text3)">(${oppCounts[t]})</span></span>`).join('')}
+  </div>` : '';
+
   if (!ids.length) {
-    el.innerHTML = bdayHtml + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No clients yet — add one from the sidebar first.</div>';
+    el.innerHTML = bdayHtml + oppSummaryHtml + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No clients yet — add one from the sidebar first.</div>';
     return;
   }
-  el.innerHTML = bdayHtml + `<div style="display:flex;flex-direction:column;gap:6px">` + ids.map(id => {
+  el.innerHTML = bdayHtml + oppSummaryHtml + `<div style="display:flex;flex-direction:column;gap:6px">` + ids.map(id => {
     const c = clients[id];
     const crm = c.crm || { activities: [], tasks: [] };
     const openTasks = (crm.tasks || []).filter(t => !t.done);
     const overdue = openTasks.some(t => t.due && new Date(t.due) < new Date(new Date().toDateString()));
     const lastAct = (crm.activities || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    const openOpps = (crm.opportunities || []).filter(o => o.status === 'Open' || o.status === 'In progress');
     return `<div onclick="crmOpenDetail('client','${id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--bg)">
       <div style="min-width:0">
         <div style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(c.name || 'Unnamed client')}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lastAct ? crmFmtDate(lastAct.date) + ' — ' + crmEsc(lastAct.text) : 'No activity logged'}</div>
+        ${openOpps.length ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${openOpps.map(o => `<span style="background:#fff3d6;color:#8a6100;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600">${crmEsc(o.type)}</span>`).join('')}</div>` : ''}
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">
         ${overdue ? '<span style="background:#fdecea;color:#c62828;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap">overdue</span>' : ''}
@@ -4210,8 +4226,45 @@ function crmRenderDetail() {
       </div>
     </div>
 
+    ${!isProspect ? `
     <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
-      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">Log a contact</div>
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">Opportunities <span style="font-weight:400;color:var(--text3);font-size:11px">(internal expansion — not the prospect pipeline)</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+        <div style="flex:1;min-width:180px">
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Type</label>
+          <input id="crmOppType" list="crmOppTypeList" placeholder="New balances..." style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+          <datalist id="crmOppTypeList">
+            <option value="New balances">
+            <option value="New account">
+            <option value="Discretionary mandate">
+          </datalist>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Status</label>
+          <select id="crmOppStatus" style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+            <option>Open</option><option>In progress</option><option>Won</option><option>Lost</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Note</label>
+          <input id="crmOppNote" placeholder="optional context" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
+        <button onclick="crmAddOpportunity()" class="btn-secondary" style="font-size:12px;padding:5px 10px">Add</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${(bucket.opportunities || []).length ? bucket.opportunities.map(o => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;color:var(--text1)">${crmEsc(o.type)}</div>
+              ${o.note ? `<div style="font-size:11px;color:var(--text3)">${crmEsc(o.note)}</div>` : ''}
+            </div>
+            <select onchange="crmSetOpportunityStatus('${o.id}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:${o.status==='Won'?'#3b6d11':o.status==='Lost'?'#c62828':'var(--text2)'};font-weight:600">
+              ${['Open','In progress','Won','Lost'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+            <button onclick="crmDeleteOpportunity('${o.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+          </div>`).join('') : '<div style="font-size:12px;color:var(--text3)">No open opportunities yet.</div>'}
+      </div>
+    </div>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
         <div>
           <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Date</label>
@@ -4368,6 +4421,33 @@ window.crmSetInterests = function(val) {
   crmSaveBucket(ref);
 };
 
+window.crmAddOpportunity = function() {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const typeEl = document.getElementById('crmOppType');
+  const statusEl = document.getElementById('crmOppStatus');
+  const noteEl = document.getElementById('crmOppNote');
+  const type = typeEl.value.trim(); if (!type) return;
+  if (!bucket.opportunities) bucket.opportunities = [];
+  bucket.opportunities.push({ id: 'o_' + Date.now(), type, status: statusEl.value, note: noteEl.value.trim() });
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmSetOpportunityStatus = function(id, status) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const o = (bucket.opportunities || []).find(x => x.id === id); if (!o) return;
+  o.status = status;
+  crmSaveBucket(ref);
+  crmRefreshActiveView();
+};
+window.crmDeleteOpportunity = function(id) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  bucket.opportunities = (bucket.opportunities || []).filter(x => x.id !== id);
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+};
+
 // GDPR Art. 15 — right of access: export everything CRM-related held on this person.
 // Manual, on-demand only. Sends ONLY the interests text to the API — never the
 // person's name, birthday, or any other identifying field.
@@ -4426,6 +4506,7 @@ window.crmExportPerson = function() {
     interests: bucket.interests || null,
     activities: bucket.activities || [],
     tasks: bucket.tasks || [],
+    opportunities: bucket.opportunities || [],
     exportedAt: new Date().toISOString(),
   };
   const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
