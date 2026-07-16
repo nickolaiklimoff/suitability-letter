@@ -3979,20 +3979,10 @@ function crmRenderTasks() {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
   });
+  const regularTasks = items.filter(i => i.kind === 'task');
+  const oppTasks = items.filter(i => i.kind === 'opportunity');
 
-  const header = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-    <div style="font-size:12px;color:var(--text3)">${items.length} task${items.length===1?'':'s'}</div>
-    <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
-      <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderTasks()"> Show completed
-    </label>
-  </div>`;
-
-  if (!items.length) {
-    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>';
-    return;
-  }
-
-  el.innerHTML = header + `<div style="display:flex;flex-direction:column;gap:6px">` + items.map(it => {
+  const renderRow = it => {
     const overdue = !it.done && it.due && it.due < todayStr;
     const isToday = it.due === todayStr;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
@@ -4004,7 +3994,27 @@ function crmRenderTasks() {
       </div>
       <span style="font-size:11px;font-weight:600;white-space:nowrap;color:${overdue?'#c62828':isToday?'#8a6100':'var(--text3)'}">${overdue?'⚠ ':''}${it.due?crmFmtDate(it.due):'no date'}</span>
     </div>`;
-  }).join('') + `</div>`;
+  };
+
+  const header = `<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem">
+    <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderTasks()"> Show completed
+    </label>
+  </div>`;
+
+  el.innerHTML = header + `
+    <div style="margin-bottom:1.5rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">📋 Client tasks <span style="font-weight:400;color:var(--text3)">(${regularTasks.length})</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${regularTasks.length ? regularTasks.map(renderRow).join('') : '<div style="color:var(--text3);font-size:12px;padding:0.5rem 0">No tasks — nice and clear.</div>'}
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">💰 Business expansion <span style="font-weight:400;color:var(--text3)">(${oppTasks.length})</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${oppTasks.length ? oppTasks.map(renderRow).join('') : '<div style="color:var(--text3);font-size:12px;padding:0.5rem 0">No open opportunity actions scheduled.</div>'}
+      </div>
+    </div>`;
 }
 
 window.crmToggleTaskFromList = function(personType, personId, taskId) {
