@@ -3866,7 +3866,7 @@ window.macroClose = function() {
 //                 under their own IndexedDB key and a simple stage pipeline.
 
 let prospects = {};
-let crmCurrentTab = 'clients';
+let crmCurrentTab = 'today';
 let crmDetailPersonRef = null; // {type:'client'|'prospect', id}
 const CRM_STAGES = ['Prospecting', 'Meeting', 'Proposal', 'Client'];
 
@@ -3912,7 +3912,8 @@ function crmGetName(ref) {
   return ref.type === 'client' ? (clients[ref.id]?.name || 'Unnamed') : (prospects[ref.id]?.name || 'Unnamed');
 }
 function crmRefreshActiveView() {
-  if (crmCurrentTab === 'clients') crmRenderClients();
+  if (crmCurrentTab === 'today') crmRenderToday();
+  else if (crmCurrentTab === 'clients') crmRenderClients();
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
   else crmRenderBizExpansion();
@@ -3923,7 +3924,7 @@ window.crmOpen = function() {
     document.getElementById(id)?.classList.add('hidden');
   });
   document.getElementById('crmPanel').classList.remove('hidden');
-  crmSwitchTab(crmCurrentTab || 'clients');
+  crmSwitchTab(crmCurrentTab || 'today');
 };
 
 window.crmClose = function() {
@@ -3938,10 +3939,12 @@ window.crmClose = function() {
 
 window.crmSwitchTab = function(tab) {
   crmCurrentTab = tab;
+  document.getElementById('crmTabToday').classList.toggle('active', tab === 'today');
   document.getElementById('crmTabClients').classList.toggle('active', tab === 'clients');
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
+  document.getElementById('crmTodayView').classList.toggle('hidden', tab !== 'today');
   document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
@@ -3950,6 +3953,47 @@ window.crmSwitchTab = function(tab) {
 };
 
 // ── Clients tab: activity/task summary per existing client ─────────────────
+function crmRenderToday() {
+  const el = document.getElementById('crmTodayView');
+  if (!el) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const birthdaysToday = crmUpcomingBirthdays(0).filter(p => p.daysUntil === 0);
+  const allItems = crmAllTasks().filter(i => !i.done && i.due && i.due <= todayStr);
+  const overdue = allItems.filter(i => i.due < todayStr).sort((a, b) => new Date(a.due) - new Date(b.due));
+  const dueToday = allItems.filter(i => i.due === todayStr);
+
+  const renderRow = it => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+    ${it.kind === 'task' ? `<input type="checkbox" onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()">` : `<span style="font-size:14px">💰</span>`}
+    <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
+      <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
+      <span style="color:var(--text3);font-size:12px"> — </span>
+      <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
+    </div>
+    ${it.due < todayStr ? `<span style="font-size:10px;font-weight:600;color:#c62828;white-space:nowrap">since ${crmFmtDate(it.due)}</span>` : ''}
+  </div>`;
+
+  el.innerHTML = `
+    <div style="margin-bottom:1.25rem">
+      <div style="font-size:13px;color:var(--text3)">${todayLabel}</div>
+    </div>
+    ${birthdaysToday.length ? `<div style="background:#fff3d6;border-radius:8px;padding:10px 14px;margin-bottom:1.25rem;font-size:13px">
+      <span style="font-weight:600">🎂 Birthday today:</span>
+      ${birthdaysToday.map(p => `<span onclick="crmOpenDetail('${p.type}','${p.id}')" style="cursor:pointer;margin-left:10px;color:#8a6100;font-weight:600">${crmEsc(p.name)}</span>`).join('')}
+    </div>` : ''}
+    ${overdue.length ? `<div style="margin-bottom:1.5rem">
+      <div style="font-weight:600;font-size:13px;color:#c62828;margin-bottom:8px">⚠ Overdue (${overdue.length})</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${overdue.map(renderRow).join('')}</div>
+    </div>` : ''}
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Due today (${dueToday.length})</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${dueToday.length ? dueToday.map(renderRow).join('') : '<div style="color:var(--text3);font-size:13px;padding:1rem 0">Nothing due today.</div>'}
+      </div>
+    </div>`;
+}
+
 function crmAllTasks() {
   const items = [];
   Object.entries(clients).forEach(([id, c]) => {
