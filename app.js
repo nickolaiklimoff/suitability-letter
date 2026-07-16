@@ -3912,7 +3912,9 @@ function crmGetName(ref) {
   return ref.type === 'client' ? (clients[ref.id]?.name || 'Unnamed') : (prospects[ref.id]?.name || 'Unnamed');
 }
 function crmRefreshActiveView() {
-  if (crmCurrentTab === 'clients') crmRenderClients(); else crmRenderProspects();
+  if (crmCurrentTab === 'clients') crmRenderClients();
+  else if (crmCurrentTab === 'prospects') crmRenderProspects();
+  else crmRenderTasks();
 }
 
 window.crmOpen = function() {
@@ -3937,12 +3939,85 @@ window.crmSwitchTab = function(tab) {
   crmCurrentTab = tab;
   document.getElementById('crmTabClients').classList.toggle('active', tab === 'clients');
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
+  document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
+  document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
   crmRefreshActiveView();
 };
 
 // ── Clients tab: activity/task summary per existing client ─────────────────
+function crmAllTasks() {
+  const items = [];
+  Object.entries(clients).forEach(([id, c]) => {
+    (c.crm?.tasks || []).forEach(t => {
+      items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', text: t.text, due: t.due, done: !!t.done, kind: 'task', taskId: t.id });
+    });
+    (c.crm?.opportunities || []).forEach(o => {
+      if (o.nextDate && o.status !== 'Won' && o.status !== 'Lost') {
+        items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', text: `[${o.type}] ${o.nextText || 'follow up'}`, due: o.nextDate, done: false, kind: 'opportunity', oppId: o.id });
+      }
+    });
+  });
+  Object.entries(prospects).forEach(([id, p]) => {
+    (p.tasks || []).forEach(t => {
+      items.push({ personType: 'prospect', personId: id, personName: p.name, text: t.text, due: t.due, done: !!t.done, kind: 'task', taskId: t.id });
+    });
+  });
+  return items;
+}
+
+let crmShowCompletedTasks = false;
+
+function crmRenderTasks() {
+  const el = document.getElementById('crmTasksView');
+  if (!el) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let items = crmAllTasks();
+  if (!crmShowCompletedTasks) items = items.filter(i => !i.done);
+  items.sort((a, b) => {
+    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
+  });
+
+  const header = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <div style="font-size:12px;color:var(--text3)">${items.length} task${items.length===1?'':'s'}</div>
+    <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderTasks()"> Show completed
+    </label>
+  </div>`;
+
+  if (!items.length) {
+    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>';
+    return;
+  }
+
+  el.innerHTML = header + `<div style="display:flex;flex-direction:column;gap:6px">` + items.map(it => {
+    const overdue = !it.done && it.due && it.due < todayStr;
+    const isToday = it.due === todayStr;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
+      ${it.kind === 'task' ? `<input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">` : `<span title="Opportunity next action" style="font-size:14px">💰</span>`}
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
+        <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
+        <span style="color:var(--text3);font-size:12px"> — </span>
+        <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
+      </div>
+      <span style="font-size:11px;font-weight:600;white-space:nowrap;color:${overdue?'#c62828':isToday?'#8a6100':'var(--text3)'}">${overdue?'⚠ ':''}${it.due?crmFmtDate(it.due):'no date'}</span>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+window.crmToggleTaskFromList = function(personType, personId, taskId) {
+  const bucket = personType === 'client'
+    ? (clients[personId]?.crm)
+    : prospects[personId];
+  if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.done = !t.done;
+  if (personType === 'client') saveToStorage(); else saveProspectsToStorage();
+  crmRenderTasks();
+};
+
 function crmTodaysTasks() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const items = [];
