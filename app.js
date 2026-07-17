@@ -4236,6 +4236,84 @@ window.crmSyncBirthdays = async function() {
   }
 };
 
+// ── Kate task sync ───────────────────────────────────────────────────────────
+// Shares only tasks explicitly assigned to Kate via assigned-tasks.json in the
+// same repo. Merge strategy: per task id, whichever side has the newer
+// updatedAt wins for scalar fields (text/due/done); comments are unioned by id
+// so neither side's replies get lost even if both edited around the same time.
+const KATE_TASKS_PATH = 'assigned-tasks.json';
+
+function crmCollectKateTasks() {
+  const out = [];
+  Object.entries(clients).forEach(([id, c]) => {
+    (c.crm?.tasks || []).forEach(t => {
+      if (t.assignedTo === 'Kate') out.push({ ...t, clientId: id, clientName: c.name || 'Unnamed' });
+    });
+  });
+  return out;
+}
+
+function crmMergeKateTasks(local, remote) {
+  const byId = {};
+  remote.forEach(t => { byId[t.id] = t; });
+  local.forEach(t => {
+    const r = byId[t.id];
+    if (!r) { byId[t.id] = t; return; }
+    const localNewer = new Date(t.updatedAt || 0) >= new Date(r.updatedAt || 0);
+    const merged = localNewer ? { ...r, ...t } : { ...t, ...r };
+    const allComments = [...(t.comments || []), ...(r.comments || [])];
+    const seen = new Set();
+    merged.comments = allComments.filter(c => c.id && !seen.has(c.id) && seen.add(c.id));
+    byId[t.id] = merged;
+  });
+  return Object.values(byId);
+}
+
+window.crmPushTasksToKate = async function() {
+  const token = (document.getElementById('crmGhToken')?.value || localStorage.getItem('suitability-crm-gh-token') || '').trim();
+  const statusEl = document.getElementById('crmKateSyncStatus');
+  if (!token) { if (statusEl) statusEl.textContent = 'Add a GitHub token above first.'; return; }
+  if (statusEl) statusEl.textContent = 'Syncing...';
+  const REPO = 'nickolaiklimoff/suitability-letter';
+  try {
+    let remote = [], sha = null;
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${KATE_TASKS_PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) {
+      const d = await getResp.json();
+      sha = d.sha;
+      remote = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    }
+    const local = crmCollectKateTasks();
+    const merged = crmMergeKateTasks(local, remote);
+
+    // Pull back into local client records first (so Kate's comments/deadline/done
+    // changes aren't lost), then push the merged set.
+    merged.forEach(mt => {
+      const c = clients[mt.clientId];
+      if (!c || !c.crm) return;
+      const idx = (c.crm.tasks || []).findIndex(t => t.id === mt.id);
+      const { clientId, clientName, ...clean } = mt;
+      if (idx >= 0) c.crm.tasks[idx] = clean;
+    });
+    saveToStorage();
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2))));
+    const putResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${KATE_TASKS_PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: sync Kate's tasks (${merged.length} entries)`, content, sha: sha || undefined, branch: 'main' })
+    });
+    if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
+    if (statusEl) { statusEl.textContent = `✓ Synced ${merged.length} tasks (pulled Kate's updates too)`; statusEl.style.color = '#3b6d11'; }
+    crmRefreshActiveView();
+  } catch (e) {
+    console.error('crmPushTasksToKate failed', e);
+    if (statusEl) { statusEl.textContent = 'Sync failed: ' + e.message; statusEl.style.color = '#c62828'; }
+  }
+};
+
 function crmUpcomingBirthdays(withinDays) {
   const today = new Date(); today.setHours(0,0,0,0);
   const people = [];
@@ -4582,21 +4660,37 @@ function crmRenderDetail() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
       <div style="background:var(--bg2);border-radius:8px;padding:12px 14px">
         <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">📋 Tasks</div>
-        <div style="display:flex;gap:6px;margin-bottom:10px">
+        <div style="display:flex;gap:6px;margin-bottom:6px">
           <input id="crmNewTaskText" placeholder="e.g. renew deposit, prepare meeting..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
           <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
           <button onclick="crmAddTask()" class="btn-primary" style="font-size:12px;padding:6px 12px">Add</button>
         </div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);margin-bottom:10px;cursor:pointer">
+          <input type="checkbox" id="crmNewTaskAssignKate"> Assign to Kate
+        </label>
         <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
           ${tasks.length ? tasks.map(t => {
             const overdue = !t.done && t.due && new Date(t.due) < new Date(new Date().toDateString());
-            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
-              <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-                <input value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
-                <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
+            return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <input value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
+                    ${t.assignedTo ? `<span style="font-size:9px;font-weight:600;background:#e6e0f5;color:#5b3fa3;padding:1px 6px;border-radius:8px">→ ${crmEsc(t.assignedTo)}</span>` : ''}
+                  </div>
+                </div>
+                <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
               </div>
-              <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+              ${t.assignedTo ? `
+              <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+                ${(t.comments||[]).map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('')}
+                <div style="display:flex;gap:4px;margin-top:4px">
+                  <input id="crmTaskComment_${t.id}" placeholder="Reply..." onkeydown="if(event.key==='Enter')crmAddTaskComment('${t.id}')" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+                  <button onclick="crmAddTaskComment('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Reply</button>
+                </div>
+              </div>` : ''}
             </div>`;
           }).join('') : '<div style="font-size:12px;color:var(--text3)">No tasks yet — add one above.</div>'}
         </div>
@@ -4621,25 +4715,41 @@ window.crmAddTask = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const textEl = document.getElementById('crmNewTaskText');
   const dueEl = document.getElementById('crmNewTaskDue');
+  const assignEl = document.getElementById('crmNewTaskAssignKate');
   const text = textEl.value.trim(); if (!text) return;
   if (!bucket.tasks) bucket.tasks = [];
-  bucket.tasks.push({ id: 't_' + Date.now(), text, due: dueEl.value || null, done: false });
+  bucket.tasks.push({
+    id: 't_' + Date.now(), text, due: dueEl.value || null, done: false,
+    assignedTo: assignEl?.checked ? 'Kate' : null,
+    comments: [], updatedAt: new Date().toISOString(), updatedBy: 'Nikolai',
+  });
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+};
+window.crmAddTaskComment = function(taskId) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const el = document.getElementById('crmTaskComment_' + taskId);
+  const text = el.value.trim(); if (!text) return;
+  if (!t.comments) t.comments = [];
+  t.comments.push({ id: 'c_' + Date.now(), author: 'Nikolai', text, date: new Date().toISOString() });
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  crmSaveBucket(ref);
+  crmRenderDetail();
 };
 window.crmEditTaskText = function(taskId, val) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
   const text = val.trim(); if (!text) return;
-  t.text = text;
+  t.text = text; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRefreshActiveView();
 };
 window.crmEditTaskDue = function(taskId, val) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
-  t.due = val || null;
+  t.due = val || null; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
@@ -4647,7 +4757,7 @@ window.crmEditTaskDue = function(taskId, val) {
 window.crmToggleTask = function(taskId) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
-  t.done = !t.done;
+  t.done = !t.done; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
