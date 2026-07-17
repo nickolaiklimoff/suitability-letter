@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1784291634">
+<link rel="stylesheet" href="style.css?v=1783598061">
 <body>
 <div class="app">
 
@@ -833,6 +833,20 @@
         One-time setup needed in GitHub repo Settings → Secrets and variables → Actions: add <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code> (same values as the Telegram fields above).
       </div>
     </div>
+
+    <div class="form-card" style="max-width:520px;margin-top:14px">
+      <h3 style="margin-bottom:8px">Kate — Assigned Tasks Sync</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px">
+        Pushes only tasks explicitly marked "Assign to Kate" (client name, task text, deadline, comments) to
+        <code>assigned-tasks.json</code> in the same repo — nothing else about the client is shared. Kate's separate page
+        reads/writes the same file. Each sync also pulls in anything she's changed (comments, deadline, done) before pushing.
+      </p>
+      <button class="btn-primary" onclick="crmPushTasksToKate()" style="font-size:13px">Sync tasks with Kate</button>
+      <span id="crmKateSyncStatus" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">
+        Uses the same GitHub token as above. Kate needs her own token with write access to this repo to use her page.
+      </div>
+    </div>
   </div>
 
   <!-- Daily Brief panel -->
@@ -955,10 +969,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1784291634"></script>
+<script src="waar.js?v=1783598061"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1784291634"></script>
-<script src="app.js?v=1784291634"></script>
+<script src="report.js?v=1783598061"></script>
+<script src="app.js?v=1783598061"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
