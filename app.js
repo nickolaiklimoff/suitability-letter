@@ -3671,6 +3671,7 @@ window.dbFormat = async function() {
 - Вместо "бычий/медвежий" пиши "позитивный/негативный настрой"
 - Пиши живо и по делу, избегай канцелярита
 - Общий объём не более 3500 символов
+- НЕ используй markdown-разметку (никаких **, __, ###, - в начале строки и т.п.) — публикация идёт как обычный текст, звёздочки и решётки останутся видны как есть. Для акцента используй только эмодзи и разбивку на абзацы
 
 Текст:
 ${text}`
@@ -3680,7 +3681,16 @@ ${text}`
 
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error?.message || resp.status);
-    const result = data.content?.[0]?.text?.trim() || '';
+    let result = data.content?.[0]?.text?.trim() || '';
+
+    // Safety net: strip any markdown that slipped through despite the prompt
+    // instruction — Telegram publishing uses parse_mode:HTML, so raw ** / ##
+    // just show up as literal characters instead of being rendered.
+    result = result
+      .replace(/\*\*(.+?)\*\*/g, '$1')   // **bold** -> bold
+      .replace(/__(.+?)__/g, '$1')       // __bold__ -> bold
+      .replace(/^#{1,6}\s*/gm, '')       // # headings
+      .replace(/^[-*]\s+/gm, '• ');      // - bullets / * bullets -> •
 
     document.getElementById('db-result-text').value = result;
     document.getElementById('db-result-card').classList.remove('hidden');
