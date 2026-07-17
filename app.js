@@ -4711,6 +4711,13 @@ function crmRenderDetail() {
     </div>`;
 }
 
+function crmAutoSyncKate(task) {
+  if (!task || task.assignedTo !== 'Kate') return;
+  const token = (document.getElementById('crmGhToken')?.value || localStorage.getItem('suitability-crm-gh-token') || '').trim();
+  if (!token) return; // silently skip — no token configured, nothing we can do in the background
+  crmPushTasksToKate();
+}
+
 window.crmAddTask = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const textEl = document.getElementById('crmNewTaskText');
@@ -4718,14 +4725,16 @@ window.crmAddTask = function() {
   const assignEl = document.getElementById('crmNewTaskAssignKate');
   const text = textEl.value.trim(); if (!text) return;
   if (!bucket.tasks) bucket.tasks = [];
-  bucket.tasks.push({
+  const newTask = {
     id: 't_' + Date.now(), text, due: dueEl.value || null, done: false,
     assignedTo: assignEl?.checked ? 'Kate' : null,
     comments: [], updatedAt: new Date().toISOString(), updatedBy: 'Nikolai',
-  });
+  };
+  bucket.tasks.push(newTask);
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+  crmAutoSyncKate(newTask);
 };
 window.crmAddTaskComment = function(taskId) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
@@ -4737,6 +4746,7 @@ window.crmAddTaskComment = function(taskId) {
   t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRenderDetail();
+  crmAutoSyncKate(t);
 };
 window.crmEditTaskText = function(taskId, val) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
@@ -4745,6 +4755,7 @@ window.crmEditTaskText = function(taskId, val) {
   t.text = text; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRefreshActiveView();
+  crmAutoSyncKate(t);
 };
 window.crmEditTaskDue = function(taskId, val) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
@@ -4753,6 +4764,7 @@ window.crmEditTaskDue = function(taskId, val) {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+  crmAutoSyncKate(t);
 };
 window.crmToggleTask = function(taskId) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
@@ -4761,6 +4773,7 @@ window.crmToggleTask = function(taskId) {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+  crmAutoSyncKate(t);
 };
 window.crmDeleteTask = function(taskId) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
