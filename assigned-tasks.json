@@ -11,10 +11,16 @@
         "author": "Nikolai",
         "text": "hi",
         "date": "2026-07-17T16:37:34.605Z"
+      },
+      {
+        "id": "c_1784306634957",
+        "author": "Kate",
+        "text": "Hello",
+        "date": "2026-07-17T16:43:54.957Z"
       }
     ],
-    "updatedAt": "2026-07-17T16:37:34.605Z",
-    "updatedBy": "Nikolai",
+    "updatedAt": "2026-07-17T16:43:54.957Z",
+    "updatedBy": "Kate",
     "clientId": "c_1784291794613",
     "clientName": "B***  L****"
   }
