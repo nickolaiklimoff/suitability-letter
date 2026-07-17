@@ -5291,10 +5291,16 @@ function runRebalance() {
 
     if (addCash === 0) {
       // Mode 1: Minimum budget - analytical formula
-      // new_total = sum(overweight curVal) / (1 - sum(underweight tgtPct))
+      // new_total = sum(overweight curVal) / (sum of ALL tgtPct - sum(underweight tgtPct))
+      // NOTE: tgtPct here are absolute % of the whole portfolio (equity+bonds+cash),
+      // so they do NOT sum to 100% across allLines — cash's share (e.g. ~1% for IR3)
+      // is never in allLines at all. Using a hardcoded "1" as the full-portfolio
+      // base here was UNDER-funding the minimum budget, leaving real residual
+      // deviations even after spending 100% of the (too-small) suggested amount.
+      const totalTgtSum = allLines.reduce((s,r)=>s+r.tgtPct, 0);
       const overVal  = allLines.filter(r => r.curPct >= r.tgtPct).reduce((s,r)=>s+r.curVal, 0);
       const underTgt = allLines.filter(r => r.curPct <  r.tgtPct).reduce((s,r)=>s+r.tgtPct, 0);
-      const denom    = 1 - underTgt;
+      const denom    = totalTgtSum - underTgt;
       const newTotalM1 = denom > 0.001 ? overVal / denom : portfolioTotal;
       effectiveBudget  = Math.max(0, newTotalM1 - portfolioTotal);
       html += `<div style="font-size:12px;color:#1a5276;background:#eaf4fb;border-radius:6px;padding:8px 12px;margin-bottom:0.75rem">
