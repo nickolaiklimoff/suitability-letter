@@ -4026,6 +4026,33 @@ function crmAllTasks() {
 
 let crmShowCompletedTasks = false;
 
+function crmGroupByDate(items, dateField) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const groups = {};
+  const order = [];
+  items.forEach(it => {
+    const key = it[dateField] || '__nodate__';
+    if (!(key in groups)) { groups[key] = []; order.push(key); }
+    groups[key].push(it);
+  });
+  order.sort((a, b) => {
+    if (a === '__nodate__') return 1;
+    if (b === '__nodate__') return -1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  return order.map(key => {
+    let label;
+    if (key === '__nodate__') label = 'No date';
+    else if (key === todayStr) label = 'Today';
+    else {
+      const tmrw = new Date(); tmrw.setDate(tmrw.getDate() + 1);
+      label = key === tmrw.toISOString().slice(0, 10) ? 'Tomorrow' : crmFmtDate(key);
+      if (key < todayStr) label += ' — overdue';
+    }
+    return { key, label, items: groups[key] };
+  });
+}
+
 function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
   if (!el) return;
@@ -4038,8 +4065,6 @@ function crmRenderTasks() {
   });
 
   const renderRow = it => {
-    const overdue = !it.done && it.due && it.due < todayStr;
-    const isToday = it.due === todayStr;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
       <input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">
       <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
@@ -4047,7 +4072,6 @@ function crmRenderTasks() {
         <span style="color:var(--text3);font-size:12px"> — </span>
         <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
       </div>
-      <span style="font-size:11px;font-weight:600;white-space:nowrap;color:${overdue?'#c62828':isToday?'#8a6100':'var(--text3)'}">${overdue?'⚠ ':''}${it.due?crmFmtDate(it.due):'no date'}</span>
     </div>`;
   };
 
@@ -4058,9 +4082,17 @@ function crmRenderTasks() {
     </label>
   </div>`;
 
-  el.innerHTML = header + (items.length
-    ? `<div style="display:flex;flex-direction:column;gap:6px">${items.map(renderRow).join('')}</div>`
-    : '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>');
+  if (!items.length) {
+    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>';
+    return;
+  }
+
+  const groups = crmGroupByDate(items, 'due');
+  el.innerHTML = header + groups.map(g => `
+    <div style="margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:12px;color:${g.label.includes('overdue')?'#c62828':'var(--text2)'};margin-bottom:6px">${g.label}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
+    </div>`).join('');
 }
 
 function crmRenderBizExpansion() {
@@ -4089,19 +4121,25 @@ function crmRenderBizExpansion() {
           return (order[a.opp.status] ?? 4) - (order[b.opp.status] ?? 4);
         });
       const openCount = items.filter(r => r.opp.status === 'Open' || r.opp.status === 'In progress').length;
+      const dateGroups = crmGroupByDate(items.map(r => ({ ...r, _date: r.opp.nextDate })), '_date');
+      const cardHtml = r => {
+        const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
+        return `<div onclick="crmOpenDetail('client','${r.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
+            <span style="font-size:10px;font-weight:600;color:${statusColor(r.opp.status)}">${crmEsc(r.opp.status)}</span>
+          </div>
+          ${r.opp.note ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${crmEsc(r.opp.note)}</div>` : ''}
+          ${r.opp.nextDate ? `<div style="font-size:11px;margin-top:4px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}${r.opp.nextText?crmEsc(r.opp.nextText):'follow up'}</div>` : ''}
+        </div>`;
+      };
       return `<div style="background:var(--bg2);border-radius:8px;padding:10px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${crmEsc(type)} <span style="font-weight:400">(${openCount} open)</span></div>
-        ${items.map(r => {
-          const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
-          return `<div onclick="crmOpenDetail('client','${r.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-              <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
-              <span style="font-size:10px;font-weight:600;color:${statusColor(r.opp.status)}">${crmEsc(r.opp.status)}</span>
-            </div>
-            ${r.opp.note ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${crmEsc(r.opp.note)}</div>` : ''}
-            ${r.opp.nextDate ? `<div style="font-size:11px;margin-top:4px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}Next: ${crmFmtDate(r.opp.nextDate)}${r.opp.nextText?' — '+crmEsc(r.opp.nextText):''}</div>` : ''}
-          </div>`;
-        }).join('') || `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
+        ${dateGroups.length ? dateGroups.map(g => `
+          <div style="margin-bottom:10px">
+            <div style="font-size:10px;font-weight:700;color:${g.label.includes('overdue')?'#c62828':'var(--text3)'};margin-bottom:5px">${g.label}</div>
+            ${g.items.map(cardHtml).join('')}
+          </div>`).join('') : `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
       </div>`;
     }).join('') + `</div>`;
 }
