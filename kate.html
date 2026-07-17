@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kate — Tasks</title>
+<style>
+  :root {
+    --bg: #f5f0eb; --bg2: #ffffff; --border: #e0d8cc; --border2: #c9beac;
+    --text1: #2b2620; --text2: #5a5248; --text3: #8a8072;
+    --blue: #1a5276; --green: #3b6d11; --red: #c62828; --purple: #5b3fa3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text1); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--text3); margin-bottom: 1.5rem; }
+  .card { background: var(--bg2); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+  .setup-card { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .field label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+  input[type=text], input[type=password], input[type=date] {
+    font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text1); width: 100%;
+  }
+  button {
+    font-size: 13px; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer;
+    background: var(--blue); color: #fff; font-weight: 600;
+  }
+  button.secondary { background: var(--bg); color: var(--text2); border: 1px solid var(--border2); }
+  .status { font-size: 12px; color: var(--text3); margin-left: 8px; }
+  .task { display: flex; flex-direction: column; gap: 8px; }
+  .task-top { display: flex; align-items: center; gap: 10px; }
+  .task-client { font-weight: 600; font-size: 14px; }
+  .task-text { font-size: 13px; color: var(--text1); flex: 1; }
+  .done .task-text { text-decoration: line-through; color: var(--text3); }
+  .overdue { color: var(--red); font-weight: 600; }
+  .due-today { color: #8a6100; font-weight: 600; }
+  .comments { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+  .comment { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .comment b { color: var(--text1); }
+  .reply-row { display: flex; gap: 6px; margin-top: 6px; }
+  .reply-row input { flex: 1; font-size: 12px; padding: 5px 8px; }
+  .reply-row button { padding: 5px 10px; font-size: 12px; }
+  .empty { text-align: center; color: var(--text3); padding: 3rem 1rem; font-size: 13px; }
+  .hidden { display: none; }
+  .footer-note { font-size: 11px; color: var(--text3); margin-top: 2rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kate — Tasks</h1>
+  <div class="sub">Tasks assigned to you across Orion Ridge clients. Only what's here — no other client data.</div>
+
+  <div class="card setup-card">
+    <div class="field" style="flex:1;min-width:220px">
+      <label>GitHub token (given to you by Nikolai)</label>
+      <input type="password" id="ghToken" placeholder="ghp_...">
+    </div>
+    <button onclick="loadTasks()">Load tasks</button>
+    <span class="status" id="loadStatus"></span>
+  </div>
+
+  <div id="taskList"></div>
+
+  <div class="card" id="saveBar" style="display:none;text-align:right">
+    <button onclick="saveTasks()">Save &amp; sync</button>
+    <span class="status" id="saveStatus"></span>
+  </div>
+
+  <div class="footer-note">
+    Changes are saved locally as you go, but only sent to Nikolai when you click "Save &amp; sync".
+    Click "Load tasks" again any time to pull his latest assignments.
+  </div>
+</div>
+
+<script>
+const REPO = 'nickolaiklimoff/suitability-letter';
+const PATH = 'assigned-tasks.json';
+let tasks = [];
+let fileSha = null;
+
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return d;
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function esc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('kate-gh-token');
+  if (saved) document.getElementById('ghToken').value = saved;
+  const cached = localStorage.getItem('kate-tasks-cache');
+  if (cached) { try { tasks = JSON.parse(cached); render(); } catch(e) {} }
+});
+
+async function loadTasks() {
+  const token = document.getElementById('ghToken').value.trim();
+  const statusEl = document.getElementById('loadStatus');
+  if (!token) { statusEl.textContent = 'Enter your GitHub token first.'; return; }
+  localStorage.setItem('kate-gh-token', token);
+  statusEl.textContent = 'Loading...';
+  try {
+    const resp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (resp.status === 404) { tasks = []; fileSha = null; }
+    else if (resp.ok) {
+      const d = await resp.json();
+      fileSha = d.sha;
+      tasks = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    } else {
+      const err = await resp.json();
+      throw new Error(err.message || resp.status);
+    }
+    localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+    statusEl.textContent = `✓ Loaded ${tasks.length} task${tasks.length===1?'':'s'}`;
+    render();
+  } catch (e) {
+    statusEl.textContent = 'Load failed: ' + e.message;
+  }
+}
+
+async function saveTasks() {
+  const token = document.getElementById('ghToken').value.trim();
+  const statusEl = document.getElementById('saveStatus');
+  if (!token) { statusEl.textContent = 'Load tasks first (need a token).'; return; }
+  statusEl.textContent = 'Syncing...';
+  try {
+    // Fetch latest remote first so we don't clobber anything Nikolai changed
+    // since our last load — merge by id, newer updatedAt wins per scalar field,
+    // comments are unioned by id.
+    let remote = [];
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) {
+      const d = await getResp.json();
+      fileSha = d.sha;
+      remote = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    }
+    const byId = {};
+    remote.forEach(t => { byId[t.id] = t; });
+    tasks.forEach(t => {
+      const r = byId[t.id];
+      if (!r) { byId[t.id] = t; return; }
+      const localNewer = new Date(t.updatedAt||0) >= new Date(r.updatedAt||0);
+      const merged = localNewer ? { ...r, ...t } : { ...t, ...r };
+      const allComments = [...(t.comments||[]), ...(r.comments||[])];
+      const seen = new Set();
+      merged.comments = allComments.filter(c => c.id && !seen.has(c.id) && seen.add(c.id));
+      byId[t.id] = merged;
+    });
+    const merged = Object.values(byId);
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2))));
+    const putResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: Kate updated tasks (${merged.length} entries)`, content, sha: fileSha || undefined, branch: 'main' })
+    });
+    if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
+    tasks = merged;
+    localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+    statusEl.textContent = '✓ Synced';
+    render();
+  } catch (e) {
+    statusEl.textContent = 'Sync failed: ' + e.message;
+  }
+}
+
+function touch(t) { t.updatedAt = new Date().toISOString(); t.updatedBy = 'Kate'; }
+
+function toggleDone(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  t.done = !t.done; touch(t);
+  localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+  render();
+}
+function editDue(id, val) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  t.due = val || null; touch(t);
+  localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+  render();
+}
+function addComment(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  const el = document.getElementById('reply_' + id);
+  const text = el.value.trim(); if (!text) return;
+  if (!t.comments) t.comments = [];
+  t.comments.push({ id: 'c_' + Date.now(), author: 'Kate', text, date: new Date().toISOString() });
+  touch(t);
+  localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+  render();
+}
+
+function render() {
+  const el = document.getElementById('taskList');
+  const saveBar = document.getElementById('saveBar');
+  if (!tasks.length) {
+    el.innerHTML = '<div class="empty">No tasks assigned yet. Ask Nikolai to sync, then hit "Load tasks".</div>';
+    saveBar.style.display = 'none';
+    return;
+  }
+  saveBar.style.display = 'block';
+  const sorted = [...tasks].sort((a,b) => {
+    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
+  });
+  el.innerHTML = sorted.map(t => {
+    const today = todayStr();
+    const overdue = !t.done && t.due && t.due < today;
+    const isToday = t.due === today;
+    return `<div class="card task ${t.done?'done':''}">
+      <div class="task-top">
+        <input type="checkbox" ${t.done?'checked':''} onchange="toggleDone('${t.id}')">
+        <div style="flex:1;min-width:0">
+          <div class="task-client">${esc(t.clientName || 'Unknown client')}</div>
+          <div class="task-text">${esc(t.text)}</div>
+        </div>
+        <input type="date" value="${t.due||''}" onchange="editDue('${t.id}',this.value)" class="${overdue?'overdue':isToday?'due-today':''}" style="width:auto">
+      </div>
+      <div class="comments">
+        ${(t.comments||[]).map(c => `<div class="comment"><b>${esc(c.author)}:</b> ${esc(c.text)}</div>`).join('') || '<div class="comment" style="color:var(--text3)">No comments yet.</div>'}
+        <div class="reply-row">
+          <input type="text" id="reply_${t.id}" placeholder="Reply to Nikolai..." onkeydown="if(event.key==='Enter')addComment('${t.id}')">
+          <button class="secondary" onclick="addComment('${t.id}')">Reply</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
