@@ -68,8 +68,8 @@
   </div>
 
   <div class="footer-note">
-    Changes are saved locally as you go, but only sent to Nikolai when you click "Save &amp; sync".
-    Click "Load tasks" again any time to pull his latest assignments.
+    Changes sync automatically as you make them, and the page checks for Nikolai's new assignments
+    every couple of minutes while it stays open. "Save &amp; sync" forces an immediate check if you don't want to wait.
   </div>
 </div>
 
@@ -90,9 +90,21 @@ function esc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g
 
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('kate-gh-token');
-  if (saved) document.getElementById('ghToken').value = saved;
   const cached = localStorage.getItem('kate-tasks-cache');
   if (cached) { try { tasks = JSON.parse(cached); render(); } catch(e) {} }
+  if (saved) {
+    document.getElementById('ghToken').value = saved;
+    loadTasks(); // first load pulls Nikolai's current assignments
+  }
+
+  // After that, every change auto-saves (see touch()+autoSave below), and we
+  // also poll periodically in case Nikolai assigned something new and Kate
+  // hasn't touched anything herself — saveTasks() is merge-safe (fetches
+  // remote, merges by id, unions comments) so this never overwrites her
+  // unsaved edits, unlike a raw reload would.
+  setInterval(() => {
+    if (document.getElementById('ghToken').value.trim()) saveTasks(true);
+  }, 120000);
 });
 
 async function loadTasks() {
@@ -122,11 +134,11 @@ async function loadTasks() {
   }
 }
 
-async function saveTasks() {
+async function saveTasks(silent) {
   const token = document.getElementById('ghToken').value.trim();
   const statusEl = document.getElementById('saveStatus');
-  if (!token) { statusEl.textContent = 'Load tasks first (need a token).'; return; }
-  statusEl.textContent = 'Syncing...';
+  if (!token) { if (!silent) statusEl.textContent = 'Load tasks first (need a token).'; return; }
+  if (!silent) statusEl.textContent = 'Syncing...';
   try {
     // Fetch latest remote first so we don't clobber anything Nikolai changed
     // since our last load — merge by id, newer updatedAt wins per scalar field,
@@ -163,10 +175,10 @@ async function saveTasks() {
     if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
     tasks = merged;
     localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
-    statusEl.textContent = '✓ Synced';
+    if (!silent) statusEl.textContent = '✓ Synced';
     render();
   } catch (e) {
-    statusEl.textContent = 'Sync failed: ' + e.message;
+    if (!silent) statusEl.textContent = 'Sync failed: ' + e.message;
   }
 }
 
@@ -177,12 +189,14 @@ function toggleDone(id) {
   t.done = !t.done; touch(t);
   localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
   render();
+  saveTasks(true);
 }
 function editDue(id, val) {
   const t = tasks.find(x => x.id === id); if (!t) return;
   t.due = val || null; touch(t);
   localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
   render();
+  saveTasks(true);
 }
 function addComment(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
@@ -193,6 +207,7 @@ function addComment(id) {
   touch(t);
   localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
   render();
+  saveTasks(true);
 }
 
 function render() {
