@@ -57,10 +57,18 @@
     "due": "2026-07-20",
     "done": false,
     "assignedTo": "Kate",
-    "comments": [],
-    "updatedAt": "2026-07-18T06:58:37.304Z",
-    "updatedBy": "Nikolai",
+    "comments": [
+      {
+        "id": "c_1784365125878",
+        "author": "Kate",
+        "text": "Cancelled: task has been sent twice",
+        "date": "2026-07-18T08:58:45.878Z"
+      }
+    ],
+    "updatedAt": "2026-07-18T08:58:45.878Z",
+    "updatedBy": "Kate",
     "clientId": "c_1784223340795",
-    "clientName": "Al*** O***"
+    "clientName": "Al*** O***",
+    "cancelled": true
   }
 ]
