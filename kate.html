@@ -87,6 +87,8 @@ function fmtDate(d) {
   return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 }
 function esc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+const URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
+function urgencyIcon(u) { return URGENCY_ICONS[u] || URGENCY_ICONS.dove; }
 
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('kate-gh-token');
@@ -238,6 +240,7 @@ function render() {
     return `<div class="card task ${t.done?'done':''}">
       <div class="task-top">
         <input type="checkbox" ${t.done?'checked':''} onchange="toggleDone('${t.id}')">
+        <span title="Urgency" style="font-size:16px">${urgencyIcon(t.urgency)}</span>
         <div style="flex:1;min-width:0">
           <div class="task-client">${esc(t.clientName || 'Unknown client')}</div>
           <div class="task-text">${esc(t.text)}</div>
