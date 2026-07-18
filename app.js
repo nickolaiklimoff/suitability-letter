@@ -4081,7 +4081,7 @@ function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
   if (!el) return;
   const todayStr = new Date().toISOString().slice(0, 10);
-  let items = crmAllTasks().filter(i => i.kind === 'task');
+  let items = crmAllTasks().filter(i => i.kind === 'task' && i.personType === 'client');
   if (!crmShowCompletedTasks) items = items.filter(i => !i.done && !i.cancelled);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
@@ -4130,18 +4130,35 @@ function crmRenderBizExpansion() {
 
   const rows = [];
   Object.entries(clients).forEach(([id, c]) => {
-    (c.crm?.opportunities || []).forEach(o => rows.push({ id, name: c.name || 'Unnamed', opp: o }));
+    (c.crm?.opportunities || []).forEach(o => rows.push({ id, name: c.name || 'Unnamed', kind: 'opp', opp: o, _date: o.nextDate }));
+  });
+  Object.entries(prospects).forEach(([id, p]) => {
+    (p.tasks || []).forEach(t => {
+      if (!t.done && !t.cancelled) rows.push({ id, name: p.name, kind: 'task', task: t, _date: t.due });
+    });
   });
 
   if (!rows.length) {
-    el.innerHTML = '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No opportunities logged yet — add one from a client\'s card.</div>';
+    el.innerHTML = '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No opportunities or prospect tasks yet.</div>';
     return;
   }
 
   const statusColor = s => s === 'Won' ? '#3b6d11' : s === 'Lost' ? '#c62828' : s === 'In progress' ? '#8a6100' : 'var(--text2)';
-  const openCount = rows.filter(r => r.opp.status === 'Open' || r.opp.status === 'In progress').length;
+  const openCount = rows.filter(r => r.kind === 'task' || r.opp.status === 'Open' || r.opp.status === 'In progress').length;
 
   const cardHtml = r => {
+    if (r.kind === 'task') {
+      const overdue = r.task.due && r.task.due < todayStr;
+      return `<div onclick="crmOpenDetail('prospect','${r.id}','${r.task.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="min-width:0">
+            <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
+            <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">Prospect</span>
+          </div>
+        </div>
+        <div style="font-size:11px;margin-top:3px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}${crmEsc(r.task.text)}</div>
+      </div>`;
+    }
     const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
     return `<div onclick="crmOpenDetail('client','${r.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -4156,8 +4173,8 @@ function crmRenderBizExpansion() {
     </div>`;
   };
 
-  const dateGroups = crmGroupByDate(rows.map(r => ({ ...r, _date: r.opp.nextDate })), '_date');
-  const header = `<div style="font-size:12px;color:var(--text3);margin-bottom:1rem">${openCount} open opportunit${openCount===1?'y':'ies'}</div>`;
+  const dateGroups = crmGroupByDate(rows, '_date');
+  const header = `<div style="font-size:12px;color:var(--text3);margin-bottom:1rem">${openCount} open item${openCount===1?'':'s'} (client opportunities + prospect tasks)</div>`;
 
   el.innerHTML = header + dateGroups.map(g => `
     <div style="margin-bottom:1.25rem">
