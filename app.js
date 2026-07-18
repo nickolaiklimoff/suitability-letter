@@ -4126,6 +4126,18 @@ function crmRenderTasks() {
     </div>`).join('');
 }
 
+window.crmBizAddComment = function(prospectId, taskId) {
+  const p = prospects[prospectId]; if (!p) return;
+  const t = (p.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const el = document.getElementById('crmBizComment_' + taskId);
+  const text = el.value.trim(); if (!text) return;
+  if (!t.comments) t.comments = [];
+  t.comments.push({ id: 'c_' + Date.now(), author: 'Nikolai', text, date: new Date().toISOString() });
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  saveProspectsToStorage();
+  crmRenderBizExpansion();
+};
+
 function crmRenderPipeline() {
   const el = document.getElementById('crmPipelineView');
   if (!el) return;
@@ -4228,14 +4240,26 @@ function crmRenderBizExpansion() {
   const cardHtml = r => {
     if (r.kind === 'task') {
       const overdue = r.task.due && r.task.due < todayStr;
-      return `<div onclick="crmOpenDetail('prospect','${r.id}','${r.task.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div style="min-width:0">
-            <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
-            <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">Prospect</span>
+      const comments = r.task.comments || [];
+      return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:8px">
+        <div onclick="crmOpenDetail('prospect','${r.id}','${r.task.id}')" style="cursor:pointer">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div style="min-width:0">
+              <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
+              <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">Prospect</span>
+              ${r.task.assignedTo ? `<span style="font-size:10px;font-weight:600;background:#e6e0f5;color:#5b3fa3;padding:2px 8px;border-radius:8px;margin-left:4px">→ ${crmEsc(r.task.assignedTo)}</span>` : ''}
+            </div>
           </div>
+          <div style="font-size:11px;margin-top:3px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}${crmEsc(r.task.text)}</div>
         </div>
-        <div style="font-size:11px;margin-top:3px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}${crmEsc(r.task.text)}</div>
+        ${comments.length || r.task.assignedTo ? `
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          ${comments.map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('') || '<div style="font-size:11px;color:var(--text3)">No comments yet.</div>'}
+          <div style="display:flex;gap:4px;margin-top:4px" onclick="event.stopPropagation()">
+            <input id="crmBizComment_${r.task.id}" placeholder="Reply..." onkeydown="if(event.key==='Enter')crmBizAddComment('${r.id}','${r.task.id}')" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+            <button onclick="crmBizAddComment('${r.id}','${r.task.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Reply</button>
+          </div>
+        </div>` : ''}
       </div>`;
     }
     const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
