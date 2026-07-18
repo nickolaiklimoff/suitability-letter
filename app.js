@@ -3985,7 +3985,7 @@ function crmRenderToday() {
   const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const birthdaysToday = crmUpcomingBirthdays(0).filter(p => p.daysUntil === 0);
-  const allItems = crmAllTasks().filter(i => !i.done && i.due && i.due <= todayStr);
+  const allItems = crmAllTasks().filter(i => !i.done && !i.cancelled && i.due && i.due <= todayStr);
   const overdue = allItems.filter(i => i.due < todayStr).sort((a, b) => new Date(a.due) - new Date(b.due));
   const dueToday = allItems.filter(i => i.due === todayStr);
 
@@ -4023,7 +4023,7 @@ function crmAllTasks() {
   const items = [];
   Object.entries(clients).forEach(([id, c]) => {
     (c.crm?.tasks || []).forEach(t => {
-      items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', text: t.text, due: t.due, done: !!t.done, urgency: t.urgency, kind: 'task', taskId: t.id });
+      items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', text: t.text, due: t.due, done: !!t.done, cancelled: !!t.cancelled, urgency: t.urgency, kind: 'task', taskId: t.id });
     });
     (c.crm?.opportunities || []).forEach(o => {
       if (o.nextDate && o.status !== 'Won' && o.status !== 'Lost') {
@@ -4033,7 +4033,7 @@ function crmAllTasks() {
   });
   Object.entries(prospects).forEach(([id, p]) => {
     (p.tasks || []).forEach(t => {
-      items.push({ personType: 'prospect', personId: id, personName: p.name, text: t.text, due: t.due, done: !!t.done, urgency: t.urgency, kind: 'task', taskId: t.id });
+      items.push({ personType: 'prospect', personId: id, personName: p.name, text: t.text, due: t.due, done: !!t.done, cancelled: !!t.cancelled, urgency: t.urgency, kind: 'task', taskId: t.id });
     });
   });
   return items;
@@ -4081,7 +4081,7 @@ function crmRenderTasks() {
   if (!el) return;
   const todayStr = new Date().toISOString().slice(0, 10);
   let items = crmAllTasks().filter(i => i.kind === 'task');
-  if (!crmShowCompletedTasks) items = items.filter(i => !i.done);
+  if (!crmShowCompletedTasks) items = items.filter(i => !i.done && !i.cancelled);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
@@ -4178,7 +4178,7 @@ function crmTodaysTasks() {
   const items = [];
   Object.entries(clients).forEach(([id, c]) => {
     (c.crm?.tasks || []).forEach(t => {
-      if (!t.done && t.due === todayStr) items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', task: t });
+      if (!t.done && !t.cancelled && t.due === todayStr) items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', task: t });
     });
     (c.crm?.opportunities || []).forEach(o => {
       if (o.nextDate === todayStr && o.status !== 'Won' && o.status !== 'Lost') {
@@ -4188,7 +4188,7 @@ function crmTodaysTasks() {
   });
   Object.entries(prospects).forEach(([id, p]) => {
     (p.tasks || []).forEach(t => {
-      if (!t.done && t.due === todayStr) items.push({ personType: 'prospect', personId: id, personName: p.name, task: t });
+      if (!t.done && !t.cancelled && t.due === todayStr) items.push({ personType: 'prospect', personId: id, personName: p.name, task: t });
     });
   });
   return items;
@@ -4276,7 +4276,7 @@ function crmRenderKateTab() {
   if (!el) return;
   let items = crmCollectKateTasks();
   const showDone = crmShowCompletedTasks;
-  if (!showDone) items = items.filter(t => !t.done);
+  if (!showDone) items = items.filter(t => !t.done && !t.cancelled);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
@@ -4305,7 +4305,7 @@ function crmRenderKateTab() {
       <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${g.items.map(t => `
-          <div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${t.done?'opacity:0.5':''}">
+          <div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(t.done||t.cancelled)?'opacity:0.5':''}">
             <div style="display:flex;align-items:center;gap:8px">
               <input type="checkbox" ${t.done?'checked':''} onchange="crmKateToggleTask('${t.clientId}','${t.id}')">
               <span style="font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
@@ -4313,6 +4313,7 @@ function crmRenderKateTab() {
                 <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(t.clientName)}</span>
                 <span style="color:var(--text3);font-size:12px"> — </span>
                 <span style="font-size:13px;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
+                ${t.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
               </div>
               <input type="date" value="${t.due||''}" onchange="crmKateEditTaskDue('${t.clientId}','${t.id}',this.value)" style="font-size:11px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text2)">
             </div>
@@ -4483,7 +4484,7 @@ function crmRenderClients() {
   el.innerHTML = bdayHtml + oppSummaryHtml + `<div style="display:flex;flex-direction:column;gap:6px">` + ids.map(id => {
     const c = clients[id];
     const crm = c.crm || { activities: [], tasks: [] };
-    const openTasks = (crm.tasks || []).filter(t => !t.done);
+    const openTasks = (crm.tasks || []).filter(t => !t.done && !t.cancelled);
     const overdue = openTasks.some(t => t.due && new Date(t.due) < new Date(new Date().toDateString()));
     const lastAct = (crm.activities || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     const openOpps = (crm.opportunities || []).filter(o => o.status === 'Open' || o.status === 'In progress');
@@ -4552,7 +4553,7 @@ function crmRenderProspects() {
     html += `<div style="background:var(--bg2);border-radius:8px;padding:10px;min-height:140px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${stage} (${items.length})</div>
       ${items.map(p => {
-        const openTasks = (p.tasks || []).filter(t => !t.done);
+        const openTasks = (p.tasks || []).filter(t => !t.done && !t.cancelled);
         const overdue = openTasks.some(t => t.due && new Date(t.due) < new Date(new Date().toDateString()));
         return `<div onclick="crmOpenDetail('prospect','${p.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer">
           <div style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(p.name)}</div>
@@ -4806,13 +4807,14 @@ function crmRenderDetail() {
         </label>
         <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
           ${tasks.length ? tasks.map(t => {
-            const overdue = !t.done && t.due && new Date(t.due) < new Date(new Date().toDateString());
-            return `<div id="crmTaskRow_${t.id}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
+            const overdue = !t.done && !t.cancelled && t.due && new Date(t.due) < new Date(new Date().toDateString());
+            return `<div id="crmTaskRow_${t.id}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${(t.done||t.cancelled) ? 'opacity:0.5' : ''}">
               <div style="display:flex;align-items:center;gap:8px">
                 <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
                 <span onclick="crmCycleUrgency('${t.id}')" title="Urgency — click to change" style="cursor:pointer;font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
                   <input class="crm-task-text-input" value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
+                  ${t.cancelled ? '<div style="font-size:10px;font-weight:600;color:#c62828">✕ Cancelled by Kate</div>' : ''}
                   <div style="display:flex;align-items:center;gap:6px">
                     <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
                     <label style="display:flex;align-items:center;gap:3px;font-size:9px;font-weight:600;cursor:pointer;${t.assignedTo?'background:#e6e0f5;color:#5b3fa3':'color:var(--text3)'};padding:1px 6px;border-radius:8px">
