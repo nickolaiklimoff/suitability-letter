@@ -4029,6 +4029,14 @@ function crmAllTasks() {
 
 let crmShowCompletedTasks = false;
 
+function crmDateBadge(label) {
+  const isOverdue = label.includes('overdue');
+  const isToday = label === 'Today';
+  const bg = isOverdue ? '#fdecea' : isToday ? '#fff3d6' : 'var(--bg2)';
+  const color = isOverdue ? '#c62828' : isToday ? '#8a6100' : 'var(--text2)';
+  return `<span style="display:inline-block;font-size:10px;font-weight:700;color:${color};background:${bg};padding:3px 10px;border-radius:10px">${isOverdue?'⚠ ':''}${crmEsc(label)}</span>`;
+}
+
 function crmGroupByDate(items, dateField) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const groups = {};
@@ -4093,7 +4101,7 @@ function crmRenderTasks() {
   const groups = crmGroupByDate(items, 'due');
   el.innerHTML = header + groups.map(g => `
     <div style="margin-bottom:1.25rem">
-      <div style="font-weight:600;font-size:12px;color:${g.label.includes('overdue')?'#c62828':'var(--text2)'};margin-bottom:6px">${g.label}</div>
+      <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
       <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
     </div>`).join('');
 }
@@ -4138,11 +4146,9 @@ function crmRenderBizExpansion() {
       };
       return `<div style="background:var(--bg2);border-radius:8px;padding:10px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${crmEsc(type)} <span style="font-weight:400">(${openCount} open)</span></div>
-        ${dateGroups.length ? dateGroups.map(g => `
-          <div style="margin-bottom:10px">
-            <div style="font-size:10px;font-weight:700;color:${g.label.includes('overdue')?'#c62828':'var(--text3)'};margin-bottom:5px">${g.label}</div>
-            ${g.items.map(cardHtml).join('')}
-          </div>`).join('') : `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
+        ${dateGroups.length ? dateGroups.map((g, i) => `
+          <div style="margin-top:${i>0?'14px':'0'};margin-bottom:8px">${crmDateBadge(g.label)}</div>
+          ${g.items.map(cardHtml).join('')}`).join('') : `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
       </div>`;
     }).join('') + `</div>`;
 }
@@ -4287,7 +4293,7 @@ function crmRenderKateTab() {
   const groups = crmGroupByDate(items, 'due');
   el.innerHTML = header + groups.map(g => `
     <div style="margin-bottom:1.25rem">
-      <div style="font-weight:600;font-size:12px;color:${g.label.includes('overdue')?'#c62828':'var(--text2)'};margin-bottom:6px">${g.label}</div>
+      <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${g.items.map(t => `
           <div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${t.done?'opacity:0.5':''}">
