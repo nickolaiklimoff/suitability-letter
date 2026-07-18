@@ -4153,50 +4153,53 @@ function crmRenderPipeline() {
 
   const oppRow = r => {
     const missing = !r.opp.estValue;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid ${missing?'#f0c96b':'var(--border)'};border-radius:8px;background:${missing?'#fffaf0':'var(--bg)'};margin-bottom:6px">
-    <div style="min-width:0;cursor:pointer" onclick="crmOpenDetail('client','${r.id}')">
-      <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
-      ${r.opp.note ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">${crmEsc(r.opp.note)}</span>` : ''}
+    return `<div style="padding:8px 10px;border:1px solid ${missing?'#f0c96b':'var(--border)'};border-radius:8px;background:${missing?'#fffaf0':'var(--bg)'};margin-bottom:6px">
+    <div style="min-width:0;cursor:pointer;margin-bottom:6px" onclick="crmOpenDetail('client','${r.id}')">
+      <div style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</div>
+      ${r.opp.note ? `<div style="font-size:11px;color:var(--text3)">${crmEsc(r.opp.note)}</div>` : ''}
     </div>
-    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:4px">
       <span style="font-size:12px;color:var(--text3)">$</span>
-      <input type="number" value="${r.opp.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetOpportunityValueDirect('${r.id}','${r.opp.id}',this.value)" style="width:100px;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
+      <input type="number" value="${r.opp.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetOpportunityValueDirect('${r.id}','${r.opp.id}',this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
     </div>
   </div>`;
   };
 
   const prospectRow = r => {
     const missing = !r.p.estValue;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid ${missing?'#f0c96b':'var(--border)'};border-radius:8px;background:${missing?'#fffaf0':'var(--bg)'};margin-bottom:6px">
-    <div style="min-width:0;cursor:pointer" onclick="crmOpenDetail('prospect','${r.id}')">
-      <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.p.name)}</span>
-      <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">${crmEsc(r.p.stage)}</span>
+    return `<div style="padding:8px 10px;border:1px solid ${missing?'#f0c96b':'var(--border)'};border-radius:8px;background:${missing?'#fffaf0':'var(--bg)'};margin-bottom:6px">
+    <div style="min-width:0;cursor:pointer;margin-bottom:6px" onclick="crmOpenDetail('prospect','${r.id}')">
+      <div style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.p.name)}</div>
+      <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px">${crmEsc(r.p.stage)}</span>
     </div>
-    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:4px">
       <span style="font-size:12px;color:var(--text3)">$</span>
-      <input type="number" value="${r.p.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetProspectValueDirect('${r.id}',this.value)" style="width:100px;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
+      <input type="number" value="${r.p.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetProspectValueDirect('${r.id}',this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
     </div>
   </div>`;
   };
 
   const section = (icon, title, rows, total, rowFn, emptyMsg) => `
-    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px">
+      <div style="margin-bottom:10px">
         <div style="font-weight:600;font-size:13px;color:var(--text2)">${icon} ${title} <span style="font-weight:400;color:var(--text3)">(${rows.length})</span></div>
-        <div style="font-size:15px;font-weight:700;color:var(--text1)">${fmtMoney(total)}</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text1);margin-top:2px">${fmtMoney(total)}</div>
       </div>
       ${rows.length ? rows.sort((a,b) => (b.opp?.estValue||b.p?.estValue||0) - (a.opp?.estValue||a.p?.estValue||0)).map(rowFn).join('') : `<div style="font-size:12px;color:var(--text3)">${emptyMsg}</div>`}
     </div>`;
 
+  const cols = otherOpps.length ? 4 : 3;
   el.innerHTML = `
     <div style="background:var(--bg2);border-radius:8px;padding:14px;margin-bottom:1.25rem;text-align:center">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em">Total pipeline (est.)</div>
       <div style="font-size:28px;font-weight:700;color:var(--text1)">${fmtMoney(grandTotal)}</div>
     </div>
-    ${section('💰', 'Top-ups — existing open accounts', topUps, totalTopUps, oppRow, 'No open top-up opportunities.')}
-    ${section('🏦', 'New accounts — existing clients', newAccounts, totalNewAcc, oppRow, 'No open new-account opportunities.')}
-    ${section('🆕', 'New clients (pipeline → new accounts)', newClients, totalNewCli, prospectRow, 'No prospects in the pipeline.')}
-    ${otherOpps.length ? section('📌', 'Other opportunities', otherOpps, sum(otherOpps, r=>r.opp.estValue), oppRow, '') : ''}`;
+    <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px;align-items:start">
+      ${section('💰', 'Top-ups — existing open accounts', topUps, totalTopUps, oppRow, 'No open top-up opportunities.')}
+      ${section('🏦', 'New accounts — existing clients', newAccounts, totalNewAcc, oppRow, 'No open new-account opportunities.')}
+      ${section('🆕', 'New clients (pipeline → new accounts)', newClients, totalNewCli, prospectRow, 'No prospects in the pipeline.')}
+      ${otherOpps.length ? section('📌', 'Other opportunities', otherOpps, sum(otherOpps, r=>r.opp.estValue), oppRow, '') : ''}
+    </div>`;
 }
 
 function crmRenderBizExpansion() {
