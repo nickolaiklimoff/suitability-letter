@@ -4359,6 +4359,16 @@ window.crmKateAddComment = function(clientId, taskId) {
   crmAutoSyncKate(t);
 };
 
+function crmDeletedKateTaskIds() {
+  try { return JSON.parse(localStorage.getItem('suitability-crm-deleted-kate-tasks') || '[]'); }
+  catch (e) { return []; }
+}
+function crmMarkKateTaskDeleted(taskId) {
+  const ids = crmDeletedKateTaskIds();
+  if (!ids.includes(taskId)) ids.push(taskId);
+  try { localStorage.setItem('suitability-crm-deleted-kate-tasks', JSON.stringify(ids)); } catch (e) {}
+}
+
 function crmMergeKateTasks(local, remote) {
   const byId = {};
   remote.forEach(t => { byId[t.id] = t; });
@@ -4372,7 +4382,10 @@ function crmMergeKateTasks(local, remote) {
     merged.comments = allComments.filter(c => c.id && !seen.has(c.id) && seen.add(c.id));
     byId[t.id] = merged;
   });
-  return Object.values(byId);
+  // Tombstones: a task once explicitly deleted must never resurrect, even if
+  // a stale browser tab (whose local state predates the delete) pushes again.
+  const deleted = new Set(crmDeletedKateTaskIds());
+  return Object.values(byId).filter(t => !deleted.has(t.id));
 }
 
 window.crmPushTasksToKate = async function() {
@@ -4930,7 +4943,7 @@ window.crmDeleteTask = function(taskId) {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
-  if (wasAssignedToKate) crmSyncDeleteFromKate(taskId);
+  if (wasAssignedToKate) { crmMarkKateTaskDeleted(taskId); crmSyncDeleteFromKate(taskId); }
 };
 
 // Removals need their own path — the normal push/pull merge only ever unions
