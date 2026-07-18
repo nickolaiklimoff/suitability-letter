@@ -4121,36 +4121,32 @@ function crmRenderBizExpansion() {
     return;
   }
 
-  const types = [...new Set(rows.map(r => r.opp.type))];
   const statusColor = s => s === 'Won' ? '#3b6d11' : s === 'Lost' ? '#c62828' : s === 'In progress' ? '#8a6100' : 'var(--text2)';
+  const openCount = rows.filter(r => r.opp.status === 'Open' || r.opp.status === 'In progress').length;
 
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(${Math.max(types.length,1)},1fr);gap:12px">` +
-    types.map(type => {
-      const items = rows.filter(r => r.opp.type === type)
-        .sort((a, b) => {
-          const order = { 'In progress': 0, 'Open': 1, 'Won': 2, 'Lost': 3 };
-          return (order[a.opp.status] ?? 4) - (order[b.opp.status] ?? 4);
-        });
-      const openCount = items.filter(r => r.opp.status === 'Open' || r.opp.status === 'In progress').length;
-      const dateGroups = crmGroupByDate(items.map(r => ({ ...r, _date: r.opp.nextDate })), '_date');
-      const cardHtml = r => {
-        const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
-        return `<div onclick="crmOpenDetail('client','${r.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-            <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
-            <span style="font-size:10px;font-weight:600;color:${statusColor(r.opp.status)}">${crmEsc(r.opp.status)}</span>
-          </div>
-          ${r.opp.note ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${crmEsc(r.opp.note)}</div>` : ''}
-          ${r.opp.nextDate ? `<div style="font-size:11px;margin-top:4px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}${r.opp.nextText?crmEsc(r.opp.nextText):'follow up'}</div>` : ''}
-        </div>`;
-      };
-      return `<div style="background:var(--bg2);border-radius:8px;padding:10px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${crmEsc(type)} <span style="font-weight:400">(${openCount} open)</span></div>
-        ${dateGroups.length ? dateGroups.map((g, i) => `
-          <div style="margin-top:${i>0?'14px':'0'};margin-bottom:8px">${crmDateBadge(g.label)}</div>
-          ${g.items.map(cardHtml).join('')}`).join('') : `<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>`}
-      </div>`;
-    }).join('') + `</div>`;
+  const cardHtml = r => {
+    const overdue = r.opp.nextDate && r.opp.nextDate < todayStr && r.opp.status !== 'Won' && r.opp.status !== 'Lost';
+    return `<div onclick="crmOpenDetail('client','${r.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="min-width:0">
+          <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
+          <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">${crmEsc(r.opp.type)}</span>
+        </div>
+        <span style="font-size:10px;font-weight:600;color:${statusColor(r.opp.status)};white-space:nowrap">${crmEsc(r.opp.status)}</span>
+      </div>
+      ${r.opp.note ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${crmEsc(r.opp.note)}</div>` : ''}
+      ${r.opp.nextDate ? `<div style="font-size:11px;margin-top:3px;color:${overdue?'#c62828':'var(--text2)'}">${overdue?'⚠ ':''}${r.opp.nextText?crmEsc(r.opp.nextText):'follow up'}</div>` : ''}
+    </div>`;
+  };
+
+  const dateGroups = crmGroupByDate(rows.map(r => ({ ...r, _date: r.opp.nextDate })), '_date');
+  const header = `<div style="font-size:12px;color:var(--text3);margin-bottom:1rem">${openCount} open opportunit${openCount===1?'y':'ies'}</div>`;
+
+  el.innerHTML = header + dateGroups.map(g => `
+    <div style="margin-bottom:1.25rem">
+      <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
+      <div>${g.items.map(cardHtml).join('')}</div>
+    </div>`).join('');
 }
 
 window.crmToggleTaskFromList = function(personType, personId, taskId) {
