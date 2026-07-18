@@ -19,11 +19,11 @@
         "date": "2026-07-17T16:43:54.957Z"
       }
     ],
-    "updatedAt": "2026-07-18T07:42:21.276Z",
+    "updatedAt": "2026-07-18T07:42:22.191Z",
     "updatedBy": "Nikolai",
     "clientId": "c_1784291794613",
     "clientName": "B***  L****",
-    "urgency": "chicken"
+    "urgency": "eagle"
   },
   {
     "id": "t_1784357962673",
@@ -45,10 +45,11 @@
     "done": false,
     "assignedTo": "Kate",
     "comments": [],
-    "updatedAt": "2026-07-18T07:15:11.298Z",
+    "updatedAt": "2026-07-18T07:42:32.145Z",
     "updatedBy": "Nikolai",
     "clientId": "c_1783924366434",
-    "clientName": "Artem"
+    "clientName": "Artem",
+    "urgency": "chicken"
   },
   {
     "id": "t_1784288655708",
