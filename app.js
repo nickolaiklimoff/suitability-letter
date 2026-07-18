@@ -4158,6 +4158,24 @@ window.crmPipelineAddProspectComment = function(prospectId) {
   crmRenderPipeline();
 };
 
+let crmPipeExpanded = new Set();
+function crmPipeToggleComments(key) {
+  if (crmPipeExpanded.has(key)) crmPipeExpanded.delete(key); else crmPipeExpanded.add(key);
+  crmRenderPipeline();
+}
+function crmCommentBlock(comments, key, inputId, addCallJs) {
+  const expanded = crmPipeExpanded.has(key);
+  const shown = expanded ? comments : comments.slice(-1);
+  return `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+    ${comments.length > 1 ? `<div onclick="crmPipeToggleComments('${key}')" style="font-size:10px;color:var(--text3);cursor:pointer;margin-bottom:3px">${expanded ? '▾ hide' : `▸ ${comments.length} comments`}</div>` : ''}
+    ${shown.map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('') || '<div style="font-size:11px;color:var(--text3)">No comments yet.</div>'}
+    <div style="display:flex;gap:4px;margin-top:4px">
+      <input id="${inputId}" placeholder="Comment..." onkeydown="if(event.key==='Enter')${addCallJs}" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+      <button onclick="${addCallJs}" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Add</button>
+    </div>
+  </div>`;
+}
+
 function crmRenderPipeline() {
   const el = document.getElementById('crmPipelineView');
   if (!el) return;
@@ -4195,13 +4213,7 @@ function crmRenderPipeline() {
       <span style="font-size:12px;color:var(--text3)">$</span>
       <input type="number" value="${r.opp.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetOpportunityValueDirect('${r.id}','${r.opp.id}',this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
     </div>
-    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
-      ${comments.map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('') || '<div style="font-size:11px;color:var(--text3)">No comments yet.</div>'}
-      <div style="display:flex;gap:4px;margin-top:4px">
-        <input id="crmPipeComment_opp_${r.opp.id}" placeholder="Comment..." onkeydown="if(event.key==='Enter')crmPipelineAddOppComment('${r.id}','${r.opp.id}')" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
-        <button onclick="crmPipelineAddOppComment('${r.id}','${r.opp.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Add</button>
-      </div>
-    </div>
+    ${crmCommentBlock(comments, 'opp_'+r.opp.id, 'crmPipeComment_opp_'+r.opp.id, `crmPipelineAddOppComment('${r.id}','${r.opp.id}')`)}
   </div>`;
   };
 
@@ -4217,13 +4229,7 @@ function crmRenderPipeline() {
       <span style="font-size:12px;color:var(--text3)">$</span>
       <input type="number" value="${r.p.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetProspectValueDirect('${r.id}',this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
     </div>
-    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
-      ${comments.map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('') || '<div style="font-size:11px;color:var(--text3)">No comments yet.</div>'}
-      <div style="display:flex;gap:4px;margin-top:4px">
-        <input id="crmPipeComment_prospect_${r.id}" placeholder="Comment..." onkeydown="if(event.key==='Enter')crmPipelineAddProspectComment('${r.id}')" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
-        <button onclick="crmPipelineAddProspectComment('${r.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Add</button>
-      </div>
-    </div>
+    ${crmCommentBlock(comments, 'prospect_'+r.id, 'crmPipeComment_prospect_'+r.id, `crmPipelineAddProspectComment('${r.id}')`)}
   </div>`;
   };
 
