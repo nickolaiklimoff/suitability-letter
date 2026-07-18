@@ -3897,6 +3897,14 @@ function saveProspectsToStorage() {
   });
 }
 
+const CRM_URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
+const CRM_URGENCY_ORDER = ['eagle', 'dove', 'chicken'];
+function crmUrgencyIcon(u) { return CRM_URGENCY_ICONS[u] || CRM_URGENCY_ICONS.dove; }
+function crmUrgencyNext(u) {
+  const i = CRM_URGENCY_ORDER.indexOf(u || 'dove');
+  return CRM_URGENCY_ORDER[(i + 1) % CRM_URGENCY_ORDER.length];
+}
+
 function crmEsc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -3978,7 +3986,7 @@ function crmRenderToday() {
   const dueToday = allItems.filter(i => i.due === todayStr);
 
   const renderRow = it => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-    ${it.kind === 'task' ? `<input type="checkbox" onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()">` : `<span style="font-size:14px">💰</span>`}
+    ${it.kind === 'task' ? `<input type="checkbox" onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()"><span style="font-size:14px">${crmUrgencyIcon(it.urgency)}</span>` : `<span style="font-size:14px">💰</span>`}
     <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}'${it.kind==='task'?`,'${it.taskId}'`:''})">
       <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
       <span style="color:var(--text3);font-size:12px"> — </span>
@@ -4011,7 +4019,7 @@ function crmAllTasks() {
   const items = [];
   Object.entries(clients).forEach(([id, c]) => {
     (c.crm?.tasks || []).forEach(t => {
-      items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', text: t.text, due: t.due, done: !!t.done, kind: 'task', taskId: t.id });
+      items.push({ personType: 'client', personId: id, personName: c.name || 'Unnamed', text: t.text, due: t.due, done: !!t.done, urgency: t.urgency, kind: 'task', taskId: t.id });
     });
     (c.crm?.opportunities || []).forEach(o => {
       if (o.nextDate && o.status !== 'Won' && o.status !== 'Lost') {
@@ -4021,7 +4029,7 @@ function crmAllTasks() {
   });
   Object.entries(prospects).forEach(([id, p]) => {
     (p.tasks || []).forEach(t => {
-      items.push({ personType: 'prospect', personId: id, personName: p.name, text: t.text, due: t.due, done: !!t.done, kind: 'task', taskId: t.id });
+      items.push({ personType: 'prospect', personId: id, personName: p.name, text: t.text, due: t.due, done: !!t.done, urgency: t.urgency, kind: 'task', taskId: t.id });
     });
   });
   return items;
@@ -4078,6 +4086,7 @@ function crmRenderTasks() {
   const renderRow = it => {
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
       <input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">
+      <span style="font-size:14px">${crmUrgencyIcon(it.urgency)}</span>
       <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}','${it.taskId}')">
         <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
         <span style="color:var(--text3);font-size:12px"> — </span>
@@ -4295,6 +4304,7 @@ function crmRenderKateTab() {
           <div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${t.done?'opacity:0.5':''}">
             <div style="display:flex;align-items:center;gap:8px">
               <input type="checkbox" ${t.done?'checked':''} onchange="crmKateToggleTask('${t.clientId}','${t.id}')">
+              <span style="font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
               <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('client','${t.clientId}','${t.id}')">
                 <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(t.clientName)}</span>
                 <span style="color:var(--text3);font-size:12px"> — </span>
@@ -4766,6 +4776,11 @@ function crmRenderDetail() {
         <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">📋 Tasks</div>
         <div style="display:flex;gap:6px;margin-bottom:6px">
           <input id="crmNewTaskText" placeholder="e.g. renew deposit, prepare meeting..." onkeydown="if(event.key==='Enter')crmAddTask()" style="flex:1;min-width:0;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+          <select id="crmNewTaskUrgency" title="Urgency" style="font-size:12px;padding:6px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+            <option value="eagle">🦅 urgent</option>
+            <option value="dove" selected>🕊️ normal</option>
+            <option value="chicken">🐔 no rush</option>
+          </select>
           <input id="crmNewTaskDue" type="date" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
           <button onclick="crmAddTask()" class="btn-primary" style="font-size:12px;padding:6px 12px">Add</button>
         </div>
@@ -4778,6 +4793,7 @@ function crmRenderDetail() {
             return `<div id="crmTaskRow_${t.id}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
               <div style="display:flex;align-items:center;gap:8px">
                 <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
+                <span onclick="crmCycleUrgency('${t.id}')" title="Urgency — click to change" style="cursor:pointer;font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
                   <input class="crm-task-text-input" value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
                   <div style="display:flex;align-items:center;gap:6px">
@@ -4829,10 +4845,12 @@ window.crmAddTask = function() {
   const textEl = document.getElementById('crmNewTaskText');
   const dueEl = document.getElementById('crmNewTaskDue');
   const assignEl = document.getElementById('crmNewTaskAssignKate');
+  const urgencyEl = document.getElementById('crmNewTaskUrgency');
   const text = textEl.value.trim(); if (!text) return;
   if (!bucket.tasks) bucket.tasks = [];
   const newTask = {
     id: 't_' + Date.now(), text, due: dueEl.value || null, done: false,
+    urgency: urgencyEl?.value || 'dove',
     assignedTo: assignEl?.checked ? 'Kate' : null,
     comments: [], updatedAt: new Date().toISOString(), updatedBy: 'Nikolai',
   };
@@ -4867,6 +4885,16 @@ window.crmEditTaskDue = function(taskId, val) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
   t.due = val || null; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+  crmAutoSyncKate(t);
+};
+window.crmCycleUrgency = function(taskId) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.urgency = crmUrgencyNext(t.urgency);
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
