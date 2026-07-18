@@ -4151,21 +4151,33 @@ function crmRenderPipeline() {
   const totalNewCli = sum(newClients, r => r.p.estValue);
   const grandTotal = totalTopUps + totalNewAcc + totalNewCli;
 
-  const oppRow = r => `<div onclick="crmOpenDetail('client','${r.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:6px;cursor:pointer">
-    <div style="min-width:0">
+  const oppRow = r => {
+    const missing = !r.opp.estValue;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid ${missing?'#f0c96b':'var(--border)'};border-radius:8px;background:${missing?'#fffaf0':'var(--bg)'};margin-bottom:6px">
+    <div style="min-width:0;cursor:pointer" onclick="crmOpenDetail('client','${r.id}')">
       <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
       ${r.opp.note ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">${crmEsc(r.opp.note)}</span>` : ''}
     </div>
-    <span style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap">${r.opp.estValue ? fmtMoney(r.opp.estValue) : '—'}</span>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <span style="font-size:12px;color:var(--text3)">$</span>
+      <input type="number" value="${r.opp.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetOpportunityValueDirect('${r.id}','${r.opp.id}',this.value)" style="width:100px;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
+    </div>
   </div>`;
+  };
 
-  const prospectRow = r => `<div onclick="crmOpenDetail('prospect','${r.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:6px;cursor:pointer">
-    <div style="min-width:0">
+  const prospectRow = r => {
+    const missing = !r.p.estValue;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid ${missing?'#f0c96b':'var(--border)'};border-radius:8px;background:${missing?'#fffaf0':'var(--bg)'};margin-bottom:6px">
+    <div style="min-width:0;cursor:pointer" onclick="crmOpenDetail('prospect','${r.id}')">
       <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.p.name)}</span>
       <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">${crmEsc(r.p.stage)}</span>
     </div>
-    <span style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap">${r.p.estValue ? fmtMoney(r.p.estValue) : '—'}</span>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <span style="font-size:12px;color:var(--text3)">$</span>
+      <input type="number" value="${r.p.estValue||''}" placeholder="0" onclick="event.stopPropagation()" onchange="crmSetProspectValueDirect('${r.id}',this.value)" style="width:100px;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);text-align:right">
+    </div>
   </div>`;
+  };
 
   const section = (icon, title, rows, total, rowFn, emptyMsg) => `
     <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
@@ -5178,6 +5190,19 @@ window.crmAddOpportunity = function() {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+};
+window.crmSetOpportunityValueDirect = function(clientId, oppId, val) {
+  const c = clients[clientId]; if (!c?.crm) return;
+  const o = (c.crm.opportunities || []).find(x => x.id === oppId); if (!o) return;
+  o.estValue = parseFloat(val) || null;
+  saveToStorage();
+  crmRenderPipeline();
+};
+window.crmSetProspectValueDirect = function(prospectId, val) {
+  const p = prospects[prospectId]; if (!p) return;
+  p.estValue = parseFloat(val) || null;
+  saveProspectsToStorage();
+  crmRenderPipeline();
 };
 window.crmSetOpportunityValue = function(id, val) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
