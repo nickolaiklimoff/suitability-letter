@@ -5041,7 +5041,9 @@ window.crmAddOpportunity = function() {
   const statusEl = document.getElementById('crmOppStatus');
   const noteEl = document.getElementById('crmOppNote');
   const nextDateEl = document.getElementById('crmOppNextDateNew');
-  const type = typeEl.value.trim(); if (!type) return;
+  const type = typeEl.value.trim();
+  if (!type) { typeEl.style.borderColor = '#c62828'; typeEl.focus(); typeEl.placeholder = 'Type is required — e.g. New balances'; return; }
+  typeEl.style.borderColor = '';
   if (!bucket.opportunities) bucket.opportunities = [];
   bucket.opportunities.push({ id: 'o_' + Date.now(), type, status: statusEl.value, note: noteEl.value.trim(), nextDate: nextDateEl.value || null, nextText: '' });
   crmSaveBucket(ref);
