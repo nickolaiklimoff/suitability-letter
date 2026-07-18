@@ -88,7 +88,11 @@ function fmtDate(d) {
 }
 function esc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 const URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
-function urgencyIcon(u) { return URGENCY_ICONS[u] || URGENCY_ICONS.dove; }
+const URGENCY_FILTERS = { eagle: '', dove: 'grayscale(1)', chicken: 'sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.8)' };
+function urgencyIcon(u) {
+  const key = URGENCY_ICONS[u] ? u : 'dove';
+  return `<span style="filter:${URGENCY_FILTERS[key]}">${URGENCY_ICONS[key]}</span>`;
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('kate-gh-token');
