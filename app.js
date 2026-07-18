@@ -3997,7 +3997,7 @@ function crmRenderToday() {
       <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
     </div>
     ${it.due < todayStr ? `<span style="font-size:10px;font-weight:600;color:#c62828;white-space:nowrap">since ${crmFmtDate(it.due)}</span>` : ''}
-    ${it.kind === 'task' ? `<button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>` : ''}
+    ${it.kind === 'task' ? `<button onclick="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Done</button><button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>` : ''}
   </div>`;
 
   el.innerHTML = `
@@ -4098,6 +4098,7 @@ function crmRenderTasks() {
         <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
         ${it.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
       </div>
+      <button onclick="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.done?'#eaf5ea':'var(--bg2)'};color:${it.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.done?'Undone':'Done'}</button>
       <button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.cancelled?'#fdecea':'var(--bg2)'};color:${it.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.cancelled?'Uncancel':'Cancel'}</button>
     </div>`;
   };
