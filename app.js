@@ -3898,8 +3898,12 @@ function saveProspectsToStorage() {
 }
 
 const CRM_URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
+const CRM_URGENCY_FILTERS = { eagle: '', dove: 'grayscale(1)', chicken: 'sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.8)' };
 const CRM_URGENCY_ORDER = ['eagle', 'dove', 'chicken'];
-function crmUrgencyIcon(u) { return CRM_URGENCY_ICONS[u] || CRM_URGENCY_ICONS.dove; }
+function crmUrgencyIcon(u) {
+  const key = CRM_URGENCY_ICONS[u] ? u : 'dove';
+  return `<span style="filter:${CRM_URGENCY_FILTERS[key]}">${CRM_URGENCY_ICONS[key]}</span>`;
+}
 function crmUrgencyNext(u) {
   const i = CRM_URGENCY_ORDER.indexOf(u || 'dove');
   return CRM_URGENCY_ORDER[(i + 1) % CRM_URGENCY_ORDER.length];
