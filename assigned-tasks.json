@@ -31,10 +31,11 @@
     "done": false,
     "assignedTo": "Kate",
     "comments": [],
-    "updatedAt": "2026-07-18T06:59:22.673Z",
+    "updatedAt": "2026-07-18T07:42:07.730Z",
     "updatedBy": "Nikolai",
     "clientId": "c_1784223340795",
-    "clientName": "Al*** O***"
+    "clientName": "Al*** O***",
+    "urgency": "chicken"
   },
   {
     "id": "t_1784358911298",
