@@ -186,7 +186,15 @@ function touch(t) { t.updatedAt = new Date().toISOString(); t.updatedBy = 'Kate'
 
 function toggleDone(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
+  const marking = !t.done; // becoming done, not un-done
   t.done = !t.done; touch(t);
+  if (marking) {
+    const note = prompt('Task complete — any closing comment for Nikolai? (leave blank to skip)');
+    if (note && note.trim()) {
+      if (!t.comments) t.comments = [];
+      t.comments.push({ id: 'c_' + Date.now(), author: 'Kate', text: note.trim(), date: new Date().toISOString() });
+    }
+  }
   localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
   render();
   saveTasks(true);
