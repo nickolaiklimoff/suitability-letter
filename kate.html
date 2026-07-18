@@ -190,17 +190,31 @@ async function saveTasks(silent) {
 
 function touch(t) { t.updatedAt = new Date().toISOString(); t.updatedBy = 'Kate'; }
 
-function toggleDone(id) {
+function markDone(id) {
   const t = tasks.find(x => x.id === id); if (!t) return;
-  const marking = !t.done; // becoming done, not un-done
-  t.done = !t.done; touch(t);
-  if (marking) {
-    const note = prompt('Task complete — any closing comment for Nikolai? (leave blank to skip)');
-    if (note && note.trim()) {
-      if (!t.comments) t.comments = [];
-      t.comments.push({ id: 'c_' + Date.now(), author: 'Kate', text: note.trim(), date: new Date().toISOString() });
-    }
+  const note = prompt('Task complete — any closing comment for Nikolai? (leave blank to skip)');
+  t.done = true; t.cancelled = false; touch(t);
+  if (note && note.trim()) {
+    if (!t.comments) t.comments = [];
+    t.comments.push({ id: 'c_' + Date.now(), author: 'Kate', text: note.trim(), date: new Date().toISOString() });
   }
+  localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+  render();
+  saveTasks(true);
+}
+function cancelTask(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  const reason = prompt('Cancelling this task — reason for Nikolai? (optional)');
+  t.cancelled = true; t.done = false; touch(t);
+  if (!t.comments) t.comments = [];
+  t.comments.push({ id: 'c_' + Date.now(), author: 'Kate', text: 'Cancelled' + (reason && reason.trim() ? ': ' + reason.trim() : ''), date: new Date().toISOString() });
+  localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
+  render();
+  saveTasks(true);
+}
+function reopenTask(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  t.done = false; t.cancelled = false; touch(t);
   localStorage.setItem('kate-tasks-cache', JSON.stringify(tasks));
   render();
   saveTasks(true);
@@ -234,21 +248,26 @@ function render() {
   }
   saveBar.style.display = 'block';
   const sorted = [...tasks].sort((a,b) => {
-    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    const ar = !!(a.done || a.cancelled), br = !!(b.done || b.cancelled);
+    if (ar !== br) return ar ? 1 : -1;
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
   });
   el.innerHTML = sorted.map(t => {
     const today = todayStr();
-    const overdue = !t.done && t.due && t.due < today;
+    const resolved = t.done || t.cancelled;
+    const overdue = !resolved && t.due && t.due < today;
     const isToday = t.due === today;
-    return `<div class="card task ${t.done?'done':''}">
+    return `<div class="card task ${resolved?'done':''}">
       <div class="task-top">
-        <input type="checkbox" ${t.done?'checked':''} onchange="toggleDone('${t.id}')">
         <span title="Urgency" style="font-size:16px">${urgencyIcon(t.urgency)}</span>
         <div style="flex:1;min-width:0">
           <div class="task-client">${esc(t.clientName || 'Unknown client')}</div>
           <div class="task-text">${esc(t.text)}</div>
+          ${t.cancelled ? '<div style="font-size:11px;font-weight:600;color:var(--red)">Cancelled</div>' : t.done ? '<div style="font-size:11px;font-weight:600;color:var(--green)">Done</div>' : ''}
         </div>
+        ${resolved
+          ? `<button class="secondary" onclick="reopenTask('${t.id}')">Reopen</button>`
+          : `<button class="secondary" onclick="cancelTask('${t.id}')">Cancel</button><button onclick="markDone('${t.id}')">Done</button>`}
         <input type="date" value="${t.due||''}" onchange="editDue('${t.id}',this.value)" class="${overdue?'overdue':isToday?'due-today':''}" style="width:auto">
       </div>
       <div class="comments">
