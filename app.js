@@ -4770,7 +4770,9 @@ function crmRenderDetail() {
                   <input value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
                   <div style="display:flex;align-items:center;gap:6px">
                     <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
-                    ${t.assignedTo ? `<span style="font-size:9px;font-weight:600;background:#e6e0f5;color:#5b3fa3;padding:1px 6px;border-radius:8px">→ ${crmEsc(t.assignedTo)}</span>` : ''}
+                    <label style="display:flex;align-items:center;gap:3px;font-size:9px;font-weight:600;cursor:pointer;${t.assignedTo?'background:#e6e0f5;color:#5b3fa3':'color:var(--text3)'};padding:1px 6px;border-radius:8px">
+                      <input type="checkbox" ${t.assignedTo?'checked':''} onchange="crmToggleAssignKate('${t.id}',this.checked)" style="width:10px;height:10px;margin:0">→ Kate
+                    </label>
                   </div>
                 </div>
                 <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
@@ -4856,6 +4858,16 @@ window.crmEditTaskDue = function(taskId, val) {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+  crmAutoSyncKate(t);
+};
+window.crmToggleAssignKate = function(taskId, checked) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.assignedTo = checked ? 'Kate' : null;
+  if (checked && !t.comments) t.comments = [];
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  crmSaveBucket(ref);
+  crmRenderDetail();
   crmAutoSyncKate(t);
 };
 window.crmToggleTask = function(taskId) {
