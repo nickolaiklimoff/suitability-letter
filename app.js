@@ -3939,6 +3939,7 @@ function crmRefreshActiveView() {
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
   else if (crmCurrentTab === 'biz') crmRenderBizExpansion();
+  else if (crmCurrentTab === 'pipeline') crmRenderPipeline();
   else crmRenderKateTab();
 }
 
@@ -3967,12 +3968,14 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
+  document.getElementById('crmTabPipeline').classList.toggle('active', tab === 'pipeline');
   document.getElementById('crmTabKate').classList.toggle('active', tab === 'kate');
   document.getElementById('crmTodayView').classList.toggle('hidden', tab !== 'today');
   document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
   document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
+  document.getElementById('crmPipelineView').classList.toggle('hidden', tab !== 'pipeline');
   document.getElementById('crmKateView').classList.toggle('hidden', tab !== 'kate');
   crmRefreshActiveView();
 };
@@ -4121,6 +4124,67 @@ function crmRenderTasks() {
       <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
       <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
     </div>`).join('');
+}
+
+function crmRenderPipeline() {
+  const el = document.getElementById('crmPipelineView');
+  if (!el) return;
+  const fmtMoney = v => '$' + Number(v || 0).toLocaleString();
+  const isOpen = status => status === 'Open' || status === 'In progress';
+
+  const topUps = [], newAccounts = [], otherOpps = [];
+  Object.entries(clients).forEach(([id, c]) => {
+    (c.crm?.opportunities || []).forEach(o => {
+      if (!isOpen(o.status)) return;
+      const row = { id, name: c.name || 'Unnamed', opp: o };
+      const t = (o.type || '').toLowerCase();
+      if (t.includes('balance')) topUps.push(row);
+      else if (t.includes('account')) newAccounts.push(row);
+      else otherOpps.push(row);
+    });
+  });
+  const newClients = Object.entries(prospects).map(([id, p]) => ({ id, p }));
+
+  const sum = (rows, key) => rows.reduce((s, r) => s + (Number(key(r)) || 0), 0);
+  const totalTopUps = sum(topUps, r => r.opp.estValue);
+  const totalNewAcc = sum(newAccounts, r => r.opp.estValue);
+  const totalNewCli = sum(newClients, r => r.p.estValue);
+  const grandTotal = totalTopUps + totalNewAcc + totalNewCli;
+
+  const oppRow = r => `<div onclick="crmOpenDetail('client','${r.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:6px;cursor:pointer">
+    <div style="min-width:0">
+      <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.name)}</span>
+      ${r.opp.note ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">${crmEsc(r.opp.note)}</span>` : ''}
+    </div>
+    <span style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap">${r.opp.estValue ? fmtMoney(r.opp.estValue) : '—'}</span>
+  </div>`;
+
+  const prospectRow = r => `<div onclick="crmOpenDetail('prospect','${r.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:6px;cursor:pointer">
+    <div style="min-width:0">
+      <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(r.p.name)}</span>
+      <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:8px;margin-left:6px">${crmEsc(r.p.stage)}</span>
+    </div>
+    <span style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap">${r.p.estValue ? fmtMoney(r.p.estValue) : '—'}</span>
+  </div>`;
+
+  const section = (icon, title, rows, total, rowFn, emptyMsg) => `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:600;font-size:13px;color:var(--text2)">${icon} ${title} <span style="font-weight:400;color:var(--text3)">(${rows.length})</span></div>
+        <div style="font-size:15px;font-weight:700;color:var(--text1)">${fmtMoney(total)}</div>
+      </div>
+      ${rows.length ? rows.sort((a,b) => (b.opp?.estValue||b.p?.estValue||0) - (a.opp?.estValue||a.p?.estValue||0)).map(rowFn).join('') : `<div style="font-size:12px;color:var(--text3)">${emptyMsg}</div>`}
+    </div>`;
+
+  el.innerHTML = `
+    <div style="background:var(--bg2);border-radius:8px;padding:14px;margin-bottom:1.25rem;text-align:center">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em">Total pipeline (est.)</div>
+      <div style="font-size:28px;font-weight:700;color:var(--text1)">${fmtMoney(grandTotal)}</div>
+    </div>
+    ${section('💰', 'Top-ups — existing open accounts', topUps, totalTopUps, oppRow, 'No open top-up opportunities.')}
+    ${section('🏦', 'New accounts — existing clients', newAccounts, totalNewAcc, oppRow, 'No open new-account opportunities.')}
+    ${section('🆕', 'New clients (pipeline → new accounts)', newClients, totalNewCli, prospectRow, 'No prospects in the pipeline.')}
+    ${otherOpps.length ? section('📌', 'Other opportunities', otherOpps, sum(otherOpps, r=>r.opp.estValue), oppRow, '') : ''}`;
 }
 
 function crmRenderBizExpansion() {
@@ -4653,7 +4717,10 @@ function crmRenderDetail() {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
       <div style="flex:1">
         <h3 style="font-size:17px;font-weight:600;color:var(--text1);margin:0">${crmEsc(name)}</h3>
-        ${isProspect ? `<input value="${crmEsc(prospects[ref.id].company || '')}" placeholder="Company / context" onchange="crmSetCompany(this.value)" style="margin-top:6px;width:100%;max-width:340px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">` : ''}
+        ${isProspect ? `<div style="display:flex;gap:6px;margin-top:6px;max-width:340px">
+          <input value="${crmEsc(prospects[ref.id].company || '')}" placeholder="Company / context" onchange="crmSetCompany(this.value)" style="flex:1;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <input type="number" value="${prospects[ref.id].estValue||''}" placeholder="Est. AUM $" onchange="crmSetProspectValue(this.value)" style="width:110px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+        </div>` : ''}
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         ${isProspect ? `
@@ -4718,6 +4785,10 @@ function crmRenderDetail() {
             <option>Open</option><option>In progress</option><option>Won</option><option>Lost</option>
           </select>
         </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Est. value</label>
+          <input id="crmOppEstValue" type="number" placeholder="$" style="width:90px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        </div>
         <div style="flex:1;min-width:180px">
           <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Note</label>
           <input id="crmOppNote" placeholder="optional context" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
@@ -4735,9 +4806,10 @@ function crmRenderDetail() {
           <div style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
             <div style="display:flex;align-items:center;gap:8px">
               <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:600;color:var(--text1)">${crmEsc(o.type)}</div>
+                <div style="font-size:12px;font-weight:600;color:var(--text1)">${crmEsc(o.type)}${o.estValue ? ` <span style="font-weight:400;color:var(--text3)">· $${Number(o.estValue).toLocaleString()}</span>` : ''}</div>
                 ${o.note ? `<div style="font-size:11px;color:var(--text3)">${crmEsc(o.note)}</div>` : ''}
               </div>
+              <input type="number" value="${o.estValue||''}" onchange="crmSetOpportunityValue('${o.id}',this.value)" placeholder="$ value" style="width:80px;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
               <select onchange="crmSetOpportunityStatus('${o.id}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:${o.status==='Won'?'#3b6d11':o.status==='Lost'?'#c62828':'var(--text2)'};font-weight:600">
                 ${['Open','In progress','Won','Lost'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
               </select>
@@ -5069,6 +5141,12 @@ window.crmSetCompany = function(val) {
   saveProspectsToStorage();
   crmRefreshActiveView();
 };
+window.crmSetProspectValue = function(val) {
+  const ref = crmDetailPersonRef; if (!ref || ref.type !== 'prospect') return;
+  prospects[ref.id].estValue = parseFloat(val) || null;
+  saveProspectsToStorage();
+  crmRefreshActiveView();
+};
 
 window.crmSetBirthday = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
@@ -5091,13 +5169,21 @@ window.crmAddOpportunity = function() {
   const statusEl = document.getElementById('crmOppStatus');
   const noteEl = document.getElementById('crmOppNote');
   const nextDateEl = document.getElementById('crmOppNextDateNew');
+  const estValueEl = document.getElementById('crmOppEstValue');
   const type = typeEl.value.trim();
   if (!type) { typeEl.style.borderColor = '#c62828'; typeEl.focus(); typeEl.placeholder = 'Type is required — e.g. New balances'; return; }
   typeEl.style.borderColor = '';
   if (!bucket.opportunities) bucket.opportunities = [];
-  bucket.opportunities.push({ id: 'o_' + Date.now(), type, status: statusEl.value, note: noteEl.value.trim(), nextDate: nextDateEl.value || null, nextText: '' });
+  bucket.opportunities.push({ id: 'o_' + Date.now(), type, status: statusEl.value, note: noteEl.value.trim(), nextDate: nextDateEl.value || null, nextText: '', estValue: parseFloat(estValueEl.value) || null });
   crmSaveBucket(ref);
   crmRenderDetail();
+  crmRefreshActiveView();
+};
+window.crmSetOpportunityValue = function(id, val) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const o = (bucket.opportunities || []).find(x => x.id === id); if (!o) return;
+  o.estValue = parseFloat(val) || null;
+  crmSaveBucket(ref);
   crmRefreshActiveView();
 };
 window.crmSetOpportunityStatus = function(id, status) {
