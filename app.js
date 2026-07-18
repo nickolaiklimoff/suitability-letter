@@ -3997,6 +3997,7 @@ function crmRenderToday() {
       <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
     </div>
     ${it.due < todayStr ? `<span style="font-size:10px;font-weight:600;color:#c62828;white-space:nowrap">since ${crmFmtDate(it.due)}</span>` : ''}
+    ${it.kind === 'task' ? `<button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>` : ''}
   </div>`;
 
   el.innerHTML = `
@@ -4088,14 +4089,16 @@ function crmRenderTasks() {
   });
 
   const renderRow = it => {
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(it.done||it.cancelled)?'opacity:0.5':''}">
       <input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">
       <span style="font-size:14px">${crmUrgencyIcon(it.urgency)}</span>
       <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}','${it.taskId}')">
         <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
         <span style="color:var(--text3);font-size:12px"> — </span>
         <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
+        ${it.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
       </div>
+      <button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.cancelled?'#fdecea':'var(--bg2)'};color:${it.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.cancelled?'Uncancel':'Cancel'}</button>
     </div>`;
   };
 
@@ -4169,8 +4172,25 @@ window.crmToggleTaskFromList = function(personType, personId, taskId) {
   if (!bucket) return;
   const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
   t.done = !t.done;
+  if (t.done) t.cancelled = false;
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   if (personType === 'client') saveToStorage(); else saveProspectsToStorage();
   crmRenderTasks();
+  crmAutoSyncKate(t);
+};
+window.crmCancelTaskFromList = function(personType, personId, taskId) {
+  const bucket = personType === 'client'
+    ? (clients[personId]?.crm)
+    : prospects[personId];
+  if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.cancelled = !t.cancelled;
+  if (t.cancelled) t.done = false;
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  if (personType === 'client') saveToStorage(); else saveProspectsToStorage();
+  crmRenderTasks();
+  crmRenderToday();
+  crmAutoSyncKate(t);
 };
 
 function crmTodaysTasks() {
@@ -4814,7 +4834,7 @@ function crmRenderDetail() {
                 <span onclick="crmCycleUrgency('${t.id}')" title="Urgency — click to change" style="cursor:pointer;font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
                   <input class="crm-task-text-input" value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
-                  ${t.cancelled ? '<div style="font-size:10px;font-weight:600;color:#c62828">✕ Cancelled by Kate</div>' : ''}
+                  ${t.cancelled ? `<div style="font-size:10px;font-weight:600;color:#c62828">✕ Cancelled${t.updatedBy?' by '+crmEsc(t.updatedBy):''}</div>` : ''}
                   <div style="display:flex;align-items:center;gap:6px">
                     <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
                     <label style="display:flex;align-items:center;gap:3px;font-size:9px;font-weight:600;cursor:pointer;${t.assignedTo?'background:#e6e0f5;color:#5b3fa3':'color:var(--text3)'};padding:1px 6px;border-radius:8px">
@@ -4822,6 +4842,7 @@ function crmRenderDetail() {
                     </label>
                   </div>
                 </div>
+                <button onclick="crmToggleCancelTask('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.cancelled?'#fdecea':'var(--bg2)'};color:${t.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.cancelled?'Uncancel':'Cancel'}</button>
                 <button onclick="crmDeleteTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
               </div>
               ${t.assignedTo ? `
@@ -4932,7 +4953,18 @@ window.crmToggleAssignKate = function(taskId, checked) {
 window.crmToggleTask = function(taskId) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
-  t.done = !t.done; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  t.done = !t.done; if (t.done) t.cancelled = false;
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  crmSaveBucket(ref);
+  crmRenderDetail();
+  crmRefreshActiveView();
+  crmAutoSyncKate(t);
+};
+window.crmToggleCancelTask = function(taskId) {
+  const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const t = (bucket.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.cancelled = !t.cancelled; if (t.cancelled) t.done = false;
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
