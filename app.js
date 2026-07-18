@@ -3979,7 +3979,7 @@ function crmRenderToday() {
 
   const renderRow = it => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
     ${it.kind === 'task' ? `<input type="checkbox" onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()">` : `<span style="font-size:14px">💰</span>`}
-    <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
+    <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}'${it.kind==='task'?`,'${it.taskId}'`:''})">
       <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
       <span style="color:var(--text3);font-size:12px"> — </span>
       <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
@@ -4078,7 +4078,7 @@ function crmRenderTasks() {
   const renderRow = it => {
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${it.done?'opacity:0.5':''}">
       <input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">
-      <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}','${it.taskId}')">
         <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
         <span style="color:var(--text3);font-size:12px"> — </span>
         <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
@@ -4295,7 +4295,7 @@ function crmRenderKateTab() {
           <div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${t.done?'opacity:0.5':''}">
             <div style="display:flex;align-items:center;gap:8px">
               <input type="checkbox" ${t.done?'checked':''} onchange="crmKateToggleTask('${t.clientId}','${t.id}')">
-              <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('client','${t.clientId}')">
+              <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('client','${t.clientId}','${t.id}')">
                 <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(t.clientName)}</span>
                 <span style="color:var(--text3);font-size:12px"> — </span>
                 <span style="font-size:13px;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
@@ -4549,10 +4549,22 @@ function crmRenderProspects() {
 }
 
 // ── Shared detail modal: activity log + tasks (clients and prospects) ──────
-window.crmOpenDetail = function(type, id) {
+window.crmOpenDetail = function(type, id, focusTaskId) {
   crmDetailPersonRef = { type, id };
   document.getElementById('crmDetailModal').classList.remove('hidden');
   crmRenderDetail();
+  if (focusTaskId) {
+    setTimeout(() => {
+      const row = document.getElementById('crmTaskRow_' + focusTaskId);
+      if (!row) return;
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      row.style.transition = 'box-shadow 0.3s';
+      row.style.boxShadow = '0 0 0 2px var(--blue)';
+      setTimeout(() => { row.style.boxShadow = ''; }, 1600);
+      const textInput = row.querySelector('.crm-task-text-input');
+      if (textInput) textInput.focus();
+    }, 50);
+  }
 };
 
 window.crmCloseDetail = function() {
@@ -4763,11 +4775,11 @@ function crmRenderDetail() {
         <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto">
           ${tasks.length ? tasks.map(t => {
             const overdue = !t.done && t.due && new Date(t.due) < new Date(new Date().toDateString());
-            return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
+            return `<div id="crmTaskRow_${t.id}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);${t.done ? 'opacity:0.5' : ''}">
               <div style="display:flex;align-items:center;gap:8px">
                 <input type="checkbox" ${t.done ? 'checked' : ''} onchange="crmToggleTask('${t.id}')">
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-                  <input value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
+                  <input class="crm-task-text-input" value="${crmEsc(t.text)}" onchange="crmEditTaskText('${t.id}',this.value)" style="font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:100%;${t.done ? 'text-decoration:line-through' : ''}">
                   <div style="display:flex;align-items:center;gap:6px">
                     <input type="date" value="${t.due||''}" onchange="crmEditTaskDue('${t.id}',this.value)" style="font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
                     <label style="display:flex;align-items:center;gap:3px;font-size:9px;font-weight:600;cursor:pointer;${t.assignedTo?'background:#e6e0f5;color:#5b3fa3':'color:var(--text3)'};padding:1px 6px;border-radius:8px">
