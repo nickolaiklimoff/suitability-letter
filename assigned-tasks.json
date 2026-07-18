@@ -35,5 +35,17 @@
     "updatedBy": "Nikolai",
     "clientId": "c_1784223340795",
     "clientName": "Al*** O***"
+  },
+  {
+    "id": "t_1784357962673",
+    "text": "FAB docs to approve with Nicolas",
+    "due": "2026-07-20",
+    "done": false,
+    "assignedTo": "Kate",
+    "comments": [],
+    "updatedAt": "2026-07-18T06:59:22.673Z",
+    "updatedBy": "Nikolai",
+    "clientId": "c_1784223340795",
+    "clientName": "Al*** O***"
   }
 ]
