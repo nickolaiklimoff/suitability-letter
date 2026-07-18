@@ -4893,11 +4893,41 @@ window.crmToggleTask = function(taskId) {
 };
 window.crmDeleteTask = function(taskId) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
+  const wasAssignedToKate = (bucket.tasks || []).find(x => x.id === taskId)?.assignedTo === 'Kate';
   bucket.tasks = (bucket.tasks || []).filter(x => x.id !== taskId);
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+  if (wasAssignedToKate) crmSyncDeleteFromKate(taskId);
 };
+
+// Removals need their own path — the normal push/pull merge only ever unions
+// tasks by id, so a task deleted locally would otherwise linger forever in
+// assigned-tasks.json (and keep reappearing for Kate) since nothing ever
+// removes it from the remote file.
+async function crmSyncDeleteFromKate(taskId) {
+  const token = (document.getElementById('crmGhToken')?.value || localStorage.getItem('suitability-crm-gh-token') || '').trim();
+  if (!token) return;
+  const REPO = 'nickolaiklimoff/suitability-letter';
+  try {
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${KATE_TASKS_PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (!getResp.ok) return;
+    const d = await getResp.json();
+    const remote = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    const filtered = remote.filter(t => t.id !== taskId);
+    if (filtered.length === remote.length) return; // nothing to remove
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(filtered, null, 2))));
+    await fetch(`https://api.github.com/repos/${REPO}/contents/${KATE_TASKS_PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: remove deleted task from Kate's list`, content, sha: d.sha, branch: 'main' })
+    });
+  } catch (e) {
+    console.error('crmSyncDeleteFromKate failed', e);
+  }
+}
 window.crmLogContact = function() {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   const dateEl = document.getElementById('crmContactDate');
