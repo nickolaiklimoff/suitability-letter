@@ -3926,7 +3926,8 @@ function crmRefreshActiveView() {
   else if (crmCurrentTab === 'clients') crmRenderClients();
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
-  else crmRenderBizExpansion();
+  else if (crmCurrentTab === 'biz') crmRenderBizExpansion();
+  else crmRenderKateTab();
 }
 
 window.crmOpen = function() {
@@ -3954,11 +3955,13 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
+  document.getElementById('crmTabKate').classList.toggle('active', tab === 'kate');
   document.getElementById('crmTodayView').classList.toggle('hidden', tab !== 'today');
   document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
   document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
+  document.getElementById('crmKateView').classList.toggle('hidden', tab !== 'kate');
   crmRefreshActiveView();
 };
 
@@ -4252,6 +4255,93 @@ function crmCollectKateTasks() {
   });
   return out;
 }
+
+function crmRenderKateTab() {
+  const el = document.getElementById('crmKateView');
+  if (!el) return;
+  let items = crmCollectKateTasks();
+  const showDone = crmShowCompletedTasks;
+  if (!showDone) items = items.filter(t => !t.done);
+  items.sort((a, b) => {
+    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
+  });
+
+  const header = `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="font-size:12px;color:var(--text3)">${items.length} task${items.length===1?'':'s'} assigned to Kate</div>
+      <div>
+        <button class="btn-primary" onclick="crmPushTasksToKate()" style="font-size:12px;padding:6px 14px">Sync with Kate</button>
+        <span id="crmKateSyncStatus" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
+      </div>
+    </div>
+    <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer;margin-bottom:1rem">
+      <input type="checkbox" ${showDone?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderKateTab()"> Show completed
+    </label>`;
+
+  if (!items.length) {
+    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks assigned to Kate yet — check "Assign to Kate" when adding a task on a client\'s card.</div>';
+    return;
+  }
+
+  const groups = crmGroupByDate(items, 'due');
+  el.innerHTML = header + groups.map(g => `
+    <div style="margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:12px;color:${g.label.includes('overdue')?'#c62828':'var(--text2)'};margin-bottom:6px">${g.label}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${g.items.map(t => `
+          <div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${t.done?'opacity:0.5':''}">
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" ${t.done?'checked':''} onchange="crmKateToggleTask('${t.clientId}','${t.id}')">
+              <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('client','${t.clientId}')">
+                <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(t.clientName)}</span>
+                <span style="color:var(--text3);font-size:12px"> — </span>
+                <span style="font-size:13px;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
+              </div>
+              <input type="date" value="${t.due||''}" onchange="crmKateEditTaskDue('${t.clientId}','${t.id}',this.value)" style="font-size:11px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text2)">
+            </div>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+              ${(t.comments||[]).map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('') || '<div style="font-size:11px;color:var(--text3)">No comments yet.</div>'}
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <input id="crmKateComment_${t.id}" placeholder="Reply..." onkeydown="if(event.key==='Enter')crmKateAddComment('${t.clientId}','${t.id}')" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+                <button onclick="crmKateAddComment('${t.clientId}','${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Reply</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// Direct-mutation variants for the Kate tab, which spans multiple clients at
+// once — unlike the in-card task functions, there's no single "open detail"
+// to read from, so these take clientId explicitly.
+window.crmKateToggleTask = function(clientId, taskId) {
+  const c = clients[clientId]; if (!c?.crm) return;
+  const t = (c.crm.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.done = !t.done; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  saveToStorage();
+  crmRenderKateTab();
+  crmAutoSyncKate(t);
+};
+window.crmKateEditTaskDue = function(clientId, taskId, val) {
+  const c = clients[clientId]; if (!c?.crm) return;
+  const t = (c.crm.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.due = val || null; t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  saveToStorage();
+  crmAutoSyncKate(t);
+};
+window.crmKateAddComment = function(clientId, taskId) {
+  const c = clients[clientId]; if (!c?.crm) return;
+  const t = (c.crm.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const el = document.getElementById('crmKateComment_' + taskId);
+  const text = el.value.trim(); if (!text) return;
+  if (!t.comments) t.comments = [];
+  t.comments.push({ id: 'c_' + Date.now(), author: 'Nikolai', text, date: new Date().toISOString() });
+  t.updatedAt = new Date().toISOString(); t.updatedBy = 'Nikolai';
+  saveToStorage();
+  crmRenderKateTab();
+  crmAutoSyncKate(t);
+};
 
 function crmMergeKateTasks(local, remote) {
   const byId = {};
