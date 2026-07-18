@@ -47,5 +47,17 @@
     "updatedBy": "Nikolai",
     "clientId": "c_1784223340795",
     "clientName": "Al*** O***"
+  },
+  {
+    "id": "t_1784358911298",
+    "text": "Pinnacle presentation",
+    "due": "2026-07-21",
+    "done": false,
+    "assignedTo": "Kate",
+    "comments": [],
+    "updatedAt": "2026-07-18T07:15:11.298Z",
+    "updatedBy": "Nikolai",
+    "clientId": "c_1783924366434",
+    "clientName": "Artem"
   }
 ]
