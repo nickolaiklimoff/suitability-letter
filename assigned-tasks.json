@@ -47,5 +47,17 @@
     "updatedBy": "Nikolai",
     "clientId": "c_1783924366434",
     "clientName": "Artem"
+  },
+  {
+    "id": "t_1784288655708",
+    "text": "FAB docs",
+    "due": "2026-07-20",
+    "done": false,
+    "assignedTo": "Kate",
+    "comments": [],
+    "updatedAt": "2026-07-18T06:58:37.304Z",
+    "updatedBy": "Nikolai",
+    "clientId": "c_1784223340795",
+    "clientName": "Al*** O***"
   }
 ]
