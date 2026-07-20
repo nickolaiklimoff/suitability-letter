@@ -4143,20 +4143,17 @@ function crmGroupByDate(items, dateField) {
   });
 }
 
-function crmMeetingsHtml() {
-  const now = new Date();
-
+function crmMeetingFormHtml() {
   const personOptions = () => {
     let opts = '<option value="">— internal / no client —</option>';
     Object.entries(clients).forEach(([id, c]) => { opts += `<option value="client:${id}">${crmEsc(c.name || 'Unnamed')} (client)</option>`; });
     Object.entries(prospects).forEach(([id, p]) => { opts += `<option value="prospect:${id}">${crmEsc(p.name)} (prospect)</option>`; });
     return opts;
   };
-
-  const header = `
-    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+  return `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1rem">
       <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:4px">📅 Schedule a meeting</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Telegram reminder ~30 min before (best-effort — GitHub Actions cron timing can drift by several minutes).</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Telegram reminder ~30 min before (best-effort — GitHub Actions cron timing can drift by several minutes). Shown together with tasks below, grouped by day.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <input id="crmNewMeetingTitle" placeholder="e.g. FAB call, portfolio review..." onkeydown="if(event.key==='Enter')crmAddMeeting()" style="flex:1;min-width:200px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
         <select id="crmNewMeetingPerson" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1);max-width:200px">
@@ -4167,46 +4164,35 @@ function crmMeetingsHtml() {
         <button onclick="crmAddMeeting()" class="btn-primary" style="font-size:12px;padding:6px 14px">Add</button>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1.25rem">
       <button onclick="crmSyncMeetings()" class="btn-secondary" style="font-size:12px;padding:5px 12px">Sync meetings with Telegram reminder</button>
       <span id="crmMeetingSyncStatus" style="font-size:12px;color:var(--text3);margin-left:8px;align-self:center"></span>
     </div>`;
+}
 
-  const upcoming = meetings.filter(m => !m.cancelled && new Date(`${m.date}T${m.time || '00:00'}`) >= new Date(now.toDateString()))
-    .sort((a, b) => new Date(`${a.date}T${a.time||'00:00'}`) - new Date(`${b.date}T${b.time||'00:00'}`));
+function crmMeetingRowHtml(m) {
+  const now = new Date();
+  const dt = new Date(`${m.date}T${m.time || '00:00'}`);
+  const isPast = dt < now;
+  return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #b8d4ea;border-radius:8px;background:#eaf4fb;${(m.cancelled||isPast)?'opacity:0.5':''}">
+    <span style="font-size:14px">📅</span>
+    <span style="font-size:13px;font-weight:700;color:var(--text2);white-space:nowrap">${m.time || '—'}</span>
+    <div style="flex:1;min-width:0">
+      <span style="font-size:13px;font-weight:600;color:var(--text1)">${crmEsc(m.title)}</span>
+      ${m.personName ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">with ${crmEsc(m.personName)}</span>` : ''}
+      ${m.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
+    </div>
+    ${m.cancelled ? '' : `<button onclick="crmCancelMeeting('${m.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>`}
+    <button onclick="crmDeleteMeeting('${m.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+  </div>`;
+}
+
+function crmPastMeetingsHtml() {
+  const now = new Date();
   const past = meetings.filter(m => m.cancelled || new Date(`${m.date}T${m.time || '00:00'}`) < new Date(now.toDateString()));
-
-  if (!meetings.length) {
-    return header + '<div style="color:var(--text3);padding:1.5rem;text-align:center;font-size:13px">No meetings scheduled yet.</div>';
-  }
-
-  const row = m => {
-    const dt = new Date(`${m.date}T${m.time || '00:00'}`);
-    const isPast = dt < now;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(m.cancelled||isPast)?'opacity:0.5':''}">
-      <span style="font-size:14px">📅</span>
-      <span style="font-size:13px;font-weight:700;color:var(--text2);white-space:nowrap">${m.time || '—'}</span>
-      <div style="flex:1;min-width:0">
-        <span style="font-size:13px;font-weight:600;color:var(--text1)">${crmEsc(m.title)}</span>
-        ${m.personName ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">with ${crmEsc(m.personName)}</span>` : ''}
-        ${m.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
-      </div>
-      ${m.cancelled ? '' : `<button onclick="crmCancelMeeting('${m.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>`}
-      <button onclick="crmDeleteMeeting('${m.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
-    </div>`;
-  };
-
-  const upcomingGroups = crmGroupByDate(upcoming, 'date');
-
-  return header + `
-    <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Upcoming meetings (${upcoming.length})</div>
-    ${upcoming.length ? upcomingGroups.map(g => `
-      <div style="margin-bottom:1rem">
-        <div style="margin-bottom:6px">${crmDateBadge(g.label)}</div>
-        <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(row).join('')}</div>
-      </div>`).join('') : '<div style="font-size:12px;color:var(--text3);margin-bottom:1.5rem">Nothing upcoming.</div>'}
-    ${past.length ? `<div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px;margin-top:0.5rem">Past / cancelled meetings</div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">${past.map(row).join('')}</div>` : ''}`;
+  if (!past.length) return '';
+  return `<div style="font-weight:600;font-size:13px;color:var(--text2);margin:1.5rem 0 8px">Past / cancelled meetings</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">${past.map(crmMeetingRowHtml).join('')}</div>`;
 }
 
 window.crmAddMeeting = function() {
@@ -4503,26 +4489,39 @@ function crmRenderTasks() {
     </div>`;
   };
 
-  const meetingsBlock = crmMeetingsHtml();
+  const now = new Date();
+  const upcomingMeetings = meetings.filter(m => !m.cancelled && new Date(`${m.date}T${m.time || '00:00'}`) >= new Date(now.toDateString()))
+    .map(m => ({ due: m.date, _isMeeting: true, _meeting: m }));
+
+  const combined = [...items, ...upcomingMeetings];
+
+  const formBlock = crmMeetingFormHtml();
 
   const header = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-    <div style="font-weight:600;font-size:13px;color:var(--text2)">📋 Tasks <span style="font-weight:400;color:var(--text3)">(${items.length})</span></div>
+    <div style="font-weight:600;font-size:13px;color:var(--text2)">📋 Meetings & tasks <span style="font-weight:400;color:var(--text3)">(${upcomingMeetings.length} meeting${upcomingMeetings.length===1?'':'s'}, ${items.length} task${items.length===1?'':'s'})</span></div>
     <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
       <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderTasks()"> Show completed
     </label>
   </div>`;
 
-  if (!items.length) {
-    el.innerHTML = meetingsBlock + header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>';
+  if (!combined.length) {
+    el.innerHTML = formBlock + header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">Nothing scheduled — nice and clear.</div>' + crmPastMeetingsHtml();
     return;
   }
 
-  const groups = crmGroupByDate(items, 'due');
-  el.innerHTML = meetingsBlock + header + groups.map(g => `
-    <div style="margin-bottom:1.25rem">
+  const groups = crmGroupByDate(combined, 'due');
+  el.innerHTML = formBlock + header + groups.map(g => {
+    // Within a day: meetings first (sorted by time), then tasks in their existing order.
+    const dayMeetings = g.items.filter(it => it._isMeeting).sort((a, b) => (a._meeting.time || '99:99').localeCompare(b._meeting.time || '99:99'));
+    const dayTasks = g.items.filter(it => !it._isMeeting);
+    return `<div style="margin-bottom:1.25rem">
       <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
-      <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
-    </div>`).join('');
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${dayMeetings.map(it => crmMeetingRowHtml(it._meeting)).join('')}
+        ${dayTasks.map(renderRow).join('')}
+      </div>
+    </div>`;
+  }).join('') + crmPastMeetingsHtml();
 }
 
 window.crmBizAddComment = function(prospectId, taskId) {
