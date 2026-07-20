@@ -49,6 +49,7 @@ function updateStorageHealthBar() {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadFromStorage();
   await loadProspects();
+  await loadBusinessTasks();
   updateStorageHealthBar();
   renderClientList();
   buildProfileForm();
@@ -3897,6 +3898,25 @@ function saveProspectsToStorage() {
   });
 }
 
+let businessTasks = [];
+
+async function loadBusinessTasks() {
+  try {
+    const fromIdb = await idbGet('crm-business-tasks');
+    if (fromIdb) { businessTasks = fromIdb; return; }
+  } catch (e) {
+    console.error('Failed to load business tasks', e);
+  }
+  businessTasks = [];
+}
+
+function saveBusinessTasksToStorage() {
+  idbSet('crm-business-tasks', businessTasks).catch(err => {
+    console.error('Failed to save business tasks', err);
+    alert('⚠️ Failed to save business tasks — browser storage is full.\n\n' + err.message);
+  });
+}
+
 const CRM_URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
 const CRM_URGENCY_FILTERS = { eagle: '', dove: 'grayscale(1)', chicken: 'sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.8)' };
 const CRM_URGENCY_ORDER = ['eagle', 'dove', 'chicken'];
@@ -3938,6 +3958,7 @@ function crmRefreshActiveView() {
   else if (crmCurrentTab === 'clients') crmRenderClients();
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
+  else if (crmCurrentTab === 'biztasks') crmRenderBizTasks();
   else if (crmCurrentTab === 'biz') crmRenderBizExpansion();
   else if (crmCurrentTab === 'pipeline') crmRenderPipeline();
   else crmRenderKateTab();
@@ -3967,6 +3988,7 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabClients').classList.toggle('active', tab === 'clients');
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
+  document.getElementById('crmTabBizTasks').classList.toggle('active', tab === 'biztasks');
   document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
   document.getElementById('crmTabPipeline').classList.toggle('active', tab === 'pipeline');
   document.getElementById('crmTabKate').classList.toggle('active', tab === 'kate');
@@ -3974,6 +3996,7 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmClientsView').classList.toggle('hidden', tab !== 'clients');
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
+  document.getElementById('crmBizTasksView').classList.toggle('hidden', tab !== 'biztasks');
   document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
   document.getElementById('crmPipelineView').classList.toggle('hidden', tab !== 'pipeline');
   document.getElementById('crmKateView').classList.toggle('hidden', tab !== 'kate');
@@ -3993,14 +4016,14 @@ function crmRenderToday() {
   const dueToday = allItems.filter(i => i.due === todayStr);
 
   const renderRow = it => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-    ${it.kind === 'task' ? `<input type="checkbox" onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()"><span style="font-size:14px">${crmUrgencyIcon(it.urgency)}</span>` : `<span style="font-size:14px">💰</span>`}
-    <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}'${it.kind==='task'?`,'${it.taskId}'`:''})">
-      <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
-      <span style="color:var(--text3);font-size:12px"> — </span>
+    ${it.kind === 'task' || it.kind === 'biztask' ? `<span style="font-size:14px">${crmUrgencyIcon(it.urgency)}</span>` : `<span style="font-size:14px">💰</span>`}
+    <div style="flex:1;min-width:0;cursor:pointer" onclick="${it.kind==='biztask' ? `crmOpen();crmSwitchTab('biztasks')` : `crmOpenDetail('${it.personType}','${it.personId}'${it.kind==='task'?`,'${it.taskId}'`:''})`}">
+      ${it.kind==='biztask' ? '' : `<span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span><span style="color:var(--text3);font-size:12px"> — </span>`}
       <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
     </div>
     ${it.due < todayStr ? `<span style="font-size:10px;font-weight:600;color:#c62828;white-space:nowrap">since ${crmFmtDate(it.due)}</span>` : ''}
     ${it.kind === 'task' ? `<button onclick="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}');crmRenderToday()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Done</button><button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>` : ''}
+    ${it.kind === 'biztask' ? `<button onclick="crmToggleBizTaskDone('${it.taskId}');crmRenderToday()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Done</button><button onclick="crmToggleBizTaskCancel('${it.taskId}');crmRenderToday()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>` : ''}
   </div>`;
 
   el.innerHTML = `
@@ -4039,6 +4062,9 @@ function crmAllTasks() {
     (p.tasks || []).forEach(t => {
       items.push({ personType: 'prospect', personId: id, personName: p.name, text: t.text, due: t.due, done: !!t.done, cancelled: !!t.cancelled, urgency: t.urgency, kind: 'task', taskId: t.id });
     });
+  });
+  businessTasks.forEach(t => {
+    items.push({ personType: 'biztask', personId: null, personName: 'Business', text: t.text, due: t.due, done: !!t.done, cancelled: !!t.cancelled, urgency: t.urgency, kind: 'biztask', taskId: t.id });
   });
   return items;
 }
@@ -4079,6 +4105,100 @@ function crmGroupByDate(items, dateField) {
     return { key, label, items: groups[key] };
   });
 }
+
+function crmRenderBizTasks() {
+  const el = document.getElementById('crmBizTasksView');
+  if (!el) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let items = businessTasks.slice();
+  if (!crmShowCompletedTasks) items = items.filter(t => !t.done && !t.cancelled);
+  items.sort((a, b) => {
+    const ar = !!(a.done || a.cancelled), br = !!(b.done || b.cancelled);
+    if (ar !== br) return ar ? 1 : -1;
+    return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
+  });
+
+  const header = `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">📋 New business task <span style="font-weight:400;color:var(--text3)">(not tied to a client — e.g. bank negotiations, collect Kate's pipeline)</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="crmNewBizTaskText" placeholder="e.g. arrange meeting with FAB, review Kate's pipeline..." onkeydown="if(event.key==='Enter')crmAddBizTask()" style="flex:1;min-width:220px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <select id="crmNewBizTaskUrgency" title="Urgency" style="font-size:12px;padding:6px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+          <option value="eagle">🦅 urgent</option>
+          <option value="dove" selected>🕊️ normal</option>
+          <option value="chicken">🐔 no rush</option>
+        </select>
+        <input id="crmNewBizTaskDue" type="date" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <button onclick="crmAddBizTask()" class="btn-primary" style="font-size:12px;padding:6px 14px">Add</button>
+      </div>
+    </div>
+    <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer;margin-bottom:1rem">
+      <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderBizTasks()"> Show completed
+    </label>`;
+
+  if (!items.length) {
+    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No business tasks — nice and clear.</div>';
+    return;
+  }
+
+  const renderRow = t => {
+    const overdue = !t.done && !t.cancelled && t.due && t.due < todayStr;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(t.done||t.cancelled)?'opacity:0.5':''}">
+      <span style="font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
+      <div style="flex:1;min-width:0">
+        <span style="font-size:13px;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
+        ${t.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
+        ${overdue ? `<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">⚠ since ${crmFmtDate(t.due)}</span>` : ''}
+      </div>
+      <button onclick="crmToggleBizTaskDone('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.done?'#eaf5ea':'var(--bg2)'};color:${t.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.done?'Undone':'Done'}</button>
+      <button onclick="crmToggleBizTaskCancel('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.cancelled?'#fdecea':'var(--bg2)'};color:${t.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.cancelled?'Uncancel':'Cancel'}</button>
+      <button onclick="crmDeleteBizTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+    </div>`;
+  };
+
+  const groups = crmGroupByDate(items, 'due');
+  el.innerHTML = header + groups.map(g => `
+    <div style="margin-bottom:1.25rem">
+      <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
+    </div>`).join('');
+}
+
+window.crmAddBizTask = function() {
+  const textEl = document.getElementById('crmNewBizTaskText');
+  const dueEl = document.getElementById('crmNewBizTaskDue');
+  const urgencyEl = document.getElementById('crmNewBizTaskUrgency');
+  const text = textEl.value.trim();
+  if (!text) { textEl.style.borderColor = '#c62828'; textEl.focus(); return; }
+  textEl.style.borderColor = '';
+  businessTasks.push({
+    id: 'bt_' + Date.now(), text, due: dueEl.value || null,
+    urgency: urgencyEl.value || 'dove', done: false, cancelled: false,
+    updatedAt: new Date().toISOString(), updatedBy: 'Nikolai',
+  });
+  saveBusinessTasksToStorage();
+  textEl.value = ''; dueEl.value = '';
+  crmRenderBizTasks();
+};
+window.crmToggleBizTaskDone = function(id) {
+  const t = businessTasks.find(x => x.id === id); if (!t) return;
+  t.done = !t.done; if (t.done) t.cancelled = false;
+  t.updatedAt = new Date().toISOString();
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
+window.crmToggleBizTaskCancel = function(id) {
+  const t = businessTasks.find(x => x.id === id); if (!t) return;
+  t.cancelled = !t.cancelled; if (t.cancelled) t.done = false;
+  t.updatedAt = new Date().toISOString();
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
+window.crmDeleteBizTask = function(id) {
+  businessTasks = businessTasks.filter(x => x.id !== id);
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
 
 function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
