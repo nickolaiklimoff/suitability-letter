@@ -31,9 +31,16 @@
     "due": "2026-07-21",
     "done": false,
     "assignedTo": "Kate",
-    "comments": [],
-    "updatedAt": "2026-07-20T10:55:43.255Z",
-    "updatedBy": "Nikolai",
+    "comments": [
+      {
+        "id": "c_1784553559485",
+        "author": "Kate",
+        "text": "The 4 onbording forms have been sent",
+        "date": "2026-07-20T13:19:19.485Z"
+      }
+    ],
+    "updatedAt": "2026-07-20T13:19:19.485Z",
+    "updatedBy": "Kate",
     "clientId": "c_1784223340795",
     "clientName": "Al*** O***",
     "urgency": "eagle"
