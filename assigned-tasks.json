@@ -2,7 +2,7 @@
   {
     "id": "t_1784305738063",
     "text": "fill in FAB form and confirm with Nicolas",
-    "due": "2026-07-20",
+    "due": "2026-07-24",
     "done": false,
     "assignedTo": "Kate",
     "comments": [
@@ -19,7 +19,7 @@
         "date": "2026-07-17T16:43:54.957Z"
       }
     ],
-    "updatedAt": "2026-07-18T07:42:22.191Z",
+    "updatedAt": "2026-07-20T12:03:16.779Z",
     "updatedBy": "Nikolai",
     "clientId": "c_1784291794613",
     "clientName": "B***  L****",
