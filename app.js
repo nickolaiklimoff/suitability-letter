@@ -4336,11 +4336,13 @@ function crmRenderBizTasks() {
     return `<div style="padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(t.done||t.cancelled)?'opacity:0.5':''}">
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
-        <div style="flex:1;min-width:0">
-          <span style="font-size:13px;font-weight:600;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
-          ${subs.length ? `<span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:1px 7px;border-radius:8px;margin-left:6px">${openSubs}/${subs.length} sub-tasks</span>` : ''}
-          ${t.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
-          ${overdue ? `<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">⚠ since ${crmFmtDate(t.due)}</span>` : ''}
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <input value="${crmEsc(t.text)}" onchange="crmEditBizTaskText('${t.id}',this.value)" style="flex:1;min-width:140px;font-size:13px;font-weight:600;color:var(--text1);border:none;background:transparent;padding:1px 2px;${t.done?'text-decoration:line-through':''}">
+            ${subs.length ? `<span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:1px 7px;border-radius:8px;flex-shrink:0">${openSubs}/${subs.length} sub-tasks</span>` : ''}
+            ${t.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;flex-shrink:0">✕ Cancelled</span>' : ''}
+          </div>
+          <input type="date" value="${t.due||''}" onchange="crmEditBizTaskDue('${t.id}',this.value)" style="width:fit-content;font-size:10px;color:${overdue ? '#c62828' : 'var(--text3)'};border:none;background:transparent;padding:0 2px">
         </div>
         <button onclick="crmToggleBizTaskDone('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.done?'#eaf5ea':'var(--bg2)'};color:${t.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.done?'Undone':'Done'}</button>
         <button onclick="crmToggleBizTaskCancel('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.cancelled?'#fdecea':'var(--bg2)'};color:${t.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.cancelled?'Uncancel':'Cancel'}</button>
@@ -4365,6 +4367,19 @@ function crmRenderBizTasks() {
     </div>`).join('');
 }
 
+window.crmEditBizTaskText = function(id, val) {
+  const t = businessTasks.find(x => x.id === id); if (!t) return;
+  const text = val.trim(); if (!text) return;
+  t.text = text; t.updatedAt = new Date().toISOString();
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
+window.crmEditBizTaskDue = function(id, val) {
+  const t = businessTasks.find(x => x.id === id); if (!t) return;
+  t.due = val || null; t.updatedAt = new Date().toISOString();
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
 window.crmAddBizTask = function() {
   const textEl = document.getElementById('crmNewBizTaskText');
   const dueEl = document.getElementById('crmNewBizTaskDue');
