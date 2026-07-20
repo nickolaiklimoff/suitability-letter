@@ -4465,7 +4465,7 @@ function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
   if (!el) return;
   const todayStr = new Date().toISOString().slice(0, 10);
-  let items = crmAllTasks().filter(i => (i.kind === 'task' && i.personType === 'client') || i.kind === 'biztask');
+  let items = crmAllTasks().filter(i => (i.kind === 'task' && i.personType === 'client') || i.kind === 'biztask' || i.kind === 'opportunity');
   if (!crmShowCompletedTasks) items = items.filter(i => !i.done && !i.cancelled);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
@@ -4474,6 +4474,19 @@ function crmRenderTasks() {
 
   const renderRow = it => {
     const isBiz = it.kind === 'biztask';
+    const isOpp = it.kind === 'opportunity';
+    if (isOpp) {
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+        <span style="font-size:14px">💰</span>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}')">
+          <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
+          <span style="color:var(--text3);font-size:12px"> — </span>
+          <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
+          <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:1px 7px;border-radius:8px;margin-left:6px">Opportunity</span>
+        </div>
+        <button onclick="crmOpen();crmSwitchTab('biz')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Open in Business Expansion</button>
+      </div>`;
+    }
     const toggleDone = isBiz ? `crmToggleBizTaskDone('${it.taskId}')` : `crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')`;
     const toggleCancel = isBiz ? `crmToggleBizTaskCancel('${it.taskId}')` : `crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')`;
     const openClick = isBiz ? `crmOpen();crmSwitchTab('biztasks')` : `crmOpenDetail('${it.personType}','${it.personId}','${it.taskId}')`;
