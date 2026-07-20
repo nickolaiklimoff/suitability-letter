@@ -4331,10 +4331,10 @@ function crmRenderBizTasks() {
     const overdue = !s.done && !s.cancelled && s.due && s.due < todayStr;
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);${(s.done||s.cancelled)?'opacity:0.5':''}">
       <span style="font-size:12px">${crmUrgencyIcon(s.urgency)}</span>
-      <div style="flex:1;min-width:0">
-        <span style="font-size:12px;color:var(--text1);${s.done?'text-decoration:line-through':''}">${crmEsc(s.text)}</span>
-        ${s.due ? `<span style="font-size:10px;color:${overdue?'#c62828':'var(--text3)'};margin-left:6px">${overdue?'⚠ since ':''}${crmFmtDate(s.due)}</span>` : ''}
-        ${s.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
+      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <input value="${crmEsc(s.text)}" onchange="crmEditBizSubtaskText('${parent.id}','${s.id}',this.value)" style="flex:1;min-width:100px;font-size:12px;color:var(--text1);border:none;background:transparent;padding:1px 2px;${s.done?'text-decoration:line-through':''}">
+        <input type="date" value="${s.due||''}" onchange="crmEditBizSubtaskDue('${parent.id}','${s.id}',this.value)" style="font-size:10px;color:${overdue?'#c62828':'var(--text3)'};border:none;background:transparent;padding:0 2px;width:fit-content">
+        ${s.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828">✕ Cancelled</span>' : ''}
       </div>
       <button onclick="crmToggleBizTaskDone('${parent.id}::${s.id}')" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:${s.done?'#eaf5ea':'var(--bg)'};color:${s.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${s.done?'Undone':'Done'}</button>
       <button onclick="crmToggleBizTaskCancel('${parent.id}::${s.id}')" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:${s.cancelled?'#fdecea':'var(--bg)'};color:${s.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${s.cancelled?'Uncancel':'Cancel'}</button>
@@ -4390,6 +4390,21 @@ window.crmEditBizTaskText = function(id, val) {
 window.crmEditBizTaskDue = function(id, val) {
   const t = businessTasks.find(x => x.id === id); if (!t) return;
   t.due = val || null; t.updatedAt = new Date().toISOString();
+  saveBusinessTasksToStorage();
+  crmRefreshActiveView();
+};
+window.crmEditBizSubtaskText = function(parentId, subId, val) {
+  const t = businessTasks.find(x => x.id === parentId); if (!t) return;
+  const s = (t.subtasks || []).find(x => x.id === subId); if (!s) return;
+  const text = val.trim(); if (!text) return;
+  s.text = text; t.updatedAt = new Date().toISOString();
+  saveBusinessTasksToStorage();
+  crmRefreshActiveView();
+};
+window.crmEditBizSubtaskDue = function(parentId, subId, val) {
+  const t = businessTasks.find(x => x.id === parentId); if (!t) return;
+  const s = (t.subtasks || []).find(x => x.id === subId); if (!s) return;
+  s.due = val || null; t.updatedAt = new Date().toISOString();
   saveBusinessTasksToStorage();
   crmRefreshActiveView();
 };
