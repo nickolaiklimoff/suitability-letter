@@ -4065,6 +4065,9 @@ function crmAllTasks() {
   });
   businessTasks.forEach(t => {
     items.push({ personType: 'biztask', personId: null, personName: 'Business', text: t.text, due: t.due, done: !!t.done, cancelled: !!t.cancelled, urgency: t.urgency, kind: 'biztask', taskId: t.id });
+    (t.subtasks || []).forEach(s => {
+      items.push({ personType: 'biztask', personId: null, personName: 'Business', text: `${t.text} → ${s.text}`, due: s.due, done: !!s.done, cancelled: !!s.cancelled, urgency: s.urgency, kind: 'biztask', taskId: `${t.id}::${s.id}` });
+    });
   });
   return items;
 }
@@ -4120,7 +4123,7 @@ function crmRenderBizTasks() {
 
   const header = `
     <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
-      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">📋 New business task <span style="font-weight:400;color:var(--text3)">(not tied to a client — e.g. bank negotiations, collect Kate's pipeline)</span></div>
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">📋 New business task <span style="font-weight:400;color:var(--text3)">(not tied to a client — e.g. bank negotiations, collect Kate's pipeline; add sub-tasks once created)</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <input id="crmNewBizTaskText" placeholder="e.g. arrange meeting with FAB, review Kate's pipeline..." onkeydown="if(event.key==='Enter')crmAddBizTask()" style="flex:1;min-width:220px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
         <select id="crmNewBizTaskUrgency" title="Urgency" style="font-size:12px;padding:6px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
@@ -4141,18 +4144,46 @@ function crmRenderBizTasks() {
     return;
   }
 
+  const subtaskRow = (parent, s) => {
+    const overdue = !s.done && !s.cancelled && s.due && s.due < todayStr;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);${(s.done||s.cancelled)?'opacity:0.5':''}">
+      <span style="font-size:12px">${crmUrgencyIcon(s.urgency)}</span>
+      <div style="flex:1;min-width:0">
+        <span style="font-size:12px;color:var(--text1);${s.done?'text-decoration:line-through':''}">${crmEsc(s.text)}</span>
+        ${s.due ? `<span style="font-size:10px;color:${overdue?'#c62828':'var(--text3)'};margin-left:6px">${overdue?'⚠ since ':''}${crmFmtDate(s.due)}</span>` : ''}
+        ${s.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
+      </div>
+      <button onclick="crmToggleBizTaskDone('${parent.id}::${s.id}')" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:${s.done?'#eaf5ea':'var(--bg)'};color:${s.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${s.done?'Undone':'Done'}</button>
+      <button onclick="crmToggleBizTaskCancel('${parent.id}::${s.id}')" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:${s.cancelled?'#fdecea':'var(--bg)'};color:${s.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${s.cancelled?'Uncancel':'Cancel'}</button>
+      <button onclick="crmDeleteBizSubtask('${parent.id}','${s.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;flex-shrink:0">×</button>
+    </div>`;
+  };
+
   const renderRow = t => {
     const overdue = !t.done && !t.cancelled && t.due && t.due < todayStr;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(t.done||t.cancelled)?'opacity:0.5':''}">
-      <span style="font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
-      <div style="flex:1;min-width:0">
-        <span style="font-size:13px;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
-        ${t.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
-        ${overdue ? `<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">⚠ since ${crmFmtDate(t.due)}</span>` : ''}
+    const subs = t.subtasks || [];
+    const openSubs = subs.filter(s => !s.done && !s.cancelled).length;
+    return `<div style="padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(t.done||t.cancelled)?'opacity:0.5':''}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:14px">${crmUrgencyIcon(t.urgency)}</span>
+        <div style="flex:1;min-width:0">
+          <span style="font-size:13px;font-weight:600;color:var(--text1);${t.done?'text-decoration:line-through':''}">${crmEsc(t.text)}</span>
+          ${subs.length ? `<span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:1px 7px;border-radius:8px;margin-left:6px">${openSubs}/${subs.length} sub-tasks</span>` : ''}
+          ${t.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
+          ${overdue ? `<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">⚠ since ${crmFmtDate(t.due)}</span>` : ''}
+        </div>
+        <button onclick="crmToggleBizTaskDone('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.done?'#eaf5ea':'var(--bg2)'};color:${t.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.done?'Undone':'Done'}</button>
+        <button onclick="crmToggleBizTaskCancel('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.cancelled?'#fdecea':'var(--bg2)'};color:${t.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.cancelled?'Uncancel':'Cancel'}</button>
+        <button onclick="crmDeleteBizTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
       </div>
-      <button onclick="crmToggleBizTaskDone('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.done?'#eaf5ea':'var(--bg2)'};color:${t.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.done?'Undone':'Done'}</button>
-      <button onclick="crmToggleBizTaskCancel('${t.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${t.cancelled?'#fdecea':'var(--bg2)'};color:${t.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${t.cancelled?'Uncancel':'Cancel'}</button>
-      <button onclick="crmDeleteBizTask('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px">
+        ${subs.map(s => subtaskRow(t, s)).join('')}
+        <div style="display:flex;gap:4px;margin-top:2px">
+          <input id="crmNewSubtask_${t.id}" placeholder="+ Add sub-task..." onkeydown="if(event.key==='Enter')crmAddBizSubtask('${t.id}')" style="flex:1;font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <input id="crmNewSubtaskDue_${t.id}" type="date" style="font-size:11px;padding:4px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <button onclick="crmAddBizSubtask('${t.id}')" style="font-size:10px;padding:4px 10px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Add</button>
+        </div>
+      </div>
     </div>`;
   };
 
@@ -4160,7 +4191,7 @@ function crmRenderBizTasks() {
   el.innerHTML = header + groups.map(g => `
     <div style="margin-bottom:1.25rem">
       <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
-      <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${g.items.map(renderRow).join('')}</div>
     </div>`).join('');
 }
 
@@ -4173,24 +4204,63 @@ window.crmAddBizTask = function() {
   textEl.style.borderColor = '';
   businessTasks.push({
     id: 'bt_' + Date.now(), text, due: dueEl.value || null,
-    urgency: urgencyEl.value || 'dove', done: false, cancelled: false,
+    urgency: urgencyEl.value || 'dove', done: false, cancelled: false, subtasks: [],
     updatedAt: new Date().toISOString(), updatedBy: 'Nikolai',
   });
   saveBusinessTasksToStorage();
   textEl.value = ''; dueEl.value = '';
   crmRenderBizTasks();
 };
-window.crmToggleBizTaskDone = function(id) {
-  const t = businessTasks.find(x => x.id === id); if (!t) return;
-  t.done = !t.done; if (t.done) t.cancelled = false;
+
+window.crmAddBizSubtask = function(parentId) {
+  const t = businessTasks.find(x => x.id === parentId); if (!t) return;
+  const textEl = document.getElementById('crmNewSubtask_' + parentId);
+  const dueEl = document.getElementById('crmNewSubtaskDue_' + parentId);
+  const text = textEl.value.trim();
+  if (!text) { textEl.style.borderColor = '#c62828'; textEl.focus(); return; }
+  if (!t.subtasks) t.subtasks = [];
+  t.subtasks.push({
+    id: 'st_' + Date.now(), text, due: dueEl.value || null,
+    urgency: 'dove', done: false, cancelled: false,
+  });
   t.updatedAt = new Date().toISOString();
   saveBusinessTasksToStorage();
   crmRenderBizTasks();
 };
+
+window.crmDeleteBizSubtask = function(parentId, subId) {
+  const t = businessTasks.find(x => x.id === parentId); if (!t) return;
+  t.subtasks = (t.subtasks || []).filter(s => s.id !== subId);
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
+
+// Both parent tasks and sub-tasks flow through here — a compound id
+// "parentId::subId" (used when this is called from the unified Today view)
+// routes to the sub-task; a plain id routes to the parent.
+window.crmToggleBizTaskDone = function(id) {
+  if (id.includes('::')) {
+    const [parentId, subId] = id.split('::');
+    const t = businessTasks.find(x => x.id === parentId); if (!t) return;
+    const s = (t.subtasks || []).find(x => x.id === subId); if (!s) return;
+    s.done = !s.done; if (s.done) s.cancelled = false;
+  } else {
+    const t = businessTasks.find(x => x.id === id); if (!t) return;
+    t.done = !t.done; if (t.done) t.cancelled = false;
+  }
+  saveBusinessTasksToStorage();
+  crmRenderBizTasks();
+};
 window.crmToggleBizTaskCancel = function(id) {
-  const t = businessTasks.find(x => x.id === id); if (!t) return;
-  t.cancelled = !t.cancelled; if (t.cancelled) t.done = false;
-  t.updatedAt = new Date().toISOString();
+  if (id.includes('::')) {
+    const [parentId, subId] = id.split('::');
+    const t = businessTasks.find(x => x.id === parentId); if (!t) return;
+    const s = (t.subtasks || []).find(x => x.id === subId); if (!s) return;
+    s.cancelled = !s.cancelled; if (s.cancelled) s.done = false;
+  } else {
+    const t = businessTasks.find(x => x.id === id); if (!t) return;
+    t.cancelled = !t.cancelled; if (t.cancelled) t.done = false;
+  }
   saveBusinessTasksToStorage();
   crmRenderBizTasks();
 };
