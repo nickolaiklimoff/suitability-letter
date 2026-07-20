@@ -48,27 +48,50 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Kate — Tasks</h1>
-  <div class="sub">Tasks assigned to you across Orion Ridge clients. Only what's here — no other client data.</div>
+  <h1>Kate — Tasks &amp; Pipeline</h1>
+  <div class="sub">Tasks assigned to you, and the legal cross-sell pipeline — across Orion Ridge clients. Only what's here — no other client data.</div>
 
-  <div class="card setup-card">
-    <div class="field" style="flex:1;min-width:220px">
-      <label>GitHub token (given to you by Nikolai)</label>
-      <input type="password" id="ghToken" placeholder="ghp_...">
-    </div>
-    <button onclick="loadTasks()">Load tasks</button>
-    <span class="status" id="loadStatus"></span>
+  <div style="display:flex;gap:6px;margin-bottom:1.25rem">
+    <button id="tabTasksBtn" onclick="switchTab('tasks')">Assigned Tasks</button>
+    <button id="tabPipelineBtn" class="secondary" onclick="switchTab('pipeline')">Legal Pipeline</button>
   </div>
 
-  <div id="taskList"></div>
+  <div id="tasksSection">
+    <div class="card setup-card">
+      <div class="field" style="flex:1;min-width:220px">
+        <label>GitHub token (given to you by Nikolai)</label>
+        <input type="password" id="ghToken" placeholder="ghp_...">
+      </div>
+      <button onclick="loadTasks()">Load tasks</button>
+      <span class="status" id="loadStatus"></span>
+    </div>
 
-  <div class="card" id="saveBar" style="display:none;text-align:right">
-    <button onclick="saveTasks()">Save &amp; sync</button>
-    <span class="status" id="saveStatus"></span>
+    <div id="taskList"></div>
+
+    <div class="card" id="saveBar" style="display:none;text-align:right">
+      <button onclick="saveTasks()">Save &amp; sync</button>
+      <span class="status" id="saveStatus"></span>
+    </div>
+  </div>
+
+  <div id="pipelineSection" class="hidden">
+    <div class="card">
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">⚖️ Add a new name to the pipeline</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="newLeadName" placeholder="Name" style="flex:1;min-width:140px">
+        <input type="text" id="newLeadNotes" placeholder="Notes — what product/service..." style="flex:1;min-width:180px">
+        <button onclick="addLead()">Add</button>
+      </div>
+    </div>
+    <div class="card" style="text-align:right">
+      <button onclick="savePipeline()">Save &amp; sync</button>
+      <span class="status" id="pipelineSaveStatus"></span>
+    </div>
+    <div id="pipelineList"></div>
   </div>
 
   <div class="footer-note">
-    Changes sync automatically as you make them, and the page checks for Nikolai's new assignments
+    Changes sync automatically as you make them, and the page checks for Nikolai's updates
     every couple of minutes while it stays open. "Save &amp; sync" forces an immediate check if you don't want to wait.
   </div>
 </div>
@@ -76,8 +99,20 @@
 <script>
 const REPO = 'nickolaiklimoff/suitability-letter';
 const PATH = 'assigned-tasks.json';
+const PIPELINE_PATH = 'legal-pipeline.json';
+const STAGES = ['Prospecting', 'Meeting', 'Proposal', 'Client'];
 let tasks = [];
 let fileSha = null;
+let pipeline = [];
+let pipelineSha = null;
+
+function switchTab(tab) {
+  document.getElementById('tasksSection').classList.toggle('hidden', tab !== 'tasks');
+  document.getElementById('pipelineSection').classList.toggle('hidden', tab !== 'pipeline');
+  document.getElementById('tabTasksBtn').className = tab === 'tasks' ? '' : 'secondary';
+  document.getElementById('tabPipelineBtn').className = tab === 'pipeline' ? '' : 'secondary';
+  if (tab === 'pipeline' && !pipeline.length) loadPipeline();
+}
 
 function todayStr() { return new Date().toISOString().slice(0,10); }
 function fmtDate(d) {
@@ -98,6 +133,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('kate-gh-token');
   const cached = localStorage.getItem('kate-tasks-cache');
   if (cached) { try { tasks = JSON.parse(cached); render(); } catch(e) {} }
+  const cachedPipeline = localStorage.getItem('kate-pipeline-cache');
+  if (cachedPipeline) { try { pipeline = JSON.parse(cachedPipeline); renderPipeline(); } catch(e) {} }
   if (saved) {
     document.getElementById('ghToken').value = saved;
     loadTasks(); // first load pulls Nikolai's current assignments
@@ -109,9 +146,154 @@ window.addEventListener('DOMContentLoaded', () => {
   // remote, merges by id, unions comments) so this never overwrites her
   // unsaved edits, unlike a raw reload would.
   setInterval(() => {
-    if (document.getElementById('ghToken').value.trim()) saveTasks(true);
+    if (document.getElementById('ghToken').value.trim()) {
+      saveTasks(true);
+      if (pipeline.length || !document.getElementById('pipelineSection').classList.contains('hidden')) savePipeline(true);
+    }
   }, 120000);
 });
+
+async function loadPipeline() {
+  const token = document.getElementById('ghToken').value.trim();
+  if (!token) return;
+  try {
+    const resp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PIPELINE_PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (resp.status === 404) { pipeline = []; pipelineSha = null; }
+    else if (resp.ok) {
+      const d = await resp.json();
+      pipelineSha = d.sha;
+      pipeline = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    }
+    localStorage.setItem('kate-pipeline-cache', JSON.stringify(pipeline));
+    renderPipeline();
+  } catch (e) {
+    console.error('loadPipeline failed', e);
+  }
+}
+
+async function savePipeline(silent) {
+  const token = document.getElementById('ghToken').value.trim();
+  const statusEl = document.getElementById('pipelineSaveStatus');
+  if (!token) { if (!silent) statusEl.textContent = 'Enter your GitHub token first.'; return; }
+  if (!silent) statusEl.textContent = 'Syncing...';
+  try {
+    let remote = [];
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PIPELINE_PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) {
+      const d = await getResp.json();
+      pipelineSha = d.sha;
+      remote = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    }
+    const byId = {};
+    remote.forEach(e => { byId[e.id] = e; });
+    pipeline.forEach(e => {
+      const r = byId[e.id];
+      if (!r) { byId[e.id] = e; return; }
+      const localNewer = new Date(e.updatedAt||0) >= new Date(r.updatedAt||0);
+      const merged = localNewer ? { ...r, ...e } : { ...e, ...r };
+      const allComments = [...(e.comments||[]), ...(r.comments||[])];
+      const seen = new Set();
+      merged.comments = allComments.filter(c => c.id && !seen.has(c.id) && seen.add(c.id));
+      byId[e.id] = merged;
+    });
+    const merged = Object.values(byId);
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2))));
+    const putResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PIPELINE_PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: Kate updated pipeline (${merged.length} entries)`, content, sha: pipelineSha || undefined, branch: 'main' })
+    });
+    if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
+    pipeline = merged;
+    localStorage.setItem('kate-pipeline-cache', JSON.stringify(pipeline));
+    if (!silent) statusEl.textContent = '✓ Synced';
+    renderPipeline();
+  } catch (e) {
+    if (!silent) statusEl.textContent = 'Sync failed: ' + e.message;
+  }
+}
+
+function touchLead(e) { e.updatedAt = new Date().toISOString(); e.updatedBy = 'Kate'; }
+
+function addLead() {
+  const nameEl = document.getElementById('newLeadName');
+  const notesEl = document.getElementById('newLeadNotes');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.style.borderColor = 'var(--red)'; nameEl.focus(); return; }
+  nameEl.style.borderColor = '';
+  pipeline.push({
+    id: 'lp_' + Date.now(), name, notes: notesEl.value.trim(), stage: 'Prospecting',
+    sourceType: 'new', sourceId: null, addedBy: 'Kate', comments: [],
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  });
+  nameEl.value = ''; notesEl.value = '';
+  localStorage.setItem('kate-pipeline-cache', JSON.stringify(pipeline));
+  renderPipeline();
+  savePipeline(true);
+}
+function moveLead(id, dir) {
+  const e = pipeline.find(x => x.id === id); if (!e) return;
+  const idx = STAGES.indexOf(e.stage);
+  const next = idx + dir;
+  if (next < 0 || next >= STAGES.length) return;
+  e.stage = STAGES[next]; touchLead(e);
+  localStorage.setItem('kate-pipeline-cache', JSON.stringify(pipeline));
+  renderPipeline();
+  savePipeline(true);
+}
+function addLeadComment(id) {
+  const e = pipeline.find(x => x.id === id); if (!e) return;
+  const el = document.getElementById('leadReply_' + id);
+  const text = el.value.trim(); if (!text) return;
+  if (!e.comments) e.comments = [];
+  e.comments.push({ id: 'c_' + Date.now(), author: 'Kate', text, date: new Date().toISOString() });
+  touchLead(e);
+  localStorage.setItem('kate-pipeline-cache', JSON.stringify(pipeline));
+  renderPipeline();
+  savePipeline(true);
+}
+
+function renderPipeline() {
+  const el = document.getElementById('pipelineList');
+  if (!pipeline.length) {
+    el.innerHTML = '<div class="empty">Nothing in the pipeline yet — add a name above.</div>';
+    return;
+  }
+  el.innerHTML = STAGES.map(stage => {
+    const entries = pipeline.filter(e => e.stage === stage);
+    return `<div style="margin-bottom:1rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:6px">${stage} (${entries.length})</div>
+      ${entries.map(e => {
+        const idx = STAGES.indexOf(e.stage);
+        return `<div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+            <div>
+              <span style="font-weight:600;font-size:14px">${esc(e.name)}</span>
+              <span style="font-size:10px;font-weight:600;background:var(--bg);color:var(--text3);padding:1px 7px;border-radius:8px;margin-left:6px">added by ${esc(e.addedBy)}</span>
+            </div>
+          </div>
+          ${e.notes ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${esc(e.notes)}</div>` : ''}
+          <div style="display:flex;gap:6px;margin-top:8px">
+            ${idx > 0 ? `<button class="secondary" onclick="moveLead('${e.id}',-1)" style="padding:4px 10px;font-size:12px">← ${STAGES[idx-1]}</button>` : ''}
+            ${idx < STAGES.length - 1 ? `<button onclick="moveLead('${e.id}',1)" style="padding:4px 10px;font-size:12px">${e.stage==='Proposal'?'✓ Onboard':'→ ' + STAGES[idx+1]}</button>` : ''}
+          </div>
+          <div class="comments">
+            ${(e.comments||[]).map(c => `<div class="comment"><b>${esc(c.author)}:</b> ${esc(c.text)}</div>`).join('') || '<div class="comment" style="color:var(--text3)">No comments yet.</div>'}
+            <div class="reply-row">
+              <input type="text" id="leadReply_${e.id}" placeholder="Comment..." onkeydown="if(event.key==='Enter')addLeadComment('${e.id}')">
+              <button class="secondary" onclick="addLeadComment('${e.id}')">Add</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('') || '<div style="font-size:12px;color:var(--text3);padding:6px 0">Empty</div>'}
+    </div>`;
+  }).join('');
+}
 
 async function loadTasks() {
   const token = document.getElementById('ghToken').value.trim();
