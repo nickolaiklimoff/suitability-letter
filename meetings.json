@@ -28,15 +28,5 @@
     "cancelled": false,
     "reminded": false,
     "updatedAt": "2026-07-20T11:54:46.745Z"
-  },
-  {
-    "id": "mt_1784548546482",
-    "title": "Q2 review",
-    "personName": "Svetlana",
-    "date": "2026-07-21",
-    "time": null,
-    "cancelled": false,
-    "reminded": false,
-    "updatedAt": "2026-07-20T11:55:46.482Z"
   }
 ]
