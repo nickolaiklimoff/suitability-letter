@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadFromStorage();
   await loadProspects();
   await loadBusinessTasks();
+  await loadMeetings();
   updateStorageHealthBar();
   renderClientList();
   buildProfileForm();
@@ -3917,6 +3918,25 @@ function saveBusinessTasksToStorage() {
   });
 }
 
+let meetings = [];
+
+async function loadMeetings() {
+  try {
+    const fromIdb = await idbGet('crm-meetings');
+    if (fromIdb) { meetings = fromIdb; return; }
+  } catch (e) {
+    console.error('Failed to load meetings', e);
+  }
+  meetings = [];
+}
+
+function saveMeetingsToStorage() {
+  idbSet('crm-meetings', meetings).catch(err => {
+    console.error('Failed to save meetings', err);
+    alert('⚠️ Failed to save meetings — browser storage is full.\n\n' + err.message);
+  });
+}
+
 const CRM_URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
 const CRM_URGENCY_FILTERS = { eagle: '', dove: 'grayscale(1)', chicken: 'sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.8)' };
 const CRM_URGENCY_ORDER = ['eagle', 'dove', 'chicken'];
@@ -3959,6 +3979,7 @@ function crmRefreshActiveView() {
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
   else if (crmCurrentTab === 'biztasks') crmRenderBizTasks();
+  else if (crmCurrentTab === 'meetings') crmRenderMeetings();
   else if (crmCurrentTab === 'biz') crmRenderBizExpansion();
   else if (crmCurrentTab === 'pipeline') crmRenderPipeline();
   else crmRenderKateTab();
@@ -3989,6 +4010,7 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmTabBizTasks').classList.toggle('active', tab === 'biztasks');
+  document.getElementById('crmTabMeetings').classList.toggle('active', tab === 'meetings');
   document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
   document.getElementById('crmTabPipeline').classList.toggle('active', tab === 'pipeline');
   document.getElementById('crmTabKate').classList.toggle('active', tab === 'kate');
@@ -3997,6 +4019,7 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
   document.getElementById('crmBizTasksView').classList.toggle('hidden', tab !== 'biztasks');
+  document.getElementById('crmMeetingsView').classList.toggle('hidden', tab !== 'meetings');
   document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
   document.getElementById('crmPipelineView').classList.toggle('hidden', tab !== 'pipeline');
   document.getElementById('crmKateView').classList.toggle('hidden', tab !== 'kate');
@@ -4011,6 +4034,8 @@ function crmRenderToday() {
   const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const birthdaysToday = crmUpcomingBirthdays(0).filter(p => p.daysUntil === 0);
+  const meetingsToday = meetings.filter(m => !m.cancelled && m.date === todayStr)
+    .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
   const allItems = crmAllTasks().filter(i => !i.done && !i.cancelled && i.due && i.due <= todayStr);
   const overdue = allItems.filter(i => i.due < todayStr).sort((a, b) => new Date(a.due) - new Date(b.due));
   const dueToday = allItems.filter(i => i.due === todayStr);
@@ -4033,6 +4058,10 @@ function crmRenderToday() {
     ${birthdaysToday.length ? `<div style="background:#fff3d6;border-radius:8px;padding:10px 14px;margin-bottom:1.25rem;font-size:13px">
       <span style="font-weight:600">🎂 Birthday today:</span>
       ${birthdaysToday.map(p => `<span onclick="crmOpenDetail('${p.type}','${p.id}')" style="cursor:pointer;margin-left:10px;color:#8a6100;font-weight:600">${crmEsc(p.name)}</span>`).join('')}
+    </div>` : ''}
+    ${meetingsToday.length ? `<div style="background:#eaf4fb;border-radius:8px;padding:10px 14px;margin-bottom:1.25rem;font-size:13px">
+      <div style="font-weight:600;margin-bottom:4px">📅 Meetings today:</div>
+      ${meetingsToday.map(m => `<div style="cursor:pointer;color:#1a5276" onclick="crmOpen();crmSwitchTab('meetings')"><strong>${m.time || '(no time)'}</strong> — ${crmEsc(m.title)}${m.personName ? ' with ' + crmEsc(m.personName) : ''}</div>`).join('')}
     </div>` : ''}
     ${overdue.length ? `<div style="margin-bottom:1.5rem">
       <div style="font-weight:600;font-size:13px;color:#c62828;margin-bottom:8px">⚠ Overdue (${overdue.length})</div>
@@ -4108,6 +4137,147 @@ function crmGroupByDate(items, dateField) {
     return { key, label, items: groups[key] };
   });
 }
+
+function crmRenderMeetings() {
+  const el = document.getElementById('crmMeetingsView');
+  if (!el) return;
+  const now = new Date();
+
+  const personOptions = () => {
+    let opts = '<option value="">— internal / no client —</option>';
+    Object.entries(clients).forEach(([id, c]) => { opts += `<option value="client:${id}">${crmEsc(c.name || 'Unnamed')} (client)</option>`; });
+    Object.entries(prospects).forEach(([id, p]) => { opts += `<option value="prospect:${id}">${crmEsc(p.name)} (prospect)</option>`; });
+    return opts;
+  };
+
+  const header = `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:4px">📅 Schedule a meeting</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Telegram reminder ~30 min before (best-effort — GitHub Actions cron timing can drift by several minutes).</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="crmNewMeetingTitle" placeholder="e.g. FAB call, portfolio review..." onkeydown="if(event.key==='Enter')crmAddMeeting()" style="flex:1;min-width:200px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <select id="crmNewMeetingPerson" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1);max-width:200px">
+          ${personOptions()}
+        </select>
+        <input id="crmNewMeetingDate" type="date" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <input id="crmNewMeetingTime" type="time" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <button onclick="crmAddMeeting()" class="btn-primary" style="font-size:12px;padding:6px 14px">Add</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <button onclick="crmSyncMeetings()" class="btn-secondary" style="font-size:12px;padding:5px 12px">Sync meetings with Telegram reminder</button>
+      <span id="crmMeetingSyncStatus" style="font-size:12px;color:var(--text3);margin-left:8px;align-self:center"></span>
+    </div>`;
+
+  const upcoming = meetings.filter(m => !m.cancelled && new Date(`${m.date}T${m.time || '00:00'}`) >= new Date(now.toDateString()))
+    .sort((a, b) => new Date(`${a.date}T${a.time||'00:00'}`) - new Date(`${b.date}T${b.time||'00:00'}`));
+  const past = meetings.filter(m => m.cancelled || new Date(`${m.date}T${m.time || '00:00'}`) < new Date(now.toDateString()));
+
+  if (!meetings.length) {
+    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No meetings scheduled yet.</div>';
+    return;
+  }
+
+  const row = m => {
+    const dt = new Date(`${m.date}T${m.time || '00:00'}`);
+    const isPast = dt < now;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(m.cancelled||isPast)?'opacity:0.5':''}">
+      <span style="font-size:14px">📅</span>
+      <div style="flex:1;min-width:0">
+        <span style="font-size:13px;font-weight:600;color:var(--text1)">${crmEsc(m.title)}</span>
+        ${m.personName ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">with ${crmEsc(m.personName)}</span>` : ''}
+        ${m.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
+      </div>
+      <span style="font-size:12px;color:var(--text2);white-space:nowrap">${crmFmtDate(m.date)} ${m.time || ''}</span>
+      ${m.cancelled ? '' : `<button onclick="crmCancelMeeting('${m.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>`}
+      <button onclick="crmDeleteMeeting('${m.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+    </div>`;
+  };
+
+  el.innerHTML = header + `
+    <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Upcoming (${upcoming.length})</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">
+      ${upcoming.length ? upcoming.map(row).join('') : '<div style="font-size:12px;color:var(--text3)">Nothing upcoming.</div>'}
+    </div>
+    ${past.length ? `<div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Past / cancelled</div>
+    <div style="display:flex;flex-direction:column;gap:6px">${past.map(row).join('')}</div>` : ''}`;
+}
+
+window.crmAddMeeting = function() {
+  const titleEl = document.getElementById('crmNewMeetingTitle');
+  const personEl = document.getElementById('crmNewMeetingPerson');
+  const dateEl = document.getElementById('crmNewMeetingDate');
+  const timeEl = document.getElementById('crmNewMeetingTime');
+  const title = titleEl.value.trim();
+  if (!title) { titleEl.style.borderColor = '#c62828'; titleEl.focus(); return; }
+  if (!dateEl.value) { dateEl.style.borderColor = '#c62828'; dateEl.focus(); return; }
+  titleEl.style.borderColor = ''; dateEl.style.borderColor = '';
+
+  let personName = null;
+  if (personEl.value) {
+    const [ptype, pid] = personEl.value.split(':');
+    personName = ptype === 'client' ? (clients[pid]?.name || null) : (prospects[pid]?.name || null);
+  }
+
+  meetings.push({
+    id: 'mt_' + Date.now(), title, personName, date: dateEl.value, time: timeEl.value || null,
+    cancelled: false, reminded: false, updatedAt: new Date().toISOString(),
+  });
+  saveMeetingsToStorage();
+  titleEl.value = ''; dateEl.value = ''; timeEl.value = ''; personEl.value = '';
+  crmRenderMeetings();
+  crmSyncMeetings(); // auto-sync so the reminder workflow sees it as soon as possible
+};
+window.crmCancelMeeting = function(id) {
+  const m = meetings.find(x => x.id === id); if (!m) return;
+  m.cancelled = true;
+  saveMeetingsToStorage();
+  crmRenderMeetings();
+  crmSyncMeetings();
+};
+window.crmDeleteMeeting = function(id) {
+  meetings = meetings.filter(x => x.id !== id);
+  saveMeetingsToStorage();
+  crmRenderMeetings();
+  crmSyncMeetings();
+};
+
+window.crmSyncMeetings = async function() {
+  const token = (document.getElementById('crmGhToken')?.value || localStorage.getItem('suitability-crm-gh-token') || '').trim();
+  const statusEl = document.getElementById('crmMeetingSyncStatus');
+  if (!token) { if (statusEl) statusEl.textContent = 'Add a GitHub token in Settings first.'; return; }
+  if (statusEl) statusEl.textContent = 'Syncing...';
+  const REPO = 'nickolaiklimoff/suitability-letter';
+  const PATH = 'meetings.json';
+  try {
+    let sha = null, remote = [];
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) {
+      const d = await getResp.json();
+      sha = d.sha;
+      remote = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    }
+    // Merge by id: local is the source of truth for content, but preserve the
+    // remote "reminded" flag so an already-sent reminder isn't accidentally
+    // reset (which would cause a duplicate Telegram message).
+    const remoteById = {}; remote.forEach(m => { remoteById[m.id] = m; });
+    const merged = meetings.map(m => ({ ...m, reminded: m.reminded || (remoteById[m.id]?.reminded || false) }));
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2))));
+    const putResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: sync meetings (${merged.length} entries)`, content, sha: sha || undefined, branch: 'main' })
+    });
+    if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
+    if (statusEl) { statusEl.textContent = `✓ Synced ${merged.length} meetings`; statusEl.style.color = '#3b6d11'; }
+  } catch (e) {
+    console.error('crmSyncMeetings failed', e);
+    if (statusEl) { statusEl.textContent = 'Sync failed: ' + e.message; statusEl.style.color = '#c62828'; }
+  }
+};
 
 function crmRenderBizTasks() {
   const el = document.getElementById('crmBizTasksView');
@@ -4274,7 +4444,7 @@ function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
   if (!el) return;
   const todayStr = new Date().toISOString().slice(0, 10);
-  let items = crmAllTasks().filter(i => i.kind === 'task' && i.personType === 'client');
+  let items = crmAllTasks().filter(i => (i.kind === 'task' && i.personType === 'client') || i.kind === 'biztask');
   if (!crmShowCompletedTasks) items = items.filter(i => !i.done && !i.cancelled);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
@@ -4282,17 +4452,20 @@ function crmRenderTasks() {
   });
 
   const renderRow = it => {
+    const isBiz = it.kind === 'biztask';
+    const toggleDone = isBiz ? `crmToggleBizTaskDone('${it.taskId}')` : `crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')`;
+    const toggleCancel = isBiz ? `crmToggleBizTaskCancel('${it.taskId}')` : `crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')`;
+    const openClick = isBiz ? `crmOpen();crmSwitchTab('biztasks')` : `crmOpenDetail('${it.personType}','${it.personId}','${it.taskId}')`;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(it.done||it.cancelled)?'opacity:0.5':''}">
-      <input type="checkbox" ${it.done?'checked':''} onchange="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')">
+      <input type="checkbox" ${it.done?'checked':''} onchange="${toggleDone}">
       <span style="font-size:14px">${crmUrgencyIcon(it.urgency)}</span>
-      <div style="flex:1;min-width:0;cursor:pointer" onclick="crmOpenDetail('${it.personType}','${it.personId}','${it.taskId}')">
-        <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
-        <span style="color:var(--text3);font-size:12px"> — </span>
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="${openClick}">
+        ${isBiz ? '' : `<span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span><span style="color:var(--text3);font-size:12px"> — </span>`}
         <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
         ${it.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
       </div>
-      <button onclick="crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.done?'#eaf5ea':'var(--bg2)'};color:${it.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.done?'Undone':'Done'}</button>
-      <button onclick="crmCancelTaskFromList('${it.personType}','${it.personId}','${it.taskId}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.cancelled?'#fdecea':'var(--bg2)'};color:${it.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.cancelled?'Uncancel':'Cancel'}</button>
+      <button onclick="${toggleDone}" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.done?'#eaf5ea':'var(--bg2)'};color:${it.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.done?'Undone':'Done'}</button>
+      <button onclick="${toggleCancel}" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.cancelled?'#fdecea':'var(--bg2)'};color:${it.cancelled?'#c62828':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.cancelled?'Uncancel':'Cancel'}</button>
     </div>`;
   };
 
