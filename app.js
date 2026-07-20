@@ -4385,13 +4385,13 @@ window.crmEditBizTaskText = function(id, val) {
   const text = val.trim(); if (!text) return;
   t.text = text; t.updatedAt = new Date().toISOString();
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 window.crmEditBizTaskDue = function(id, val) {
   const t = businessTasks.find(x => x.id === id); if (!t) return;
   t.due = val || null; t.updatedAt = new Date().toISOString();
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 window.crmAddBizTask = function() {
   const textEl = document.getElementById('crmNewBizTaskText');
@@ -4407,7 +4407,7 @@ window.crmAddBizTask = function() {
   });
   saveBusinessTasksToStorage();
   textEl.value = ''; dueEl.value = '';
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 
 window.crmAddBizSubtask = function(parentId) {
@@ -4423,14 +4423,14 @@ window.crmAddBizSubtask = function(parentId) {
   });
   t.updatedAt = new Date().toISOString();
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 
 window.crmDeleteBizSubtask = function(parentId, subId) {
   const t = businessTasks.find(x => x.id === parentId); if (!t) return;
   t.subtasks = (t.subtasks || []).filter(s => s.id !== subId);
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 
 // Both parent tasks and sub-tasks flow through here — a compound id
@@ -4447,7 +4447,7 @@ window.crmToggleBizTaskDone = function(id) {
     t.done = !t.done; if (t.done) t.cancelled = false;
   }
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 window.crmToggleBizTaskCancel = function(id) {
   if (id.includes('::')) {
@@ -4460,12 +4460,12 @@ window.crmToggleBizTaskCancel = function(id) {
     t.cancelled = !t.cancelled; if (t.cancelled) t.done = false;
   }
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 window.crmDeleteBizTask = function(id) {
   businessTasks = businessTasks.filter(x => x.id !== id);
   saveBusinessTasksToStorage();
-  crmRenderBizTasks();
+  crmRefreshActiveView();
 };
 
 function crmRenderTasks() {
