@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadProspects();
   await loadBusinessTasks();
   await loadMeetings();
+  await loadLegalPipeline();
   updateStorageHealthBar();
   renderClientList();
   buildProfileForm();
@@ -3879,6 +3880,7 @@ window.macroClose = function() {
 
 let prospects = {};
 let crmCurrentTab = 'today';
+let crmKateSubTab = 'tasks';
 let crmDetailPersonRef = null; // {type:'client'|'prospect', id}
 const CRM_STAGES = ['Prospecting', 'Meeting', 'Proposal', 'Client'];
 
@@ -3934,6 +3936,25 @@ function saveMeetingsToStorage() {
   idbSet('crm-meetings', meetings).catch(err => {
     console.error('Failed to save meetings', err);
     alert('⚠️ Failed to save meetings — browser storage is full.\n\n' + err.message);
+  });
+}
+
+let legalPipeline = [];
+
+async function loadLegalPipeline() {
+  try {
+    const fromIdb = await idbGet('crm-legal-pipeline');
+    if (fromIdb) { legalPipeline = fromIdb; return; }
+  } catch (e) {
+    console.error('Failed to load legal pipeline', e);
+  }
+  legalPipeline = [];
+}
+
+function saveLegalPipelineToStorage() {
+  idbSet('crm-legal-pipeline', legalPipeline).catch(err => {
+    console.error('Failed to save legal pipeline', err);
+    alert('⚠️ Failed to save legal pipeline — browser storage is full.\n\n' + err.message);
   });
 }
 
@@ -4855,6 +4876,19 @@ function crmCollectKateTasks() {
 function crmRenderKateTab() {
   const el = document.getElementById('crmKateView');
   if (!el) return;
+
+  const subNav = `
+    <div style="display:flex;gap:4px;margin-bottom:1.25rem">
+      <button onclick="crmKateSubTab='tasks';crmRenderKateTab()" style="font-size:12px;padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:${crmKateSubTab==='tasks'?'var(--blue)':'var(--bg2)'};color:${crmKateSubTab==='tasks'?'#fff':'var(--text2)'};font-weight:600">Assigned Tasks</button>
+      <button onclick="crmKateSubTab='pipeline';crmRenderKateTab()" style="font-size:12px;padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:${crmKateSubTab==='pipeline'?'var(--blue)':'var(--bg2)'};color:${crmKateSubTab==='pipeline'?'#fff':'var(--text2)'};font-weight:600">Legal Pipeline</button>
+    </div>`;
+
+  if (crmKateSubTab === 'pipeline') {
+    el.innerHTML = subNav;
+    crmRenderLegalPipeline();
+    return;
+  }
+
   let items = crmCollectKateTasks();
   const showDone = crmShowCompletedTasks;
   if (!showDone) items = items.filter(t => !t.done && !t.cancelled);
@@ -4863,7 +4897,7 @@ function crmRenderKateTab() {
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
   });
 
-  const header = `
+  const header = subNav + `
     <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div style="font-size:12px;color:var(--text3)">${items.length} task${items.length===1?'':'s'} assigned to Kate</div>
       <div>
@@ -4909,6 +4943,176 @@ function crmRenderKateTab() {
       </div>
     </div>`).join('');
 }
+
+const LEGAL_PIPELINE_STAGES = ['Prospecting', 'Meeting', 'Proposal', 'Client'];
+
+function crmRenderLegalPipeline() {
+  const el = document.getElementById('crmKateView');
+  if (!el) return;
+
+  const personOptions = () => {
+    let opts = '<option value="">— new name (not an existing client/prospect) —</option>';
+    Object.entries(clients).forEach(([id, c]) => { opts += `<option value="client:${id}:${crmEsc(c.name||'Unnamed')}">${crmEsc(c.name || 'Unnamed')} (client)</option>`; });
+    Object.entries(prospects).forEach(([id, p]) => { opts += `<option value="prospect:${id}:${crmEsc(p.name)}">${crmEsc(p.name)} (prospect)</option>`; });
+    return opts;
+  };
+
+  const formHtml = `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
+      <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">⚖️ Add to Kate's legal cross-sell pipeline</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="crmNewLegalPersonSel" onchange="const v=this.value.split(':'); if(v.length>=3) document.getElementById('crmNewLegalName').value=v.slice(2).join(':');" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1);max-width:220px">
+          ${personOptions()}
+        </select>
+        <input id="crmNewLegalName" placeholder="Name (or override above)" style="flex:1;min-width:160px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <input id="crmNewLegalNotes" placeholder="Notes — what product/service..." style="flex:1;min-width:200px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <button onclick="crmAddLegalPipelineEntry()" class="btn-primary" style="font-size:12px;padding:6px 14px">Add</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <button onclick="crmSyncLegalPipeline()" class="btn-secondary" style="font-size:12px;padding:5px 12px">Sync pipeline with Kate</button>
+      <span id="crmLegalSyncStatus" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
+    </div>`;
+
+  if (!legalPipeline.length) {
+    el.innerHTML += formHtml + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">Nothing in the pipeline yet — add a name above, or wait for Kate to add her own.</div>';
+    return;
+  }
+
+  const cardHtml = e => {
+    const stageIdx = LEGAL_PIPELINE_STAGES.indexOf(e.stage);
+    return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:6px">
+        <div style="min-width:0">
+          <span style="font-weight:600;font-size:13px;color:var(--text1)">${crmEsc(e.name)}</span>
+          <span style="font-size:9px;font-weight:600;background:${e.addedBy==='Kate'?'#e6e0f5':'var(--bg2)'};color:${e.addedBy==='Kate'?'#5b3fa3':'var(--text3)'};padding:1px 6px;border-radius:8px;margin-left:4px">added by ${crmEsc(e.addedBy)}</span>
+        </div>
+        <button onclick="crmDeleteLegalPipelineEntry('${e.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
+      </div>
+      ${e.notes ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${crmEsc(e.notes)}</div>` : ''}
+      <div style="display:flex;gap:4px;margin-top:6px">
+        ${stageIdx > 0 ? `<button onclick="crmMoveLegalPipelineStage('${e.id}',-1)" style="font-size:10px;padding:2px 7px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">←</button>` : ''}
+        ${stageIdx < LEGAL_PIPELINE_STAGES.length - 1 ? `<button onclick="crmMoveLegalPipelineStage('${e.id}',1)" style="font-size:10px;padding:2px 7px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">${e.stage==='Proposal'?'✓ Onboard':'→'}</button>` : ''}
+      </div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+        ${(e.comments||[]).map(c => `<div style="font-size:11px;color:var(--text2);margin-bottom:3px"><span style="font-weight:600">${crmEsc(c.author)}:</span> ${crmEsc(c.text)}</div>`).join('') || '<div style="font-size:11px;color:var(--text3)">No comments yet.</div>'}
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <input id="crmLegalComment_${e.id}" placeholder="Comment..." onkeydown="if(event.key==='Enter')crmAddLegalPipelineComment('${e.id}')" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+          <button onclick="crmAddLegalPipelineComment('${e.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer">Add</button>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  const cols = LEGAL_PIPELINE_STAGES.map(stage => {
+    const entries = legalPipeline.filter(e => e.stage === stage);
+    return `<div style="background:var(--bg2);border-radius:8px;padding:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px">${stage} <span style="font-weight:400">(${entries.length})</span></div>
+      ${entries.length ? entries.map(cardHtml).join('') : '<div style="font-size:11px;color:var(--text3);padding:8px 0">Empty</div>'}
+    </div>`;
+  }).join('');
+
+  el.innerHTML += formHtml + `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">${cols}</div>`;
+}
+
+window.crmAddLegalPipelineEntry = function() {
+  const nameEl = document.getElementById('crmNewLegalName');
+  const notesEl = document.getElementById('crmNewLegalNotes');
+  const selEl = document.getElementById('crmNewLegalPersonSel');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.style.borderColor = '#c62828'; nameEl.focus(); return; }
+  nameEl.style.borderColor = '';
+  let sourceType = 'new', sourceId = null;
+  if (selEl.value) { const [t, id] = selEl.value.split(':'); sourceType = t; sourceId = id; }
+  legalPipeline.push({
+    id: 'lp_' + Date.now(), name, notes: notesEl.value.trim(), stage: 'Prospecting',
+    sourceType, sourceId, addedBy: 'Nikolai', comments: [],
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  });
+  saveLegalPipelineToStorage();
+  nameEl.value = ''; notesEl.value = ''; selEl.value = '';
+  crmRenderKateTab();
+  crmSyncLegalPipeline();
+};
+window.crmMoveLegalPipelineStage = function(id, dir) {
+  const e = legalPipeline.find(x => x.id === id); if (!e) return;
+  const idx = LEGAL_PIPELINE_STAGES.indexOf(e.stage);
+  const next = idx + dir;
+  if (next < 0 || next >= LEGAL_PIPELINE_STAGES.length) return;
+  e.stage = LEGAL_PIPELINE_STAGES[next];
+  e.updatedAt = new Date().toISOString();
+  saveLegalPipelineToStorage();
+  crmRenderKateTab();
+  crmSyncLegalPipeline();
+};
+window.crmDeleteLegalPipelineEntry = function(id) {
+  legalPipeline = legalPipeline.filter(x => x.id !== id);
+  saveLegalPipelineToStorage();
+  crmRenderKateTab();
+  crmSyncLegalPipeline();
+};
+window.crmAddLegalPipelineComment = function(id) {
+  const e = legalPipeline.find(x => x.id === id); if (!e) return;
+  const el2 = document.getElementById('crmLegalComment_' + id);
+  const text = el2.value.trim(); if (!text) return;
+  if (!e.comments) e.comments = [];
+  e.comments.push({ id: 'c_' + Date.now(), author: 'Nikolai', text, date: new Date().toISOString() });
+  e.updatedAt = new Date().toISOString();
+  saveLegalPipelineToStorage();
+  crmRenderKateTab();
+  crmSyncLegalPipeline();
+};
+
+window.crmSyncLegalPipeline = async function() {
+  const token = (document.getElementById('crmGhToken')?.value || localStorage.getItem('suitability-crm-gh-token') || '').trim();
+  const statusEl = document.getElementById('crmLegalSyncStatus');
+  if (!token) { if (statusEl) statusEl.textContent = 'Add a GitHub token in Settings first.'; return; }
+  if (statusEl) statusEl.textContent = 'Syncing...';
+  const REPO = 'nickolaiklimoff/suitability-letter';
+  const PATH = 'legal-pipeline.json';
+  try {
+    let sha = null, remote = [];
+    const getResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) {
+      const d = await getResp.json();
+      sha = d.sha;
+      remote = JSON.parse(decodeURIComponent(escape(atob(d.content))));
+    }
+    // Merge by id: newer updatedAt wins on conflicting fields, comments unioned.
+    const byId = {};
+    remote.forEach(e => { byId[e.id] = e; });
+    legalPipeline.forEach(e => {
+      const r = byId[e.id];
+      if (!r) { byId[e.id] = e; return; }
+      const localNewer = new Date(e.updatedAt || 0) >= new Date(r.updatedAt || 0);
+      const merged = localNewer ? { ...r, ...e } : { ...e, ...r };
+      const allComments = [...(e.comments || []), ...(r.comments || [])];
+      const seen = new Set();
+      merged.comments = allComments.filter(c => c.id && !seen.has(c.id) && seen.add(c.id));
+      byId[e.id] = merged;
+    });
+    const deleted = new Set(JSON.parse(localStorage.getItem('suitability-crm-deleted-legal-pipeline') || '[]'));
+    const merged = Object.values(byId).filter(e => !deleted.has(e.id));
+
+    legalPipeline = merged;
+    saveLegalPipelineToStorage();
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2))));
+    const putResp = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `chore: sync legal pipeline (${merged.length} entries)`, content, sha: sha || undefined, branch: 'main' })
+    });
+    if (!putResp.ok) { const err = await putResp.json(); throw new Error(err.message || 'GitHub API error'); }
+    if (statusEl) { statusEl.textContent = `✓ Synced ${merged.length} entries`; statusEl.style.color = '#3b6d11'; }
+    crmRenderKateTab();
+  } catch (e) {
+    console.error('crmSyncLegalPipeline failed', e);
+    if (statusEl) { statusEl.textContent = 'Sync failed: ' + e.message; statusEl.style.color = '#c62828'; }
+  }
+};
 
 // Direct-mutation variants for the Kate tab, which spans multiple clients at
 // once — unlike the in-card task functions, there's no single "open detail"
