@@ -1,0 +1,76 @@
+name: Meeting Reminder
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes — GitHub Actions cron timing is best-effort
+                              # and can drift by several minutes, especially under load.
+  workflow_dispatch: {}       # allows manual "Run workflow" trigger for testing
+
+jobs:
+  check-meetings:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check meetings and notify via Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - << 'PYEOF'
+          import json, datetime, os, urllib.request, urllib.parse
+
+          PATH = 'meetings.json'
+          try:
+              with open(PATH) as f:
+                  meetings = json.load(f)
+          except FileNotFoundError:
+              meetings = []
+
+          now = datetime.datetime.utcnow()
+          # Reminder window: fire once when a meeting is 20-40 minutes away. The
+          # width (not just a single "==30" check) exists because this job runs
+          # every 15 min and GitHub's cron can itself drift — a narrow window
+          # risks skipping the meeting's 30-min mark entirely between runs.
+          WINDOW_MIN, WINDOW_MAX = 20, 40
+
+          token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+          chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+
+          changed = False
+          for m in meetings:
+              if m.get('cancelled') or m.get('reminded') or not m.get('time'):
+                  continue
+              try:
+                  meeting_dt = datetime.datetime.strptime(f"{m['date']} {m['time']}", '%Y-%m-%d %H:%M')
+              except (ValueError, KeyError):
+                  continue
+              minutes_until = (meeting_dt - now).total_seconds() / 60
+              if WINDOW_MIN <= minutes_until <= WINDOW_MAX:
+                  who = f" with {m['personName']}" if m.get('personName') else ''
+                  text = f"🔔 Meeting in ~30 min: {m['title']}{who} at {m['time']}"
+                  if token and chat_id:
+                      url = f'https://api.telegram.org/bot{token}/sendMessage'
+                      data = urllib.parse.urlencode({'chat_id': chat_id, 'text': text}).encode()
+                      urllib.request.urlopen(url, data=data)
+                      print('Sent:', text)
+                  else:
+                      print('Missing TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID — would have sent:', text)
+                  m['reminded'] = True
+                  changed = True
+
+          if changed:
+              with open(PATH, 'w') as f:
+                  json.dump(meetings, f, indent=2)
+              print('meetings.json updated (reminded flags)')
+          else:
+              print('No meetings due for a reminder this run.')
+          PYEOF
+
+      - name: Commit updated reminded-flags (if changed)
+        run: |
+          git config user.name "meeting-reminder-bot"
+          git config user.email "actions@github.com"
+          git diff --quiet meetings.json 2>/dev/null || (git add meetings.json && git commit -m "chore: mark meeting reminders as sent" && git push)
