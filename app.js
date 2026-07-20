@@ -3979,7 +3979,6 @@ function crmRefreshActiveView() {
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
   else if (crmCurrentTab === 'biztasks') crmRenderBizTasks();
-  else if (crmCurrentTab === 'meetings') crmRenderMeetings();
   else if (crmCurrentTab === 'biz') crmRenderBizExpansion();
   else if (crmCurrentTab === 'pipeline') crmRenderPipeline();
   else crmRenderKateTab();
@@ -4010,7 +4009,6 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmTabBizTasks').classList.toggle('active', tab === 'biztasks');
-  document.getElementById('crmTabMeetings').classList.toggle('active', tab === 'meetings');
   document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
   document.getElementById('crmTabPipeline').classList.toggle('active', tab === 'pipeline');
   document.getElementById('crmTabKate').classList.toggle('active', tab === 'kate');
@@ -4019,7 +4017,6 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
   document.getElementById('crmBizTasksView').classList.toggle('hidden', tab !== 'biztasks');
-  document.getElementById('crmMeetingsView').classList.toggle('hidden', tab !== 'meetings');
   document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
   document.getElementById('crmPipelineView').classList.toggle('hidden', tab !== 'pipeline');
   document.getElementById('crmKateView').classList.toggle('hidden', tab !== 'kate');
@@ -4061,7 +4058,7 @@ function crmRenderToday() {
     </div>` : ''}
     ${meetingsToday.length ? `<div style="background:#eaf4fb;border-radius:8px;padding:10px 14px;margin-bottom:1.25rem;font-size:13px">
       <div style="font-weight:600;margin-bottom:4px">📅 Meetings today:</div>
-      ${meetingsToday.map(m => `<div style="cursor:pointer;color:#1a5276" onclick="crmOpen();crmSwitchTab('meetings')"><strong>${m.time || '(no time)'}</strong> — ${crmEsc(m.title)}${m.personName ? ' with ' + crmEsc(m.personName) : ''}</div>`).join('')}
+      ${meetingsToday.map(m => `<div style="cursor:pointer;color:#1a5276" onclick="crmOpen();crmSwitchTab('tasks')"><strong>${m.time || '(no time)'}</strong> — ${crmEsc(m.title)}${m.personName ? ' with ' + crmEsc(m.personName) : ''}</div>`).join('')}
     </div>` : ''}
     ${overdue.length ? `<div style="margin-bottom:1.5rem">
       <div style="font-weight:600;font-size:13px;color:#c62828;margin-bottom:8px">⚠ Overdue (${overdue.length})</div>
@@ -4138,9 +4135,7 @@ function crmGroupByDate(items, dateField) {
   });
 }
 
-function crmRenderMeetings() {
-  const el = document.getElementById('crmMeetingsView');
-  if (!el) return;
+function crmMeetingsHtml() {
   const now = new Date();
 
   const personOptions = () => {
@@ -4174,8 +4169,7 @@ function crmRenderMeetings() {
   const past = meetings.filter(m => m.cancelled || new Date(`${m.date}T${m.time || '00:00'}`) < new Date(now.toDateString()));
 
   if (!meetings.length) {
-    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No meetings scheduled yet.</div>';
-    return;
+    return header + '<div style="color:var(--text3);padding:1.5rem;text-align:center;font-size:13px">No meetings scheduled yet.</div>';
   }
 
   const row = m => {
@@ -4194,13 +4188,13 @@ function crmRenderMeetings() {
     </div>`;
   };
 
-  el.innerHTML = header + `
-    <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Upcoming (${upcoming.length})</div>
+  return header + `
+    <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Upcoming meetings (${upcoming.length})</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">
       ${upcoming.length ? upcoming.map(row).join('') : '<div style="font-size:12px;color:var(--text3)">Nothing upcoming.</div>'}
     </div>
-    ${past.length ? `<div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Past / cancelled</div>
-    <div style="display:flex;flex-direction:column;gap:6px">${past.map(row).join('')}</div>` : ''}`;
+    ${past.length ? `<div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Past / cancelled meetings</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">${past.map(row).join('')}</div>` : ''}`;
 }
 
 window.crmAddMeeting = function() {
@@ -4225,20 +4219,20 @@ window.crmAddMeeting = function() {
   });
   saveMeetingsToStorage();
   titleEl.value = ''; dateEl.value = ''; timeEl.value = ''; personEl.value = '';
-  crmRenderMeetings();
+  crmRenderTasks();
   crmSyncMeetings(); // auto-sync so the reminder workflow sees it as soon as possible
 };
 window.crmCancelMeeting = function(id) {
   const m = meetings.find(x => x.id === id); if (!m) return;
   m.cancelled = true;
   saveMeetingsToStorage();
-  crmRenderMeetings();
+  crmRenderTasks();
   crmSyncMeetings();
 };
 window.crmDeleteMeeting = function(id) {
   meetings = meetings.filter(x => x.id !== id);
   saveMeetingsToStorage();
-  crmRenderMeetings();
+  crmRenderTasks();
   crmSyncMeetings();
 };
 
@@ -4484,20 +4478,22 @@ function crmRenderTasks() {
     </div>`;
   };
 
+  const meetingsBlock = crmMeetingsHtml();
+
   const header = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-    <div style="font-size:12px;color:var(--text3)">${items.length} task${items.length===1?'':'s'}</div>
+    <div style="font-weight:600;font-size:13px;color:var(--text2)">📋 Tasks <span style="font-weight:400;color:var(--text3)">(${items.length})</span></div>
     <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
       <input type="checkbox" ${crmShowCompletedTasks?'checked':''} onchange="crmShowCompletedTasks=this.checked;crmRenderTasks()"> Show completed
     </label>
   </div>`;
 
   if (!items.length) {
-    el.innerHTML = header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>';
+    el.innerHTML = meetingsBlock + header + '<div style="color:var(--text3);padding:2rem;text-align:center;font-size:13px">No tasks — nice and clear.</div>';
     return;
   }
 
   const groups = crmGroupByDate(items, 'due');
-  el.innerHTML = header + groups.map(g => `
+  el.innerHTML = meetingsBlock + header + groups.map(g => `
     <div style="margin-bottom:1.25rem">
       <div style="margin-bottom:8px">${crmDateBadge(g.label)}</div>
       <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(renderRow).join('')}</div>
