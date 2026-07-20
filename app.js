@@ -4950,10 +4950,10 @@ function crmRenderLegalPipeline() {
   const el = document.getElementById('crmKateView');
   if (!el) return;
 
-  const personOptions = () => {
-    let opts = '<option value="">— new name (not an existing client/prospect) —</option>';
-    Object.entries(clients).forEach(([id, c]) => { opts += `<option value="client:${id}:${crmEsc(c.name||'Unnamed')}">${crmEsc(c.name || 'Unnamed')} (client)</option>`; });
-    Object.entries(prospects).forEach(([id, p]) => { opts += `<option value="prospect:${id}:${crmEsc(p.name)}">${crmEsc(p.name)} (prospect)</option>`; });
+  const nameOptionsList = () => {
+    let opts = '';
+    Object.values(clients).forEach(c => { if (c.name) opts += `<option value="${crmEsc(c.name)}">`; });
+    Object.values(prospects).forEach(p => { if (p.name) opts += `<option value="${crmEsc(p.name)}">`; });
     return opts;
   };
 
@@ -4961,10 +4961,8 @@ function crmRenderLegalPipeline() {
     <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:1.25rem">
       <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:10px">⚖️ Add to Kate's legal cross-sell pipeline</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <select id="crmNewLegalPersonSel" onchange="const v=this.value.split(':'); if(v.length>=3) document.getElementById('crmNewLegalName').value=v.slice(2).join(':');" style="font-size:12px;padding:6px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1);max-width:220px">
-          ${personOptions()}
-        </select>
-        <input id="crmNewLegalName" placeholder="Name (or override above)" style="flex:1;min-width:160px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <input id="crmNewLegalName" list="crmLegalNameOptions" placeholder="Name — start typing to match an existing client/prospect" style="flex:1;min-width:220px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <datalist id="crmLegalNameOptions">${nameOptionsList()}</datalist>
         <input id="crmNewLegalNotes" placeholder="Notes — what product/service..." style="flex:1;min-width:200px;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
         <button onclick="crmAddLegalPipelineEntry()" class="btn-primary" style="font-size:12px;padding:6px 14px">Add</button>
       </div>
@@ -5018,19 +5016,21 @@ function crmRenderLegalPipeline() {
 window.crmAddLegalPipelineEntry = function() {
   const nameEl = document.getElementById('crmNewLegalName');
   const notesEl = document.getElementById('crmNewLegalNotes');
-  const selEl = document.getElementById('crmNewLegalPersonSel');
   const name = nameEl.value.trim();
   if (!name) { nameEl.style.borderColor = '#c62828'; nameEl.focus(); return; }
   nameEl.style.borderColor = '';
   let sourceType = 'new', sourceId = null;
-  if (selEl.value) { const [t, id] = selEl.value.split(':'); sourceType = t; sourceId = id; }
+  const clientMatch = Object.entries(clients).find(([, c]) => c.name === name);
+  const prospectMatch = Object.entries(prospects).find(([, p]) => p.name === name);
+  if (clientMatch) { sourceType = 'client'; sourceId = clientMatch[0]; }
+  else if (prospectMatch) { sourceType = 'prospect'; sourceId = prospectMatch[0]; }
   legalPipeline.push({
     id: 'lp_' + Date.now(), name, notes: notesEl.value.trim(), stage: 'Prospecting',
     sourceType, sourceId, addedBy: 'Nikolai', comments: [],
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   });
   saveLegalPipelineToStorage();
-  nameEl.value = ''; notesEl.value = ''; selEl.value = '';
+  nameEl.value = ''; notesEl.value = '';
   crmRenderKateTab();
   crmSyncLegalPipeline();
 };
