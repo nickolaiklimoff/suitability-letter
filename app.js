@@ -4102,10 +4102,17 @@ let crmShowCompletedTasks = false;
 
 function crmDateBadge(label) {
   const isOverdue = label.includes('overdue');
-  const isToday = label === 'Today';
+  const isToday = label.startsWith('Today');
   const bg = isOverdue ? '#fdecea' : isToday ? '#fff3d6' : 'var(--bg2)';
   const color = isOverdue ? '#c62828' : isToday ? '#8a6100' : 'var(--text2)';
-  return `<span style="display:inline-block;font-size:10px;font-weight:700;color:${color};background:${bg};padding:3px 10px;border-radius:10px">${isOverdue?'⚠ ':''}${crmEsc(label)}</span>`;
+  return `<span style="display:inline-block;font-size:11px;font-weight:700;color:${color};background:${bg};padding:4px 12px;border-radius:10px">${isOverdue?'⚠ ':''}${crmEsc(label)}</span>`;
+}
+
+function crmFmtDateFull(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return String(d);
+  return dt.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 function crmGroupByDate(items, dateField) {
@@ -4125,10 +4132,11 @@ function crmGroupByDate(items, dateField) {
   return order.map(key => {
     let label;
     if (key === '__nodate__') label = 'No date';
-    else if (key === todayStr) label = 'Today';
+    else if (key === todayStr) label = `Today — ${crmFmtDateFull(key)}`;
     else {
       const tmrw = new Date(); tmrw.setDate(tmrw.getDate() + 1);
-      label = key === tmrw.toISOString().slice(0, 10) ? 'Tomorrow' : crmFmtDate(key);
+      const isTomorrow = key === tmrw.toISOString().slice(0, 10);
+      label = isTomorrow ? `Tomorrow — ${crmFmtDateFull(key)}` : crmFmtDateFull(key);
       if (key < todayStr) label += ' — overdue';
     }
     return { key, label, items: groups[key] };
@@ -4177,23 +4185,27 @@ function crmMeetingsHtml() {
     const isPast = dt < now;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);${(m.cancelled||isPast)?'opacity:0.5':''}">
       <span style="font-size:14px">📅</span>
+      <span style="font-size:13px;font-weight:700;color:var(--text2);white-space:nowrap">${m.time || '—'}</span>
       <div style="flex:1;min-width:0">
         <span style="font-size:13px;font-weight:600;color:var(--text1)">${crmEsc(m.title)}</span>
         ${m.personName ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">with ${crmEsc(m.personName)}</span>` : ''}
         ${m.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
       </div>
-      <span style="font-size:12px;color:var(--text2);white-space:nowrap">${crmFmtDate(m.date)} ${m.time || ''}</span>
       ${m.cancelled ? '' : `<button onclick="crmCancelMeeting('${m.id}')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Cancel</button>`}
       <button onclick="crmDeleteMeeting('${m.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0">×</button>
     </div>`;
   };
 
+  const upcomingGroups = crmGroupByDate(upcoming, 'date');
+
   return header + `
     <div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Upcoming meetings (${upcoming.length})</div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">
-      ${upcoming.length ? upcoming.map(row).join('') : '<div style="font-size:12px;color:var(--text3)">Nothing upcoming.</div>'}
-    </div>
-    ${past.length ? `<div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px">Past / cancelled meetings</div>
+    ${upcoming.length ? upcomingGroups.map(g => `
+      <div style="margin-bottom:1rem">
+        <div style="margin-bottom:6px">${crmDateBadge(g.label)}</div>
+        <div style="display:flex;flex-direction:column;gap:6px">${g.items.map(row).join('')}</div>
+      </div>`).join('') : '<div style="font-size:12px;color:var(--text3);margin-bottom:1.5rem">Nothing upcoming.</div>'}
+    ${past.length ? `<div style="font-weight:600;font-size:13px;color:var(--text2);margin-bottom:8px;margin-top:0.5rem">Past / cancelled meetings</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem">${past.map(row).join('')}</div>` : ''}`;
 }
 
