@@ -971,7 +971,7 @@ async function buildDepositsSection(depositData, baseCcy) {
       <div class="report-section-title">${depositsOnly ? '2' : '14'}. Cash &amp; Deposits</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:16px;font-style:italic">
         The following cash balances and deposits are held ${depositsOnly ? 'by the client' : 'in addition to the securities portfolio'} and are shown for informational purposes only.
-        ${depositsOnly ? 'No securities portfolio is held — asset allocation analysis is not applicable.' : 'They are excluded from the securities asset-allocation chart, but are included in the Portfolio IRR / MWR calculation (Section 10) as capital that was earning a return while awaiting deployment.'}
+        ${depositsOnly ? 'No securities portfolio is held — asset allocation analysis is not applicable.' : 'They are not included in portfolio allocation or return/risk calculations.'}
       </p>
       ${buildTable(currentAccounts, 'Current Accounts', false)}
       ${buildTable(timeDeposits, 'Time Deposits', true)}
@@ -1009,60 +1009,26 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
   const today = new Date();
   const dwRows = portfolioData.depositWithdrawalRows || [];
 
-  // Live FX rates (base = USD) — needed both for converting non-USD
-  // deposit/withdrawal cashflows below, and for adding Cash & Deposits
-  // balances to the terminal value. Same source/pattern as buildDepositsSection.
-  let FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
-  try {
-    const resp = await fetch('https://open.er-api.com/v6/latest/USD');
-    if (resp.ok) {
-      const data = await resp.json();
-      FX_TO_USD = { USD: 1 };
-      Object.entries(data.rates).forEach(([ccy, rate]) => { FX_TO_USD[ccy] = 1 / rate; });
-    }
-  } catch (e) { /* fallback to hardcoded */ }
-
-  // Full current portfolio value (securities + brokerage cash) PLUS any Cash &
-  // Deposits balances (time deposits / current accounts held while awaiting
-  // deployment) — that money was earning a real return too and is part of the
-  // client's overall MWR, even though it's excluded from the securities
-  // asset-allocation chart. Trades, coupons and redemptions are already
-  // reflected in totalValue, so none of them should be added again.
-  let depositTotal = 0;
-  if (depositData) {
-    const rows = [...(depositData.currentAccounts||[]), ...(depositData.timeDeposits||[])];
-    depositTotal = rows.reduce((s, r) => s + (r.amount||0) * (FX_TO_USD[r.ccy] || 1), 0);
-  }
-  const totalFinalInflow = (portfolioData.totalValue || 0) + depositTotal;
+  // Full current portfolio value (securities + brokerage cash) — the correct
+  // terminal cashflow for MWR. Trades, coupons and redemptions are all
+  // already reflected in this figure, so none of them should be added again
+  // as separate cashflows.
+  const totalFinalInflow = portfolioData.totalValue || 0;
   if (totalFinalInflow <= 0) return '';
 
   let cashflows = [];
   let basisLabel = '';
 
-  if (dwRows.length > 0) {
-    // The deposits/withdrawals sheet gives raw currency-native amounts (no
-    // "Converted value" column from cbonds here, unlike holdings/cash) — a
-    // GBP or EUR deposit must be FX-converted to the reporting currency
-    // (USD) before being used as an IRR cashflow, otherwise (e.g.) a
-    // GBP 211,000 deposit is silently treated as $211,000, understating
-    // total invested and overstating IRR.
-    // Correct methodology: only genuine external capital movements count.
-    // Buy/sell trades funded from cash already inside the account (e.g. rotating
-    // a matured bond's proceeds into stocks) are internal and must NOT be
-    // treated as client deposits/withdrawals — doing so inflates IRR.
-    cashflows = dwRows.map(r => {
-      const date = r[1] ? new Date(r[1]) : null;
-      const dir  = String(r[0]||'').trim().toLowerCase();
-      const ccy  = String(r[3]||'USD').trim().toUpperCase();
-      const rawAmount = parseFloat(r[4]) || 0;
-      const amount = rawAmount * (FX_TO_USD[ccy] || 1);
-      if (!date || !amount) return null;
-      return { date, amount: dir === 'deposit' ? -Math.abs(amount) : Math.abs(amount) };
-    }).filter(Boolean);
-    basisLabel = `<strong>${dwRows.length}</strong> deposit/withdrawal event${dwRows.length===1?'':'s'}`;
-  } else if (tradeRows && tradeRows.length > 0) {
-    // Fallback for exports without a deposits/withdrawals sheet — approximates
-    // using trade cashflows (may overstate IRR if trades are internal rotations).
+  if (tradeRows && tradeRows.length > 0) {
+    // Methodology: cashflow timing = purchase/sale date of each security, not
+    // the date capital was deposited. This deliberately treats each tranche
+    // as if it "arrived" only when actually invested, ignoring any period the
+    // cash sat waiting to be deployed (e.g. earning deposit interest) — a
+    // conscious choice to measure the return purely on the securities
+    // selections and their timing, not the client's broader money-weighted
+    // experience. Note: this can overstate IRR if a trade is really an
+    // internal rotation (e.g. reinvesting matured-bond proceeds) rather than
+    // fresh external capital, since both look identical here.
     const cfByDate = {};
     tradeRows.forEach(r => {
       const date = r[0] ? new Date(r[0]) : null;
@@ -1077,7 +1043,29 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
       cfByDate[key] = (cfByDate[key] || 0) + cf;
     });
     cashflows = Object.entries(cfByDate).map(([d, amount]) => ({ date: new Date(d), amount }));
-    basisLabel = `<strong>${Object.keys(cfByDate).length}</strong> trade dates (approximate — no deposit ledger found)`;
+    basisLabel = `<strong>${Object.keys(cfByDate).length}</strong> trade dates`;
+  } else if (dwRows.length > 0) {
+    // Fallback for exports without a trade ledger — uses deposit/withdrawal
+    // dates instead, FX-converted to the reporting currency.
+    let FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+    try {
+      const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+      if (resp.ok) {
+        const data = await resp.json();
+        FX_TO_USD = { USD: 1 };
+        Object.entries(data.rates).forEach(([ccy, rate]) => { FX_TO_USD[ccy] = 1 / rate; });
+      }
+    } catch (e) { /* fallback to hardcoded */ }
+    cashflows = dwRows.map(r => {
+      const date = r[1] ? new Date(r[1]) : null;
+      const dir  = String(r[0]||'').trim().toLowerCase();
+      const ccy  = String(r[3]||'USD').trim().toUpperCase();
+      const rawAmount = parseFloat(r[4]) || 0;
+      const amount = rawAmount * (FX_TO_USD[ccy] || 1);
+      if (!date || !amount) return null;
+      return { date, amount: dir === 'deposit' ? -Math.abs(amount) : Math.abs(amount) };
+    }).filter(Boolean);
+    basisLabel = `<strong>${dwRows.length}</strong> deposit/withdrawal event${dwRows.length===1?'':'s'} (approximate — no trade ledger found)`;
   } else {
     return '';
   }
@@ -1109,7 +1097,6 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
           Based on ${basisLabel},
           total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>,
           income received (coupons/dividends, already reflected in current value) <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
-          ${depositTotal > 0 ? `Includes <strong>${fmtUSD(Math.round(depositTotal))}</strong> held in Cash &amp; Deposits (Section ${portfolioData.depositsOnly ? '2' : '14'}) while awaiting deployment.` : ''}
         </div>
       </div>
     </div>`;
@@ -2181,12 +2168,23 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     if ((portfolioData.depositWithdrawalRows?.length > 0) || (portfolioData.tradeRows?.length > 0)) {
       const _today = new Date();
       let _cfs = [];
-      let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
-      if (portfolioData.depositWithdrawalRows?.length > 0) {
-        // Correct: only genuine external capital movements (see buildIRRSection).
-        // Same FX-conversion fix as buildIRRSection — the deposits/withdrawals
-        // sheet has no pre-converted value column, so non-USD amounts must be
-        // converted here too, or they're silently treated as 1:1 USD.
+      if (portfolioData.tradeRows?.length > 0) {
+        // Methodology: cashflow timing = trade date, not deposit date — see
+        // buildIRRSection for the full rationale. Deliberately ignores any
+        // period cash sat waiting to be deployed.
+        const _cfByDate = {};
+        portfolioData.tradeRows.forEach(r => {
+          const _date = r[0] ? new Date(r[0]) : null;
+          const _dir = String(r[2]||'').trim().toLowerCase();
+          const _val = parseFloat(r[12]) || parseFloat(r[15]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
+          if (!_date || !_val || isNaN(_val)) return;
+          const _key = _date.toISOString().slice(0,10);
+          _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
+        });
+        _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v}));
+      } else if (portfolioData.depositWithdrawalRows?.length > 0) {
+        // Fallback for exports without a trade ledger — deposit dates, FX-converted.
+        let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
         try {
           const _resp = await fetch('https://open.er-api.com/v6/latest/USD');
           if (_resp.ok) {
@@ -2204,33 +2202,12 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           if (!_date || !_amt) return null;
           return { date: _date, amount: _dir === 'deposit' ? -Math.abs(_amt) : Math.abs(_amt) };
         }).filter(Boolean);
-      } else {
-        // Fallback approximation for exports without a deposit ledger.
-        const _cfByDate = {};
-        portfolioData.tradeRows.forEach(r => {
-          const _date = r[0] ? new Date(r[0]) : null;
-          const _dir = String(r[2]||'').trim().toLowerCase();
-          const _val = parseFloat(r[12]) || parseFloat(r[15]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
-          if (!_date || !_val || isNaN(_val)) return;
-          const _key = _date.toISOString().slice(0,10);
-          _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
-        });
-        _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v}));
       }
       _cfs.sort((a,b) => a.date - b.date);
-      // Terminal cashflow = full current portfolio value (securities + brokerage
-      // cash) PLUS any Cash & Deposits balances (time deposits / current accounts
-      // held elsewhere while awaiting deployment) — that money was earning a
-      // real return too and is part of the client's overall MWR, even though it
-      // doesn't appear in the securities asset-allocation chart. Trades, coupons
-      // and redemptions are already reflected in totalValue — adding them again
-      // would double-count internal cash movements.
-      let _depositTotal = 0;
-      if (depositData) {
-        const _rows = [...(depositData.currentAccounts||[]), ...(depositData.timeDeposits||[])];
-        _depositTotal = _rows.reduce((s, r) => s + (r.amount||0) * (_FX_TO_USD[r.ccy] || 1), 0);
-      }
-      const _totalCV = (portfolioData.totalValue || 0) + _depositTotal;
+      // Terminal cashflow = full current portfolio value (securities + cash).
+      // Trades, coupons and redemptions are already reflected in this figure —
+      // adding them again would double-count internal cash movements.
+      const _totalCV = portfolioData.totalValue || 0;
       if (_totalCV > 0 && _cfs.length > 0) {
         _cfs.push({date:_today, amount:_totalCV});
         const _irr = computeIRR(_cfs);
