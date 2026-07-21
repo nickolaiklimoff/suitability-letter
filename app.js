@@ -4195,11 +4195,12 @@ function crmMeetingRowHtml(m) {
   const now = new Date();
   const dt = new Date(`${m.date}T${m.time || '00:00'}`);
   const isPast = dt < now;
-  return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #b8d4ea;border-radius:8px;background:#eaf4fb;${(m.cancelled||isPast)?'opacity:0.5':''}">
+  return `<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #b8d4ea;border-radius:8px;background:#eaf4fb;${(m.cancelled||isPast)?'opacity:0.5':''}">
     <span style="font-size:14px">📅</span>
-    <span style="font-size:13px;font-weight:700;color:var(--text2);white-space:nowrap">${m.time || '—'}</span>
+    <input type="date" value="${m.date||''}" onchange="crmEditMeetingDate('${m.id}',this.value)" style="font-size:11px;font-weight:700;color:var(--text2);border:none;background:transparent;padding:1px 2px;width:fit-content">
+    <input type="time" value="${m.time||''}" onchange="crmEditMeetingTime('${m.id}',this.value)" style="font-size:13px;font-weight:700;color:var(--text2);border:none;background:transparent;padding:1px 2px;width:fit-content">
     <div style="flex:1;min-width:0">
-      <span style="font-size:13px;font-weight:600;color:var(--text1)">${crmEsc(m.title)}</span>
+      <input value="${crmEsc(m.title)}" onchange="crmEditMeetingTitle('${m.id}',this.value)" style="font-size:13px;font-weight:600;color:var(--text1);border:none;background:transparent;padding:1px 2px;width:60%;min-width:100px">
       ${m.personName ? `<span style="font-size:11px;color:var(--text3);margin-left:6px">with ${crmEsc(m.personName)}</span>` : ''}
       ${m.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
     </div>
@@ -4240,6 +4241,29 @@ window.crmAddMeeting = function() {
   titleEl.value = ''; dateEl.value = ''; timeEl.value = ''; personEl.value = '';
   crmRenderTasks();
   crmSyncMeetings(); // auto-sync so the reminder workflow sees it as soon as possible
+};
+window.crmEditMeetingDate = function(id, val) {
+  const m = meetings.find(x => x.id === id); if (!m) return;
+  if (!val) return;
+  m.date = val; m.reminded = false; m.updatedAt = new Date().toISOString();
+  saveMeetingsToStorage();
+  crmRefreshActiveView();
+  crmSyncMeetings();
+};
+window.crmEditMeetingTime = function(id, val) {
+  const m = meetings.find(x => x.id === id); if (!m) return;
+  m.time = val || null; m.reminded = false; m.updatedAt = new Date().toISOString();
+  saveMeetingsToStorage();
+  crmRefreshActiveView();
+  crmSyncMeetings();
+};
+window.crmEditMeetingTitle = function(id, val) {
+  const m = meetings.find(x => x.id === id); if (!m) return;
+  const title = val.trim(); if (!title) return;
+  m.title = title; m.updatedAt = new Date().toISOString();
+  saveMeetingsToStorage();
+  crmRefreshActiveView();
+  crmSyncMeetings();
 };
 window.crmCancelMeeting = function(id) {
   const m = meetings.find(x => x.id === id); if (!m) return;
