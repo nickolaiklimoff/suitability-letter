@@ -971,7 +971,7 @@ async function buildDepositsSection(depositData, baseCcy) {
       <div class="report-section-title">${depositsOnly ? '2' : '14'}. Cash &amp; Deposits</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:16px;font-style:italic">
         The following cash balances and deposits are held ${depositsOnly ? 'by the client' : 'in addition to the securities portfolio'} and are shown for informational purposes only.
-        ${depositsOnly ? 'No securities portfolio is held — asset allocation analysis is not applicable.' : 'They are not included in portfolio allocation or risk calculations.'}
+        ${depositsOnly ? 'No securities portfolio is held — asset allocation analysis is not applicable.' : 'They are excluded from the securities asset-allocation chart, but are included in the Portfolio IRR / MWR calculation (Section 10) as capital that was earning a return while awaiting deployment.'}
       </p>
       ${buildTable(currentAccounts, 'Current Accounts', false)}
       ${buildTable(timeDeposits, 'Time Deposits', true)}
@@ -1005,15 +1005,35 @@ function computeIRR(cashflows) {
   return (lo + hi) / 2;
 }
 
-async function buildIRRSection(tradeRows, holdings, portfolioData) {
+async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) {
   const today = new Date();
   const dwRows = portfolioData.depositWithdrawalRows || [];
 
-  // Full current portfolio value (securities + cash) — the correct terminal
-  // cashflow for MWR. Trades, coupons and redemptions are all already reflected
-  // in this figure (they moved money between bonds/stocks/cash within the same
-  // account), so none of them should be added again as separate cashflows.
-  const totalFinalInflow = portfolioData.totalValue || 0;
+  // Live FX rates (base = USD) — needed both for converting non-USD
+  // deposit/withdrawal cashflows below, and for adding Cash & Deposits
+  // balances to the terminal value. Same source/pattern as buildDepositsSection.
+  let FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+  try {
+    const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (resp.ok) {
+      const data = await resp.json();
+      FX_TO_USD = { USD: 1 };
+      Object.entries(data.rates).forEach(([ccy, rate]) => { FX_TO_USD[ccy] = 1 / rate; });
+    }
+  } catch (e) { /* fallback to hardcoded */ }
+
+  // Full current portfolio value (securities + brokerage cash) PLUS any Cash &
+  // Deposits balances (time deposits / current accounts held while awaiting
+  // deployment) — that money was earning a real return too and is part of the
+  // client's overall MWR, even though it's excluded from the securities
+  // asset-allocation chart. Trades, coupons and redemptions are already
+  // reflected in totalValue, so none of them should be added again.
+  let depositTotal = 0;
+  if (depositData) {
+    const rows = [...(depositData.currentAccounts||[]), ...(depositData.timeDeposits||[])];
+    depositTotal = rows.reduce((s, r) => s + (r.amount||0) * (FX_TO_USD[r.ccy] || 1), 0);
+  }
+  const totalFinalInflow = (portfolioData.totalValue || 0) + depositTotal;
   if (totalFinalInflow <= 0) return '';
 
   let cashflows = [];
@@ -1025,20 +1045,7 @@ async function buildIRRSection(tradeRows, holdings, portfolioData) {
     // GBP or EUR deposit must be FX-converted to the reporting currency
     // (USD) before being used as an IRR cashflow, otherwise (e.g.) a
     // GBP 211,000 deposit is silently treated as $211,000, understating
-    // total invested and overstating IRR. Same live-rate source/pattern as
-    // buildDepositsSection (no historical-rate API available client-side,
-    // so this is a current-rate approximation, consistent with the rest of
-    // the app's FX handling).
-    let FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
-    try {
-      const resp = await fetch('https://open.er-api.com/v6/latest/USD');
-      if (resp.ok) {
-        const data = await resp.json();
-        FX_TO_USD = { USD: 1 };
-        Object.entries(data.rates).forEach(([ccy, rate]) => { FX_TO_USD[ccy] = 1 / rate; });
-      }
-    } catch (e) { /* fallback to hardcoded */ }
-
+    // total invested and overstating IRR.
     // Correct methodology: only genuine external capital movements count.
     // Buy/sell trades funded from cash already inside the account (e.g. rotating
     // a matured bond's proceeds into stocks) are internal and must NOT be
@@ -1102,6 +1109,7 @@ async function buildIRRSection(tradeRows, holdings, portfolioData) {
           Based on ${basisLabel},
           total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>,
           income received (coupons/dividends, already reflected in current value) <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
+          ${depositTotal > 0 ? `Includes <strong>${fmtUSD(Math.round(depositTotal))}</strong> held in Cash &amp; Deposits (Section ${portfolioData.depositsOnly ? '2' : '14'}) while awaiting deployment.` : ''}
         </div>
       </div>
     </div>`;
@@ -1610,8 +1618,8 @@ function computeRiskContribution(positions, assetRetsMap, portfolioData, EUR_USD
 }
 
 // ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
-async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, portfolioData) {
-  const irrHtml = (tradeRows && portfolioData) ? await buildIRRSection(tradeRows, [], portfolioData) : '';
+async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, portfolioData, depositData) {
+  const irrHtml = (tradeRows && portfolioData) ? await buildIRRSection(tradeRows, [], portfolioData, depositData) : '';
   const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
   const pct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + '%';
   const fmt = v => sym + Math.round(Math.abs(v)).toLocaleString('en-US');
@@ -2173,12 +2181,12 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     if ((portfolioData.depositWithdrawalRows?.length > 0) || (portfolioData.tradeRows?.length > 0)) {
       const _today = new Date();
       let _cfs = [];
+      let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
       if (portfolioData.depositWithdrawalRows?.length > 0) {
         // Correct: only genuine external capital movements (see buildIRRSection).
         // Same FX-conversion fix as buildIRRSection — the deposits/withdrawals
         // sheet has no pre-converted value column, so non-USD amounts must be
         // converted here too, or they're silently treated as 1:1 USD.
-        let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
         try {
           const _resp = await fetch('https://open.er-api.com/v6/latest/USD');
           if (_resp.ok) {
@@ -2209,11 +2217,20 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         });
         _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v}));
       }
-      _cfs.sort((a,b)=>a.date-b.date);
-      // Terminal cashflow = full current portfolio value (securities + cash).
-      // Trades, coupons and redemptions are already reflected in this figure —
-      // adding them again would double-count internal cash movements.
-      const _totalCV = portfolioData.totalValue || 0;
+      _cfs.sort((a,b) => a.date - b.date);
+      // Terminal cashflow = full current portfolio value (securities + brokerage
+      // cash) PLUS any Cash & Deposits balances (time deposits / current accounts
+      // held elsewhere while awaiting deployment) — that money was earning a
+      // real return too and is part of the client's overall MWR, even though it
+      // doesn't appear in the securities asset-allocation chart. Trades, coupons
+      // and redemptions are already reflected in totalValue — adding them again
+      // would double-count internal cash movements.
+      let _depositTotal = 0;
+      if (depositData) {
+        const _rows = [...(depositData.currentAccounts||[]), ...(depositData.timeDeposits||[])];
+        _depositTotal = _rows.reduce((s, r) => s + (r.amount||0) * (_FX_TO_USD[r.ccy] || 1), 0);
+      }
+      const _totalCV = (portfolioData.totalValue || 0) + _depositTotal;
       if (_totalCV > 0 && _cfs.length > 0) {
         _cfs.push({date:_today, amount:_totalCV});
         const _irr = computeIRR(_cfs);
@@ -2222,7 +2239,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     }
     const realSharpe = a.vol > 0 ? (annRealReturn - rf2) / a.vol : a.sharpe;
     const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
-    analyticsHtml = await buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData);
+    analyticsHtml = await buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData, depositData);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
     }
