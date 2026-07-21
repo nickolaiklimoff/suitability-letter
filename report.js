@@ -1005,7 +1005,7 @@ function computeIRR(cashflows) {
   return (lo + hi) / 2;
 }
 
-function buildIRRSection(tradeRows, holdings, portfolioData) {
+async function buildIRRSection(tradeRows, holdings, portfolioData) {
   const today = new Date();
   const dwRows = portfolioData.depositWithdrawalRows || [];
 
@@ -1020,6 +1020,25 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
   let basisLabel = '';
 
   if (dwRows.length > 0) {
+    // The deposits/withdrawals sheet gives raw currency-native amounts (no
+    // "Converted value" column from cbonds here, unlike holdings/cash) — a
+    // GBP or EUR deposit must be FX-converted to the reporting currency
+    // (USD) before being used as an IRR cashflow, otherwise (e.g.) a
+    // GBP 211,000 deposit is silently treated as $211,000, understating
+    // total invested and overstating IRR. Same live-rate source/pattern as
+    // buildDepositsSection (no historical-rate API available client-side,
+    // so this is a current-rate approximation, consistent with the rest of
+    // the app's FX handling).
+    let FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+    try {
+      const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+      if (resp.ok) {
+        const data = await resp.json();
+        FX_TO_USD = { USD: 1 };
+        Object.entries(data.rates).forEach(([ccy, rate]) => { FX_TO_USD[ccy] = 1 / rate; });
+      }
+    } catch (e) { /* fallback to hardcoded */ }
+
     // Correct methodology: only genuine external capital movements count.
     // Buy/sell trades funded from cash already inside the account (e.g. rotating
     // a matured bond's proceeds into stocks) are internal and must NOT be
@@ -1027,7 +1046,9 @@ function buildIRRSection(tradeRows, holdings, portfolioData) {
     cashflows = dwRows.map(r => {
       const date = r[1] ? new Date(r[1]) : null;
       const dir  = String(r[0]||'').trim().toLowerCase();
-      const amount = parseFloat(r[4]) || 0;
+      const ccy  = String(r[3]||'USD').trim().toUpperCase();
+      const rawAmount = parseFloat(r[4]) || 0;
+      const amount = rawAmount * (FX_TO_USD[ccy] || 1);
       if (!date || !amount) return null;
       return { date, amount: dir === 'deposit' ? -Math.abs(amount) : Math.abs(amount) };
     }).filter(Boolean);
@@ -1589,7 +1610,8 @@ function computeRiskContribution(positions, assetRetsMap, portfolioData, EUR_USD
 }
 
 // ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
-function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, portfolioData) {
+async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, portfolioData) {
+  const irrHtml = (tradeRows && portfolioData) ? await buildIRRSection(tradeRows, [], portfolioData) : '';
   const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
   const pct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + '%';
   const fmt = v => sym + Math.round(Math.abs(v)).toLocaleString('en-US');
@@ -1659,7 +1681,7 @@ function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, port
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
-      ${tradeRows && portfolioData ? buildIRRSection(tradeRows, [], portfolioData) : ''}
+      ${irrHtml}
 
     </div>`;
 }
@@ -2153,10 +2175,24 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       let _cfs = [];
       if (portfolioData.depositWithdrawalRows?.length > 0) {
         // Correct: only genuine external capital movements (see buildIRRSection).
+        // Same FX-conversion fix as buildIRRSection — the deposits/withdrawals
+        // sheet has no pre-converted value column, so non-USD amounts must be
+        // converted here too, or they're silently treated as 1:1 USD.
+        let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+        try {
+          const _resp = await fetch('https://open.er-api.com/v6/latest/USD');
+          if (_resp.ok) {
+            const _data = await _resp.json();
+            _FX_TO_USD = { USD: 1 };
+            Object.entries(_data.rates).forEach(([_ccy, _rate]) => { _FX_TO_USD[_ccy] = 1 / _rate; });
+          }
+        } catch (e) { /* fallback to hardcoded */ }
         _cfs = portfolioData.depositWithdrawalRows.map(r => {
           const _date = r[1] ? new Date(r[1]) : null;
           const _dir  = String(r[0]||'').trim().toLowerCase();
-          const _amt  = parseFloat(r[4]) || 0;
+          const _ccy  = String(r[3]||'USD').trim().toUpperCase();
+          const _rawAmt = parseFloat(r[4]) || 0;
+          const _amt  = _rawAmt * (_FX_TO_USD[_ccy] || 1);
           if (!_date || !_amt) return null;
           return { date: _date, amount: _dir === 'deposit' ? -Math.abs(_amt) : Math.abs(_amt) };
         }).filter(Boolean);
@@ -2186,7 +2222,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     }
     const realSharpe = a.vol > 0 ? (annRealReturn - rf2) / a.vol : a.sharpe;
     const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
-    analyticsHtml = buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData);
+    analyticsHtml = await buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
     }
