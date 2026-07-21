@@ -4000,7 +4000,6 @@ function crmRefreshActiveView() {
   else if (crmCurrentTab === 'prospects') crmRenderProspects();
   else if (crmCurrentTab === 'tasks') crmRenderTasks();
   else if (crmCurrentTab === 'biztasks') crmRenderBizTasks();
-  else if (crmCurrentTab === 'biz') crmRenderBizExpansion();
   else if (crmCurrentTab === 'pipeline') crmRenderPipeline();
   else crmRenderKateTab();
 }
@@ -4030,7 +4029,6 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmTabProspects').classList.toggle('active', tab === 'prospects');
   document.getElementById('crmTabTasks').classList.toggle('active', tab === 'tasks');
   document.getElementById('crmTabBizTasks').classList.toggle('active', tab === 'biztasks');
-  document.getElementById('crmTabBiz').classList.toggle('active', tab === 'biz');
   document.getElementById('crmTabPipeline').classList.toggle('active', tab === 'pipeline');
   document.getElementById('crmTabKate').classList.toggle('active', tab === 'kate');
   document.getElementById('crmTodayView').classList.toggle('hidden', tab !== 'today');
@@ -4038,7 +4036,6 @@ window.crmSwitchTab = function(tab) {
   document.getElementById('crmProspectsView').classList.toggle('hidden', tab !== 'prospects');
   document.getElementById('crmTasksView').classList.toggle('hidden', tab !== 'tasks');
   document.getElementById('crmBizTasksView').classList.toggle('hidden', tab !== 'biztasks');
-  document.getElementById('crmBizView').classList.toggle('hidden', tab !== 'biz');
   document.getElementById('crmPipelineView').classList.toggle('hidden', tab !== 'pipeline');
   document.getElementById('crmKateView').classList.toggle('hidden', tab !== 'kate');
   crmRefreshActiveView();
@@ -4511,16 +4508,19 @@ function crmRenderTasks() {
   const el = document.getElementById('crmTasksView');
   if (!el) return;
   const todayStr = new Date().toISOString().slice(0, 10);
-  let items = crmAllTasks().filter(i => (i.kind === 'task' && i.personType === 'client') || i.kind === 'biztask' || i.kind === 'opportunity');
+  let items = crmAllTasks().filter(i => i.kind === 'task' || i.kind === 'biztask' || i.kind === 'opportunity');
   if (!crmShowCompletedTasks) items = items.filter(i => !i.done && !i.cancelled);
   items.sort((a, b) => {
     if (!!a.done !== !!b.done) return a.done ? 1 : -1;
     return new Date(a.due || '2100-01-01') - new Date(b.due || '2100-01-01');
   });
 
+  const BD_BADGE = '<span style="font-size:10px;font-weight:600;background:#e8e0f7;color:#5b3fa3;padding:1px 7px;border-radius:8px;margin-left:6px">Business Development</span>';
+
   const renderRow = it => {
     const isBiz = it.kind === 'biztask';
     const isOpp = it.kind === 'opportunity';
+    const isProspect = it.personType === 'prospect';
     if (isOpp) {
       return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
         <span style="font-size:14px">💰</span>
@@ -4528,9 +4528,8 @@ function crmRenderTasks() {
           <span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span>
           <span style="color:var(--text3);font-size:12px"> — </span>
           <span style="font-size:13px;color:var(--text1)">${crmEsc(it.text)}</span>
-          <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text2);padding:1px 7px;border-radius:8px;margin-left:6px">Opportunity</span>
+          ${BD_BADGE}
         </div>
-        <button onclick="crmOpen();crmSwitchTab('biz')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;flex-shrink:0">Open in Business Expansion</button>
       </div>`;
     }
     const toggleDone = isBiz ? `crmToggleBizTaskDone('${it.taskId}')` : `crmToggleTaskFromList('${it.personType}','${it.personId}','${it.taskId}')`;
@@ -4542,6 +4541,7 @@ function crmRenderTasks() {
       <div style="flex:1;min-width:0;cursor:pointer" onclick="${openClick}">
         ${isBiz ? '' : `<span style="font-weight:600;color:var(--text1);font-size:13px">${crmEsc(it.personName)}</span><span style="color:var(--text3);font-size:12px"> — </span>`}
         <span style="font-size:13px;color:var(--text1);${it.done?'text-decoration:line-through':''}">${crmEsc(it.text)}</span>
+        ${isProspect ? BD_BADGE : ''}
         ${it.cancelled ? '<span style="font-size:10px;font-weight:600;color:#c62828;margin-left:6px">✕ Cancelled</span>' : ''}
       </div>
       <button onclick="${toggleDone}" style="font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:${it.done?'#eaf5ea':'var(--bg2)'};color:${it.done?'#3b6d11':'var(--text2)'};cursor:pointer;flex-shrink:0">${it.done?'Undone':'Done'}</button>
