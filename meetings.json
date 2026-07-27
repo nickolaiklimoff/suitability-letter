@@ -98,5 +98,15 @@
     "cancelled": false,
     "reminded": false,
     "updatedAt": "2026-07-24T10:37:04.957Z"
+  },
+  {
+    "id": "mt_1785163334962",
+    "title": "meet with Lena Gromova",
+    "personName": null,
+    "date": "2026-07-29",
+    "time": "10:00",
+    "cancelled": false,
+    "reminded": false,
+    "updatedAt": "2026-07-27T14:42:14.962Z"
   }
 ]
