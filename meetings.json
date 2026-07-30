@@ -116,7 +116,7 @@
     "date": "2026-07-30",
     "time": "12:00",
     "cancelled": false,
-    "reminded": false,
+    "reminded": true,
     "updatedAt": "2026-07-29T12:57:02.493Z"
   },
   {
