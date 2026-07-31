@@ -138,5 +138,15 @@
     "cancelled": false,
     "reminded": false,
     "updatedAt": "2026-07-30T11:32:23.077Z"
+  },
+  {
+    "id": "mt_1785511464502",
+    "title": "Zoom with Daria",
+    "personName": null,
+    "date": "2026-08-06",
+    "time": null,
+    "cancelled": false,
+    "reminded": false,
+    "updatedAt": "2026-07-31T15:24:24.502Z"
   }
 ]
