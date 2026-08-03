@@ -4691,13 +4691,38 @@ function crmRenderPipeline() {
   </div>`;
   };
 
-  const section = (icon, title, rows, total, rowFn, emptyMsg) => `
+  const clientOptions = () => Object.entries(clients).map(([id, c]) => `<option value="${id}">${crmEsc(c.name || 'Unnamed')}</option>`).join('');
+
+  const addOppForm = (formId, oppType) => `
+    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+      <select id="crmPipeAddClient_${formId}" style="width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1);margin-bottom:5px">
+        <option value="">— select client —</option>
+        ${clientOptions()}
+      </select>
+      <div style="display:flex;gap:5px">
+        <input id="crmPipeAddNote_${formId}" placeholder="Note (optional)" style="flex:1;min-width:0;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <input id="crmPipeAddValue_${formId}" type="number" placeholder="$" style="width:70px;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <button onclick="crmPipelineQuickAddOpp('${formId}','${oppType}')" style="font-size:12px;padding:5px 10px;border:none;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer;flex-shrink:0">+ Add</button>
+      </div>
+    </div>`;
+
+  const addProspectForm = `
+    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+      <div style="display:flex;gap:5px">
+        <input id="crmPipeAddProspectName" placeholder="New name..." onkeydown="if(event.key==='Enter')crmPipelineQuickAddProspect()" style="flex:1;min-width:0;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <input id="crmPipeAddProspectValue" type="number" placeholder="$" style="width:70px;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text1)">
+        <button onclick="crmPipelineQuickAddProspect()" style="font-size:12px;padding:5px 10px;border:none;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer;flex-shrink:0">+ Add</button>
+      </div>
+    </div>`;
+
+  const section = (icon, title, rows, total, rowFn, emptyMsg, addFormHtml) => `
     <div style="background:var(--bg2);border-radius:8px;padding:12px 14px">
       <div style="margin-bottom:10px">
         <div style="font-weight:600;font-size:13px;color:var(--text2)">${icon} ${title} <span style="font-weight:400;color:var(--text3)">(${rows.length})</span></div>
         <div style="font-size:18px;font-weight:700;color:var(--text1);margin-top:2px">${fmtMoney(total)}</div>
       </div>
       ${rows.length ? rows.sort((a,b) => (b.opp?.estValue||b.p?.estValue||0) - (a.opp?.estValue||a.p?.estValue||0)).map(rowFn).join('') : `<div style="font-size:12px;color:var(--text3)">${emptyMsg}</div>`}
+      ${addFormHtml || ''}
     </div>`;
 
   const cols = otherOpps.length ? 4 : 3;
@@ -4707,9 +4732,9 @@ function crmRenderPipeline() {
       <div style="font-size:28px;font-weight:700;color:var(--text1)">${fmtMoney(grandTotal)}</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px;align-items:start">
-      ${section('💰', 'Top-ups — existing open accounts', topUps, totalTopUps, oppRow, 'No open top-up opportunities.')}
-      ${section('🏦', 'New accounts — existing clients', newAccounts, totalNewAcc, oppRow, 'No open new-account opportunities.')}
-      ${section('🆕', 'New clients (pipeline → new accounts)', newClients, totalNewCli, prospectRow, 'No prospects in the pipeline.')}
+      ${section('💰', 'Top-ups — existing open accounts', topUps, totalTopUps, oppRow, 'No open top-up opportunities.', addOppForm('topup', 'New balances'))}
+      ${section('🏦', 'New accounts — existing clients', newAccounts, totalNewAcc, oppRow, 'No open new-account opportunities.', addOppForm('newacc', 'New account'))}
+      ${section('🆕', 'New clients (pipeline → new accounts)', newClients, totalNewCli, prospectRow, 'No prospects in the pipeline.', addProspectForm)}
       ${otherOpps.length ? section('📌', 'Other opportunities', otherOpps, sum(otherOpps, r=>r.opp.estValue), oppRow, '') : ''}
     </div>`;
 }
@@ -5900,6 +5925,40 @@ window.crmAddOpportunity = function() {
   crmSaveBucket(ref);
   crmRenderDetail();
   crmRefreshActiveView();
+};
+window.crmPipelineQuickAddOpp = function(formId, oppType) {
+  const clientSel = document.getElementById('crmPipeAddClient_' + formId);
+  const noteEl = document.getElementById('crmPipeAddNote_' + formId);
+  const valueEl = document.getElementById('crmPipeAddValue_' + formId);
+  const clientId = clientSel.value;
+  if (!clientId) { clientSel.style.borderColor = '#c62828'; clientSel.focus(); return; }
+  clientSel.style.borderColor = '';
+  const c = clients[clientId]; if (!c) return;
+  if (!c.crm) c.crm = { activities: [], tasks: [] };
+  if (!c.crm.opportunities) c.crm.opportunities = [];
+  c.crm.opportunities.push({
+    id: 'o_' + Date.now(), type: oppType, status: 'Open',
+    note: noteEl.value.trim(), nextDate: null, nextText: '',
+    estValue: parseFloat(valueEl.value) || null, comments: [],
+  });
+  saveToStorage();
+  noteEl.value = ''; valueEl.value = ''; clientSel.value = '';
+  crmRenderPipeline();
+};
+window.crmPipelineQuickAddProspect = function() {
+  const nameEl = document.getElementById('crmPipeAddProspectName');
+  const valueEl = document.getElementById('crmPipeAddProspectValue');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.style.borderColor = '#c62828'; nameEl.focus(); return; }
+  nameEl.style.borderColor = '';
+  const id = 'p_' + Date.now();
+  prospects[id] = {
+    id, name, company: '', stage: 'Prospecting', activities: [], tasks: [],
+    estValue: parseFloat(valueEl.value) || null, comments: [], createdAt: Date.now(),
+  };
+  saveProspectsToStorage();
+  nameEl.value = ''; valueEl.value = '';
+  crmRenderPipeline();
 };
 window.crmSetOpportunityValueDirect = function(clientId, oppId, val) {
   const c = clients[clientId]; if (!c?.crm) return;
