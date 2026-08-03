@@ -188,5 +188,15 @@
     "cancelled": false,
     "reminded": false,
     "updatedAt": "2026-08-03T10:47:23.796Z"
+  },
+  {
+    "id": "mt_1785774488338",
+    "title": "Alice Stepanova",
+    "personName": null,
+    "date": "2026-08-07",
+    "time": "12:00",
+    "cancelled": false,
+    "reminded": false,
+    "updatedAt": "2026-08-03T16:28:08.338Z"
   }
 ]
