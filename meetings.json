@@ -198,5 +198,15 @@
     "cancelled": false,
     "reminded": false,
     "updatedAt": "2026-08-03T16:28:08.338Z"
+  },
+  {
+    "id": "mt_1786025687097",
+    "title": "FAB email with proposed fees",
+    "personName": null,
+    "date": "2026-08-07",
+    "time": null,
+    "cancelled": false,
+    "reminded": false,
+    "updatedAt": "2026-08-06T14:14:47.097Z"
   }
 ]
