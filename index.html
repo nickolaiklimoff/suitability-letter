@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1785764430">
+<link rel="stylesheet" href="style.css?v=1786008773">
 <body>
 <div class="app">
 
@@ -962,10 +962,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1785764430"></script>
+<script src="waar.js?v=1786008773"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1785764430"></script>
-<script src="app.js?v=1785764430"></script>
+<script src="report.js?v=1786008773"></script>
+<script src="app.js?v=1786008773"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1055,6 +1055,31 @@ window.addEventListener('afterprint', function() {
     <div id="macro-download-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
   </div>
 
+  <!-- Manual Updates Needed -->
+  <div class="form-card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="macroToggleManualList()">
+      <h3 style="margin-bottom:0">⚠ Manual Updates Needed (<span id="macro-manual-count">27</span> indicators)</h3>
+      <span id="macro-manual-toggle" style="font-size:12px;color:var(--text3)">show ▾</span>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">
+      These indicators aren't on a free public API (paid subscription sources, or manual-only for other reasons) - they need to be entered by hand in the downloaded xlsx before uploading it back below. Grouped by region.
+    </div>
+    <div id="macro-manual-list" class="hidden" style="margin-top:12px;max-height:340px;overflow-y:auto"></div>
+  </div>
+
+  <!-- Upload Updated File -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:8px">Upload Updated File</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      After manually updating the downloaded xlsx, upload it here — it will overwrite <code>usa_macro_indicators.xlsx</code> in the repo, so the next "Run Update" and any script re-run builds on YOUR edits rather than the stale automated version.
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input type="file" id="macro-upload-file" accept=".xlsx" style="font-size:12px;color:var(--text2)">
+      <button class="btn-primary" onclick="macroUploadFile()" style="font-size:13px">⬆ Upload &amp; Overwrite</button>
+    </div>
+    <div id="macro-upload-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+  </div>
+
   <!-- Workflow run log -->
   <div id="macro-run-log" class="form-card hidden">
     <h3 style="margin-bottom:8px">Run Status</h3>
@@ -1065,7 +1090,140 @@ window.addEventListener('afterprint', function() {
 <script>
 // ── Macro View ─────────────────────────────────────────────────
 const MACRO_REPO = 'nickolaiklimoff/macro-dashboard';
+const MACRO_XLSX_PATH = 'usa_macro_indicators.xlsx';
 const GH_API     = 'https://api.github.com';
+
+// Manual-entry indicators - not on a free public API, need hand entry.
+// Mirrors the list compiled from the workbook's own Cycle Analysis sheets
+// (source column + History-chart link) on 2026-08-06 - update here if the
+// manual set changes in the workbook.
+const MACRO_MANUAL_INDICATORS = [
+  { region: 'US', name: 'ISM Mfg PMI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/business-confidence' },
+  { region: 'US', name: 'ISM Svcs PMI', source: 'Manual entry', link: 'https://en.macromicro.me/series/293/ism-nmi' },
+  { region: 'US', name: 'Conf Board LEI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
+  { region: 'US', name: 'Consumer Confidence', source: 'Manual entry', link: 'https://www.conference-board.org/topics/consumer-confidence' },
+  { region: 'Japan', name: 'PMI Manufacturing', source: 'S&P Global / au Jibun Bank', link: 'https://cbonds.com/indexes/47379/' },
+  { region: 'Japan', name: 'Consumer Confidence', source: 'Cabinet Office', link: 'https://en.macromicro.me/charts/692/jp-consumer-confidence-index' },
+  { region: 'Japan', name: 'Bank Lending YoY', source: 'Bank of Japan', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
+  { region: 'Japan', name: 'Tankan Large Mfg DI', source: 'Bank of Japan', link: 'https://cbonds.com/indexes/47405/' },
+  { region: 'Japan', name: 'Machinery Orders YoY', source: 'Cabinet Office', link: 'https://cbonds.com/indexes/47375/' },
+  { region: 'Japan', name: 'CPI YoY', source: 'Statistics Bureau of Japan', link: 'https://en.macromicro.me/charts/681/jp-cpi' },
+  { region: 'UK', name: 'PMI Manufacturing', source: 'S&P Global / CIPS', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
+  { region: 'UK', name: 'PMI Services', source: 'S&P Global / CIPS', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
+  { region: 'UK', name: 'GfK Confidence', source: 'GfK', link: 'https://uk.investing.com/economic-calendar/gfk-consumer-confidence-330' },
+  { region: 'UK', name: 'Mortgage Approvals', source: 'Bank of England', link: 'https://uk.investing.com/economic-calendar/mortgage-approvals-211' },
+  { region: 'China', name: 'NBS PMI Manufacturing', source: 'NBS', link: 'https://en.macromicro.me/series/798/cn-pmi' },
+  { region: 'China', name: 'Caixin PMI Manufacturing', source: 'S&P Global / Caixin', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
+  { region: 'China', name: 'NBS PMI Services', source: 'NBS', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
+  { region: 'China', name: 'M2 Money Supply YoY', source: 'PBoC', link: 'https://en.macromicro.me/series/832/cn-m2-period-yoy' },
+  { region: 'China', name: 'Total Social Financing YoY', source: 'PBoC', link: 'https://en.macromicro.me/series/5926/cn-total-social-financing-stock-yoy' },
+  { region: 'China', name: 'Property Sales Area YoY', source: 'NBS', link: 'https://en.macromicro.me/collections/26/cn-house-relative' },
+  { region: 'China', name: 'Industrial Production YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/industrial-production' },
+  { region: 'China', name: 'Retail Sales YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
+  { region: 'China', name: 'Real GDP Growth YoY', source: 'NBS (FRED mirror dead since Jul 2023)', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
+  { region: 'China', name: 'PPI YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/producer-prices-change' },
+  { region: 'China', name: 'PBoC 7-Day Reverse Repo Rate', source: 'PBoC', link: 'https://tradingeconomics.com/china/reverse-repo-rate' },
+  { region: 'China', name: '10Y CGB Yield', source: 'ChinaBond', link: 'https://tradingeconomics.com/china/government-bond-yield' },
+  { region: 'China', name: 'Fixed Asset Investment YoY', source: 'NBS via economic calendar', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
+];
+
+function macroToggleManualList() {
+  const box = document.getElementById('macro-manual-list');
+  const toggle = document.getElementById('macro-manual-toggle');
+  const willShow = box.classList.contains('hidden');
+  if (willShow && !box.dataset.built) {
+    macroBuildManualList();
+    box.dataset.built = '1';
+  }
+  box.classList.toggle('hidden');
+  toggle.textContent = willShow ? 'hide ▴' : 'show ▾';
+}
+
+function macroBuildManualList() {
+  const box = document.getElementById('macro-manual-list');
+  const byRegion = {};
+  MACRO_MANUAL_INDICATORS.forEach(item => {
+    (byRegion[item.region] = byRegion[item.region] || []).push(item);
+  });
+  let html = '';
+  Object.keys(byRegion).forEach(region => {
+    html += `<div style="font-weight:600;font-size:12px;color:var(--text1);margin:10px 0 4px">${region}</div>`;
+    byRegion[region].forEach(item => {
+      html += `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="color:var(--text2)">${item.name} <span style="color:var(--text3);font-size:11px">(${item.source})</span></span>
+        <a href="${item.link}" target="_blank" rel="noopener" style="color:#5b6abf;white-space:nowrap">open source ↗</a>
+      </div>`;
+    });
+  });
+  box.innerHTML = html;
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function macroUploadFile() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const fileInput = document.getElementById('macro-upload-file');
+  const file = fileInput.files[0];
+  if (!file) { alert('Choose a .xlsx file first'); return; }
+
+  const statusEl = document.getElementById('macro-upload-status');
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Reading file...';
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const base64Content = arrayBufferToBase64(buffer);
+
+    statusEl.textContent = '⏳ Fetching current file SHA...';
+    let sha = null;
+    const getResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getResp.ok) {
+      const d = await getResp.json();
+      sha = d.sha;
+    }
+
+    statusEl.textContent = '⏳ Uploading...';
+    const putResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: `Manual update via Macro View (${new Date().toISOString().slice(0,10)})`,
+        content: base64Content,
+        sha: sha,
+        branch: 'main',
+      }),
+    });
+
+    if (putResp.ok) {
+      statusEl.style.color = '#2e7d52';
+      statusEl.textContent = `✓ Uploaded — usa_macro_indicators.xlsx updated in the repo. Next "Run Update" builds on this.`;
+      fileInput.value = '';
+    } else {
+      const err = await putResp.json().catch(() => ({}));
+      statusEl.style.color = '#c62828';
+      statusEl.textContent = `✗ Error ${putResp.status}: ${err.message || 'Unknown error'}`;
+    }
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
 
 function macroSaveToken() {
   const t = document.getElementById('macro-gh-token').value.trim();
