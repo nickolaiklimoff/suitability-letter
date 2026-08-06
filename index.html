@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786008773">
+<link rel="stylesheet" href="style.css?v=1786009746">
 <body>
 <div class="app">
 
@@ -957,50 +957,8 @@
     </div>
   </div>
 
-</div>
-<script src="xlsx.full.min.js"></script>
-<script src="./exceljs.min.js"></script>
-<script src="docx.min.js"></script>
-<script src="data.js"></script>
-<script src="waar.js?v=1786008773"></script>
-<script src="portfolio-import.js"></script>
-<script src="report.js?v=1786008773"></script>
-<script src="app.js?v=1786008773"></script>
-<script>
-// Force cover page to fill exactly one landscape page before printing
-window.addEventListener('beforeprint', function() {
-  const cover = document.querySelector('.report-cover');
-  if (!cover) return;
-  // A4 landscape at 96dpi ≈ 1123px × 794px
-  // Use offsetParent dimensions or fall back to A4 landscape pixel dimensions
-  const pw = 1123, ph = 794; // A4 landscape px at 96dpi
-  cover.style.width  = pw + 'px';
-  cover.style.height = ph + 'px';
-  cover.style.minHeight = 'unset';
-  cover.style.maxHeight = ph + 'px';
-  cover.style.overflow = 'hidden';
-  cover.style.pageBreakAfter = 'always';
-  cover.style.breakAfter = 'page';
-  cover.style.display = 'flex';
-  cover.style.flexDirection = 'column';
-  cover.style.justifyContent = 'flex-end';
-  cover.style.alignItems = 'flex-end';
-  cover.style.textAlign = 'right';
-  cover.style.boxSizing = 'border-box';
-  cover.style.padding = '0 48px 48px 0';
-  cover.style.borderBottom = 'none';
-});
-window.addEventListener('afterprint', function() {
-  const cover = document.querySelector('.report-cover');
-  if (!cover) return;
-  cover.style.cssText = '';
-});
-</script>
-
-<!-- ═══════════════════════════════════════════════════════════
-     MACRO VIEW PANEL
-════════════════════════════════════════════════════════════ -->
-<div id="macroPanel" class="panel-view hidden" style="padding:2rem;overflow-y:auto">
+  <!-- Macro View panel — moved inside .app 2026-08-06, was misplaced outside it -->
+  <div id="macroPanel" class="panel-view hidden" style="padding:2rem;overflow-y:auto">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
     <div>
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:4px">Orion Ridge Capital</div>
@@ -1086,6 +1044,45 @@ window.addEventListener('afterprint', function() {
     <div id="macro-run-log-body" style="font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-wrap;font-family:monospace"></div>
   </div>
 </div>
+</div>
+<script src="xlsx.full.min.js"></script>
+<script src="./exceljs.min.js"></script>
+<script src="docx.min.js"></script>
+<script src="data.js"></script>
+<script src="waar.js?v=1786009746"></script>
+<script src="portfolio-import.js"></script>
+<script src="report.js?v=1786009746"></script>
+<script src="app.js?v=1786009746"></script>
+<script>
+// Force cover page to fill exactly one landscape page before printing
+window.addEventListener('beforeprint', function() {
+  const cover = document.querySelector('.report-cover');
+  if (!cover) return;
+  // A4 landscape at 96dpi ≈ 1123px × 794px
+  // Use offsetParent dimensions or fall back to A4 landscape pixel dimensions
+  const pw = 1123, ph = 794; // A4 landscape px at 96dpi
+  cover.style.width  = pw + 'px';
+  cover.style.height = ph + 'px';
+  cover.style.minHeight = 'unset';
+  cover.style.maxHeight = ph + 'px';
+  cover.style.overflow = 'hidden';
+  cover.style.pageBreakAfter = 'always';
+  cover.style.breakAfter = 'page';
+  cover.style.display = 'flex';
+  cover.style.flexDirection = 'column';
+  cover.style.justifyContent = 'flex-end';
+  cover.style.alignItems = 'flex-end';
+  cover.style.textAlign = 'right';
+  cover.style.boxSizing = 'border-box';
+  cover.style.padding = '0 48px 48px 0';
+  cover.style.borderBottom = 'none';
+});
+window.addEventListener('afterprint', function() {
+  const cover = document.querySelector('.report-cover');
+  if (!cover) return;
+  cover.style.cssText = '';
+});
+</script>
 
 <script>
 // ── Macro View ─────────────────────────────────────────────────
