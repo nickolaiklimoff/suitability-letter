@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786103902">
+<link rel="stylesheet" href="style.css?v=1786104269">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786103902"></script>
+<script src="waar.js?v=1786104269"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786103902"></script>
-<script src="app.js?v=1786103902"></script>
+<script src="report.js?v=1786104269"></script>
+<script src="app.js?v=1786104269"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1111,11 +1111,11 @@ const MACRO_MANUAL_INDICATORS = [
   { region: 'US', name: 'ISM Svcs PMI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/services-pmi' },
   { region: 'US', name: 'Conf Board LEI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
   { region: 'US', name: 'Consumer Confidence', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/consumer-confidence' },
-  { region: 'Japan', name: 'PMI Manufacturing', source: 'S&P Global / au Jibun Bank', link: 'https://cbonds.com/indexes/47379/' },
+  { region: 'Japan', name: 'PMI Manufacturing', source: 'S&P Global / au Jibun Bank', link: 'https://tradingeconomics.com/japan/manufacturing-pmi' },
   { region: 'Japan', name: 'Consumer Confidence', source: 'Cabinet Office', link: 'https://tradingeconomics.com/japan/consumer-confidence' },
   { region: 'Japan', name: 'Bank Lending YoY', source: 'Bank of Japan', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
-  { region: 'Japan', name: 'Tankan Large Mfg DI', source: 'Bank of Japan', link: 'https://cbonds.com/indexes/47405/' },
-  { region: 'Japan', name: 'Machinery Orders YoY', source: 'Cabinet Office', link: 'https://cbonds.com/indexes/47375/' },
+  { region: 'Japan', name: 'Tankan Large Mfg DI', source: 'Bank of Japan', link: 'https://tradingeconomics.com/japan/business-confidence' },
+  { region: 'Japan', name: 'Machinery Orders YoY', source: 'Cabinet Office', link: 'https://tradingeconomics.com/japan/machinery-orders' },
   { region: 'Japan', name: 'CPI YoY', source: 'Statistics Bureau of Japan', link: 'https://tradingeconomics.com/japan/inflation-cpi' },
   { region: 'UK', name: 'PMI Manufacturing', source: 'S&P Global / CIPS', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
   { region: 'UK', name: 'PMI Services', source: 'S&P Global / CIPS', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
@@ -1148,11 +1148,11 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'ISM Svcs PMI', sheet: 'US', code: 'ISM_Svcs_PMI', caName: 'ISM Svcs PMI', link: 'https://tradingeconomics.com/united-states/services-pmi' },
   { name: 'Conf Board LEI', sheet: 'US', code: 'Conf_Board_LEI', caName: 'Conf Board LEI', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
   { name: 'Consumer Confidence (US)', sheet: 'US', code: 'Consumer_Confidence', caName: 'Consumer Confidence', link: 'https://tradingeconomics.com/united-states/consumer-confidence' },
-  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg', caName: 'PMI Manufacturing', link: 'https://cbonds.com/indexes/47379/' },
+  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg', caName: 'PMI Manufacturing', link: 'https://tradingeconomics.com/japan/manufacturing-pmi' },
   { name: 'Consumer Confidence (Japan)', sheet: 'Japan', code: 'JP_Consumer_Conf', caName: 'Consumer Confidence', link: 'https://tradingeconomics.com/japan/consumer-confidence' },
   { name: 'Bank Lending YoY (Japan)', sheet: 'Japan', code: 'JP_Bank_Lending', caName: 'Bank Lending YoY', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
-  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan', caName: 'Tankan Large Mfg DI', link: 'https://cbonds.com/indexes/47405/' },
-  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders', caName: 'Machinery Orders YoY', link: 'https://cbonds.com/indexes/47375/' },
+  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan', caName: 'Tankan Large Mfg DI', link: 'https://tradingeconomics.com/japan/business-confidence' },
+  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders', caName: 'Machinery Orders YoY', link: 'https://tradingeconomics.com/japan/machinery-orders' },
   { name: 'CPI YoY (Japan)', sheet: 'Japan', code: 'JP_CPI', caName: 'CPI YoY', link: 'https://tradingeconomics.com/japan/inflation-cpi' },
   { name: 'PMI Manufacturing (UK)', sheet: 'UK', code: 'UK_PMI_Mfg', caName: 'PMI Manufacturing', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
   { name: 'PMI Services (UK)', sheet: 'UK', code: 'UK_PMI_Services', caName: 'PMI Services', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
