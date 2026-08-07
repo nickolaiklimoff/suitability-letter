@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786083545">
+<link rel="stylesheet" href="style.css?v=1786083814">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786083545"></script>
+<script src="waar.js?v=1786083814"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786083545"></script>
-<script src="app.js?v=1786083545"></script>
+<script src="report.js?v=1786083814"></script>
+<script src="app.js?v=1786083814"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1144,33 +1144,33 @@ const MACRO_MANUAL_INDICATORS = [
 // codes are an implementation detail of the workbook, not something a
 // human reads.
 const MACRO_INDICATOR_CELLS = [
-  { name: 'ISM Mfg PMI', sheet: 'US', code: 'ISM_Mfg_PMI' },
-  { name: 'ISM Svcs PMI', sheet: 'US', code: 'ISM_Svcs_PMI' },
-  { name: 'Conf Board LEI', sheet: 'US', code: 'Conf_Board_LEI' },
-  { name: 'Consumer Confidence (US)', sheet: 'US', code: 'Consumer_Confidence' },
-  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg' },
-  { name: 'Consumer Confidence (Japan)', sheet: 'Japan', code: 'JP_Consumer_Conf' },
-  { name: 'Bank Lending YoY (Japan)', sheet: 'Japan', code: 'JP_Bank_Lending' },
-  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan' },
-  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders' },
-  { name: 'CPI YoY (Japan)', sheet: 'Japan', code: 'JP_CPI' },
-  { name: 'PMI Manufacturing (UK)', sheet: 'UK', code: 'UK_PMI_Mfg' },
-  { name: 'PMI Services (UK)', sheet: 'UK', code: 'UK_PMI_Services' },
-  { name: 'GfK Confidence', sheet: 'UK', code: 'UK_GfK_Conf' },
-  { name: 'Mortgage Approvals', sheet: 'UK', code: 'UK_Mortgage_Approv' },
-  { name: 'NBS PMI Manufacturing', sheet: 'China', code: 'CN_NBS_PMI' },
-  { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI' },
-  { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services' },
-  { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2' },
-  { name: 'Total Social Financing YoY', sheet: 'China', code: 'CN_TSF' },
-  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales' },
-  { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod' },
-  { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales' },
-  { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth' },
-  { name: 'PPI YoY', sheet: 'China', code: 'CN_PPI' },
-  { name: 'PBoC 7-Day Reverse Repo Rate', sheet: 'China', code: 'CN_PBoC_Rate' },
-  { name: '10Y CGB Yield', sheet: 'China', code: 'CN_10Y_CGB' },
-  { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI' },
+  { name: 'ISM Mfg PMI', sheet: 'US', code: 'ISM_Mfg_PMI', link: 'https://tradingeconomics.com/united-states/business-confidence' },
+  { name: 'ISM Svcs PMI', sheet: 'US', code: 'ISM_Svcs_PMI', link: 'https://tradingeconomics.com/united-states/services-pmi' },
+  { name: 'Conf Board LEI', sheet: 'US', code: 'Conf_Board_LEI', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
+  { name: 'Consumer Confidence (US)', sheet: 'US', code: 'Consumer_Confidence', link: 'https://tradingeconomics.com/united-states/consumer-confidence' },
+  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg', link: 'https://cbonds.com/indexes/47379/' },
+  { name: 'Consumer Confidence (Japan)', sheet: 'Japan', code: 'JP_Consumer_Conf', link: 'https://tradingeconomics.com/japan/consumer-confidence' },
+  { name: 'Bank Lending YoY (Japan)', sheet: 'Japan', code: 'JP_Bank_Lending', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
+  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan', link: 'https://cbonds.com/indexes/47405/' },
+  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders', link: 'https://cbonds.com/indexes/47375/' },
+  { name: 'CPI YoY (Japan)', sheet: 'Japan', code: 'JP_CPI', link: 'https://tradingeconomics.com/japan/inflation-cpi' },
+  { name: 'PMI Manufacturing (UK)', sheet: 'UK', code: 'UK_PMI_Mfg', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
+  { name: 'PMI Services (UK)', sheet: 'UK', code: 'UK_PMI_Services', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
+  { name: 'GfK Confidence', sheet: 'UK', code: 'UK_GfK_Conf', link: 'https://uk.investing.com/economic-calendar/gfk-consumer-confidence-330' },
+  { name: 'Mortgage Approvals', sheet: 'UK', code: 'UK_Mortgage_Approv', link: 'https://uk.investing.com/economic-calendar/mortgage-approvals-211' },
+  { name: 'NBS PMI Manufacturing', sheet: 'China', code: 'CN_NBS_PMI', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
+  { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
+  { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
+  { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', link: 'https://tradingeconomics.com/china/money-supply-m2' },
+  { name: 'Total Social Financing YoY', sheet: 'China', code: 'CN_TSF', link: 'https://tradingeconomics.com/china/total-social-financing' },
+  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', link: 'https://tradingeconomics.com/china/new-home-sales-yoy' },
+  { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', link: 'https://tradingeconomics.com/china/industrial-production' },
+  { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
+  { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
+  { name: 'PPI YoY', sheet: 'China', code: 'CN_PPI', link: 'https://tradingeconomics.com/china/producer-prices-change' },
+  { name: 'PBoC 7-Day Reverse Repo Rate', sheet: 'China', code: 'CN_PBoC_Rate', link: 'https://tradingeconomics.com/china/reverse-repo-rate' },
+  { name: '10Y CGB Yield', sheet: 'China', code: 'CN_10Y_CGB', link: 'https://tradingeconomics.com/china/government-bond-yield' },
+  { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
 ];
 
 let macroLoadedBuffer = null;   // raw ArrayBuffer of the fetched xlsx, kept between scan and save
@@ -1230,7 +1230,7 @@ function macroFindGaps(wb) {
       const recentGaps = gapRows.slice(0, 3).reverse();
       recentGaps.forEach(g => {
         rows.push({
-          sheet: ind.sheet, cellRef: g.cellRef, name: ind.name,
+          sheet: ind.sheet, cellRef: g.cellRef, name: ind.name, link: ind.link,
           month: g.month, prevValue: lastRealValue, prevMonth: lastRealMonth,
         });
       });
@@ -1285,6 +1285,7 @@ function macroRenderFillForm(rows) {
           <div style="font-size:13px;font-weight:600;color:var(--text1)">${r.name}</div>
           <div style="font-size:11px;color:var(--text3)">${r.sheet} · missing: <strong>${r.month}</strong> · previous (${r.prevMonth}): ${r.prevValue}</div>
         </div>
+        <a href="${r.link}" target="_blank" rel="noopener" style="font-size:11px;color:#5b6abf;white-space:nowrap">source ↗</a>
         <input type="number" step="any" id="macro-fill-${i}" placeholder="new value"
           style="width:130px;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
       </div>`;
