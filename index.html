@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786084173">
+<link rel="stylesheet" href="style.css?v=1786085161">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786084173"></script>
+<script src="waar.js?v=1786085161"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786084173"></script>
-<script src="app.js?v=1786084173"></script>
+<script src="report.js?v=1786085161"></script>
+<script src="app.js?v=1786085161"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1350,6 +1350,29 @@ async function macroSaveSingleFill(i) {
       rowStatusEl.style.color = '#2e7d52';
       rowStatusEl.textContent = '✓ saved';
       input.disabled = true;
+
+      // Chain the newly-saved value forward: any OTHER pending row for
+      // the SAME indicator with a LATER missing month should now show
+      // THIS value as its "previous" reference, not the stale one from
+      // before this indicator had any gaps. Without this, filling June
+      // still left July/August both saying "previous: April" even after
+      // June was saved right above them - looked like nothing was
+      // tracking progress (reported as values 'doubling').
+      macroPendingFills.forEach((other, j) => {
+        if (j === i) return;
+        if (other.name === r.name && other.month > r.month &&
+            (!other.prevMonth || r.month > other.prevMonth)) {
+          other.prevValue = num;
+          other.prevMonth = r.month;
+          const otherRowEl = document.getElementById(`macro-fill-row-${j}`);
+          if (otherRowEl) {
+            const ctxDiv = otherRowEl.querySelector('div > div:nth-child(2)');
+            if (ctxDiv) {
+              ctxDiv.innerHTML = `${other.sheet} · missing: <strong>${other.month}</strong> · previous (${other.prevMonth}): ${other.prevValue}`;
+            }
+          }
+        }
+      });
     } else {
       const err = await putResp.json().catch(() => ({}));
       rowStatusEl.style.color = '#c62828';
