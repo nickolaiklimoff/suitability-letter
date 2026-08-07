@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786090409">
+<link rel="stylesheet" href="style.css?v=1786097280">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786090409"></script>
+<script src="waar.js?v=1786097280"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786090409"></script>
-<script src="app.js?v=1786090409"></script>
+<script src="report.js?v=1786097280"></script>
+<script src="app.js?v=1786097280"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1144,34 +1144,48 @@ const MACRO_MANUAL_INDICATORS = [
 // codes are an implementation detail of the workbook, not something a
 // human reads.
 const MACRO_INDICATOR_CELLS = [
-  { name: 'ISM Mfg PMI', sheet: 'US', code: 'ISM_Mfg_PMI', link: 'https://tradingeconomics.com/united-states/business-confidence' },
-  { name: 'ISM Svcs PMI', sheet: 'US', code: 'ISM_Svcs_PMI', link: 'https://tradingeconomics.com/united-states/services-pmi' },
-  { name: 'Conf Board LEI', sheet: 'US', code: 'Conf_Board_LEI', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
-  { name: 'Consumer Confidence (US)', sheet: 'US', code: 'Consumer_Confidence', link: 'https://tradingeconomics.com/united-states/consumer-confidence' },
-  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg', link: 'https://cbonds.com/indexes/47379/' },
-  { name: 'Consumer Confidence (Japan)', sheet: 'Japan', code: 'JP_Consumer_Conf', link: 'https://tradingeconomics.com/japan/consumer-confidence' },
-  { name: 'Bank Lending YoY (Japan)', sheet: 'Japan', code: 'JP_Bank_Lending', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
-  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan', link: 'https://cbonds.com/indexes/47405/' },
-  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders', link: 'https://cbonds.com/indexes/47375/' },
-  { name: 'CPI YoY (Japan)', sheet: 'Japan', code: 'JP_CPI', link: 'https://tradingeconomics.com/japan/inflation-cpi' },
-  { name: 'PMI Manufacturing (UK)', sheet: 'UK', code: 'UK_PMI_Mfg', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
-  { name: 'PMI Services (UK)', sheet: 'UK', code: 'UK_PMI_Services', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
-  { name: 'GfK Confidence', sheet: 'UK', code: 'UK_GfK_Conf', link: 'https://uk.investing.com/economic-calendar/gfk-consumer-confidence-330' },
-  { name: 'Mortgage Approvals', sheet: 'UK', code: 'UK_Mortgage_Approv', link: 'https://uk.investing.com/economic-calendar/mortgage-approvals-211' },
-  { name: 'NBS PMI Manufacturing', sheet: 'China', code: 'CN_NBS_PMI', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
-  { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
-  { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
-  { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { name: 'Total Social Financing YoY', sheet: 'China', code: 'CN_TSF', link: 'https://tradingeconomics.com/china/total-social-financing' },
-  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', link: 'https://tradingeconomics.com/china/new-home-sales-yoy' },
-  { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', link: 'https://tradingeconomics.com/china/industrial-production' },
-  { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
-  { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
-  { name: 'PPI YoY', sheet: 'China', code: 'CN_PPI', link: 'https://tradingeconomics.com/china/producer-prices-change' },
-  { name: 'PBoC 7-Day Reverse Repo Rate', sheet: 'China', code: 'CN_PBoC_Rate', link: 'https://tradingeconomics.com/china/reverse-repo-rate' },
-  { name: '10Y CGB Yield', sheet: 'China', code: 'CN_10Y_CGB', link: 'https://tradingeconomics.com/china/government-bond-yield' },
-  { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
+  { name: 'ISM Mfg PMI', sheet: 'US', code: 'ISM_Mfg_PMI', caName: 'ISM Mfg PMI', link: 'https://tradingeconomics.com/united-states/business-confidence' },
+  { name: 'ISM Svcs PMI', sheet: 'US', code: 'ISM_Svcs_PMI', caName: 'ISM Svcs PMI', link: 'https://tradingeconomics.com/united-states/services-pmi' },
+  { name: 'Conf Board LEI', sheet: 'US', code: 'Conf_Board_LEI', caName: 'Conf Board LEI', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
+  { name: 'Consumer Confidence (US)', sheet: 'US', code: 'Consumer_Confidence', caName: 'Consumer Confidence', link: 'https://tradingeconomics.com/united-states/consumer-confidence' },
+  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg', caName: 'PMI Manufacturing', link: 'https://cbonds.com/indexes/47379/' },
+  { name: 'Consumer Confidence (Japan)', sheet: 'Japan', code: 'JP_Consumer_Conf', caName: 'Consumer Confidence', link: 'https://tradingeconomics.com/japan/consumer-confidence' },
+  { name: 'Bank Lending YoY (Japan)', sheet: 'Japan', code: 'JP_Bank_Lending', caName: 'Bank Lending YoY', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
+  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan', caName: 'Tankan Large Mfg DI', link: 'https://cbonds.com/indexes/47405/' },
+  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders', caName: 'Machinery Orders YoY', link: 'https://cbonds.com/indexes/47375/' },
+  { name: 'CPI YoY (Japan)', sheet: 'Japan', code: 'JP_CPI', caName: 'CPI YoY', link: 'https://tradingeconomics.com/japan/inflation-cpi' },
+  { name: 'PMI Manufacturing (UK)', sheet: 'UK', code: 'UK_PMI_Mfg', caName: 'PMI Manufacturing', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
+  { name: 'PMI Services (UK)', sheet: 'UK', code: 'UK_PMI_Services', caName: 'PMI Services', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
+  { name: 'GfK Confidence', sheet: 'UK', code: 'UK_GfK_Conf', caName: 'GfK Confidence', link: 'https://uk.investing.com/economic-calendar/gfk-consumer-confidence-330' },
+  { name: 'Mortgage Approvals', sheet: 'UK', code: 'UK_Mortgage_Approv', caName: 'Mortgage Approvals', link: 'https://uk.investing.com/economic-calendar/mortgage-approvals-211' },
+  { name: 'NBS PMI Manufacturing', sheet: 'China', code: 'CN_NBS_PMI', caName: 'NBS PMI Manufacturing', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
+  { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', caName: 'Caixin PMI Manufacturing', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
+  { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', caName: 'NBS PMI Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
+  { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', caName: 'M2 Money Supply YoY', link: 'https://tradingeconomics.com/china/money-supply-m2' },
+  { name: 'Total Social Financing YoY', sheet: 'China', code: 'CN_TSF', caName: 'Total Social Financing YoY', link: 'https://tradingeconomics.com/china/total-social-financing' },
+  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Area YoY', link: 'https://tradingeconomics.com/china/new-home-sales-yoy' },
+  { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', caName: 'Industrial Production YoY', link: 'https://tradingeconomics.com/china/industrial-production' },
+  { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', caName: 'Retail Sales YoY', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
+  { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth', caName: 'Real GDP Growth YoY', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
+  { name: 'PPI YoY', sheet: 'China', code: 'CN_PPI', caName: 'PPI YoY', link: 'https://tradingeconomics.com/china/producer-prices-change' },
+  { name: 'PBoC 7-Day Reverse Repo Rate', sheet: 'China', code: 'CN_PBoC_Rate', caName: 'PBoC 7-Day Reverse Repo Rate', link: 'https://tradingeconomics.com/china/reverse-repo-rate' },
+  { name: '10Y CGB Yield', sheet: 'China', code: 'CN_10Y_CGB', caName: '10Y CGB Yield', link: 'https://tradingeconomics.com/china/government-bond-yield' },
+  { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI', caName: 'Fixed Asset Investment YoY', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
 ];
+
+const MACRO_CA_SHEET = { US: 'US Cycle Analysis', Japan: 'Japan Cycle Analysis', UK: 'UK Cycle Analysis', China: 'China Cycle Analysis' };
+
+// Parses "Est. Tue, 18 Aug 2026 (schedule-based estimate)" (or similar,
+// e.g. central-bank-calendar text) into a JS Date. Returns null if it
+// can't confidently parse - callers should treat that as "unknown, don't
+// filter" rather than silently excluding something real.
+function macroParseNextReleaseDate(text) {
+  if (!text) return null;
+  const m = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})/);
+  if (!m) return null;
+  const months = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+  return new Date(parseInt(m[3]), months[m[2]], parseInt(m[1]));
+}
 
 let macroLoadedBuffer = null;   // raw ArrayBuffer of the fetched xlsx, kept between scan and save
 let macroPendingFills = [];      // [{sheet, cellRef, name, month, prevValue, prevMonth}]
@@ -1232,6 +1246,34 @@ function macroFindGaps(wb) {
       } else {
         lastRealValue = val; lastRealMonth = monthCell.v;
         break;
+      }
+    }
+    if (gapRows.length > 0 && lastRealValue !== null) {
+      // Cross-check against this indicator's own "Next Release" estimate
+      // (column M in its Cycle Analysis sheet, already computed by this
+      // session's Release Calendar work) - if the next release hasn't
+      // happened yet, the MOST RECENT gap month is what that upcoming
+      // release covers and genuinely isn't out yet (e.g. Conf Board LEI:
+      // "3rd week of month" schedule text actually means ~3 weeks INTO
+      // the following month, so July's LEI isn't released until ~Aug 20
+      // even though July itself is in the past - caught 2026-08-07 when
+      // a user-entered value turned out to be misdated for exactly this
+      // reason). Drop just the one most-recent gap in that case.
+      const caSheetName = MACRO_CA_SHEET[ind.sheet];
+      const caWs = caSheetName ? wb.Sheets[caSheetName] : null;
+      if (caWs && caWs['!ref']) {
+        const caRange = XLSX.utils.decode_range(caWs['!ref']);
+        for (let r = 0; r <= caRange.e.r; r++) {
+          const labelCell = caWs[XLSX.utils.encode_cell({ r, c: 0 })];
+          if (labelCell && labelCell.v === ind.caName) {
+            const nextReleaseCell = caWs[XLSX.utils.encode_cell({ r, c: 12 })]; // col M
+            const nextDate = macroParseNextReleaseDate(nextReleaseCell ? nextReleaseCell.v : null);
+            if (nextDate && nextDate > new Date() && gapRows.length > 0) {
+              gapRows.shift();   // gapRows[0] is the most recent (built newest-first)
+            }
+            break;
+          }
+        }
       }
     }
     if (gapRows.length > 0 && lastRealValue !== null) {
