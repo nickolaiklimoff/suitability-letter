@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786083074">
+<link rel="stylesheet" href="style.css?v=1786083545">
 <body>
 <div class="app">
 
@@ -1058,12 +1058,13 @@
 </div>
 <script src="xlsx.full.min.js"></script>
 <script src="./exceljs.min.js"></script>
+<script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786083074"></script>
+<script src="waar.js?v=1786083545"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786083074"></script>
-<script src="app.js?v=1786083074"></script>
+<script src="report.js?v=1786083545"></script>
+<script src="app.js?v=1786083545"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1172,8 +1173,8 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI' },
 ];
 
-let macroLoadedWorkbook = null;   // ExcelJS.Workbook, kept in memory between scan and save
-let macroPendingFills = [];        // [{sheet, row, col, name, month}]
+let macroLoadedBuffer = null;   // raw ArrayBuffer of the fetched xlsx, kept between scan and save
+let macroPendingFills = [];      // [{sheet, cellRef, name, month, prevValue, prevMonth}]
 
 async function macroFetchWorkbookArrayBuffer(token) {
   const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
@@ -1187,30 +1188,41 @@ async function macroFetchWorkbookArrayBuffer(token) {
   return { buffer: bytes.buffer, sha: data.sha };
 }
 
+// Reads with SheetJS (XLSX.read) - NOT ExcelJS. ExcelJS's parser throws
+// ("Cannot read properties of undefined (reading 'comments')") on this
+// workbook - a real ExcelJS bug on files openpyxl produces, confirmed
+// 2026-08-07 via local Playwright reproduction. SheetJS reads it fine.
+// SheetJS is READ-ONLY here though: its own XLSX.write() was tested too
+// and found to silently corrupt formatting (Arial->Calibri, bold lost,
+// broken color refs) while also bloating file size 4x - not used for
+// writing. See macroPatchAndSave() below for how saving actually works.
 function macroFindGaps(wb) {
   const rows = [];
   for (const ind of MACRO_INDICATOR_CELLS) {
-    const ws = wb.getWorksheet(ind.sheet);
-    if (!ws) continue;
+    const ws = wb.Sheets[ind.sheet];
+    if (!ws || !ws['!ref']) continue;
+    const range = XLSX.utils.decode_range(ws['!ref']);
 
     let col = null;
-    const headerRow = ws.getRow(5);
-    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      if (cell.value === ind.code) col = colNumber;
-    });
-    if (!col) continue;
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 4, c });   // row 5 (0-indexed 4) = header
+      if (ws[addr] && ws[addr].v === ind.code) { col = c; break; }
+    }
+    if (col === null) continue;
 
     let lastRealValue = null, lastRealMonth = null;
     const gapRows = [];
-    for (let r = ws.rowCount; r >= 6; r--) {
-      const month = ws.getRow(r).getCell(1).value;
-      if (!month) continue;
-      const val = ws.getRow(r).getCell(col).value;
+    for (let r = range.e.r; r >= 5; r--) {   // spreadsheet row 6 = 0-indexed 5
+      const monthCell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
+      if (!monthCell || !monthCell.v) continue;
+      const valAddr = XLSX.utils.encode_cell({ r, c: col });
+      const valCell = ws[valAddr];
+      const val = valCell ? valCell.v : null;
       const isEmpty = (val === null || val === undefined || val === 'n/a' || val === '');
       if (isEmpty) {
-        gapRows.push({ row: r, month });
+        gapRows.push({ month: monthCell.v, cellRef: valAddr });
       } else {
-        lastRealValue = val; lastRealMonth = month;
+        lastRealValue = val; lastRealMonth = monthCell.v;
         break;
       }
     }
@@ -1218,7 +1230,7 @@ function macroFindGaps(wb) {
       const recentGaps = gapRows.slice(0, 3).reverse();
       recentGaps.forEach(g => {
         rows.push({
-          sheet: ind.sheet, col, row: g.row, name: ind.name,
+          sheet: ind.sheet, cellRef: g.cellRef, name: ind.name,
           month: g.month, prevValue: lastRealValue, prevMonth: lastRealMonth,
         });
       });
@@ -1240,9 +1252,8 @@ async function macroScanMissing() {
 
   try {
     const { buffer } = await macroFetchWorkbookArrayBuffer(token);
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer);
-    macroLoadedWorkbook = wb;
+    macroLoadedBuffer = buffer;
+    const wb = XLSX.read(buffer, { type: 'array' });
 
     macroPendingFills = [];
     const rows = macroFindGaps(wb);
@@ -1285,34 +1296,88 @@ function macroRenderFillForm(rows) {
   macroPendingFills = rows;
 }
 
+// Surgical XML patch via JSZip - the ONLY reliable write path found for
+// this workbook (both ExcelJS.load and SheetJS.write failed - see notes
+// above macroFindGaps). Opens the xlsx as a zip, finds the exact
+// worksheet XML for each sheet that needs a change, replaces just the
+// target <c r="..."> cell elements via regex (preserving that cell's
+// own style index `s="..."`), and re-zips with everything else
+// byte-identical. Verified locally: output size matches the original to
+// within a few bytes per changed cell (vs SheetJS.write's ~4x bloat and
+// dropped styles), and font/color/bold survive a full round-trip.
+async function macroPatchAndSave(fills) {
+  const zip = await JSZip.loadAsync(macroLoadedBuffer);
+
+  const wbXml = await zip.file('xl/workbook.xml').async('string');
+  const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+
+  const sheetNameToRid = {};
+  let m;
+  const sheetRe = /<sheet[^>]*name="([^"]*)"[^>]*r:id="(rId\d+)"/g;
+  while (m = sheetRe.exec(wbXml)) sheetNameToRid[m[1].replace(/&amp;/g, '&')] = m[2];
+
+  const ridToTarget = {};
+  const relRe = /<Relationship[^>]*Id="(rId\d+)"[^>]*Target="([^"]*)"/g;
+  while (m = relRe.exec(relsXml)) ridToTarget[m[1]] = m[2];
+  const relRe2 = /<Relationship[^>]*Target="([^"]*)"[^>]*Id="(rId\d+)"/g;
+  while (m = relRe2.exec(relsXml)) ridToTarget[m[2]] = m[1];
+
+  const bySheet = {};
+  fills.forEach(f => { (bySheet[f.sheet] = bySheet[f.sheet] || []).push(f); });
+
+  for (const [sheetName, sheetFills] of Object.entries(bySheet)) {
+    const rid = sheetNameToRid[sheetName];
+    const target = ridToTarget[rid];
+    if (!target) throw new Error(`Could not resolve sheet path for "${sheetName}"`);
+    const path = target.startsWith('/') ? target.slice(1) : 'xl/' + target;
+
+    let xml = await zip.file(path).async('string');
+    for (const f of sheetFills) {
+      const re = new RegExp(`<c r="${f.cellRef}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+      const match = xml.match(re);
+      if (!match) throw new Error(`Cell ${f.cellRef} not found in ${sheetName}`);
+      const cellStr = match[0];
+      const styleMatch = cellStr.match(/\ss="(\d+)"/);
+      const style = styleMatch ? ` s="${styleMatch[1]}"` : '';
+      const newCell = `<c r="${f.cellRef}"${style} t="n"><v>${f.value}</v></c>`;
+      xml = xml.replace(cellStr, newCell);
+    }
+    zip.file(path, xml);
+  }
+
+  return await zip.generateAsync({
+    type: 'arraybuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+}
+
 async function macroSaveFills() {
   const token = macroToken();
   if (!token) { alert('Enter GitHub token first'); return; }
-  if (!macroLoadedWorkbook) { alert('Scan for missing months first'); return; }
+  if (!macroLoadedBuffer) { alert('Scan for missing months first'); return; }
 
   const statusEl = document.getElementById('macro-save-status');
-  let filledCount = 0;
+  const fills = [];
 
   macroPendingFills.forEach((r, i) => {
     const input = document.getElementById(`macro-fill-${i}`);
     const raw = input.value.trim();
     if (raw === '') return;
     const num = parseFloat(raw);
-    const ws = macroLoadedWorkbook.getWorksheet(r.sheet);
-    ws.getRow(r.row).getCell(r.col).value = isNaN(num) ? raw : num;
-    filledCount++;
+    if (isNaN(num)) return;
+    fills.push({ sheet: r.sheet, cellRef: r.cellRef, value: num });
   });
 
-  if (filledCount === 0) { alert('No values entered'); return; }
+  if (fills.length === 0) { alert('No values entered'); return; }
 
   statusEl.style.color = 'var(--text3)';
-  statusEl.textContent = `⏳ Saving ${filledCount} value(s)...`;
+  statusEl.textContent = `⏳ Saving ${fills.length} value(s)...`;
 
   try {
-    const outBuffer = await macroLoadedWorkbook.xlsx.writeBuffer();
+    const outBuffer = await macroPatchAndSave(fills);
     const base64Content = arrayBufferToBase64(outBuffer);
 
-    // fetch a fresh sha right before writing, in case something else changed it
     const getResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
     });
@@ -1326,7 +1391,7 @@ async function macroSaveFills() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: `Manual fill: ${filledCount} value(s) via Macro View (${new Date().toISOString().slice(0,10)})`,
+        message: `Manual fill: ${fills.length} value(s) via Macro View (${new Date().toISOString().slice(0,10)})`,
         content: base64Content,
         sha: shaData.sha,
         branch: 'main',
@@ -1335,26 +1400,25 @@ async function macroSaveFills() {
 
     if (putResp.ok) {
       statusEl.style.color = '#2e7d52';
-      statusEl.textContent = `✓ Saved ${filledCount} value(s) to the repo. Verifying...`;
+      statusEl.textContent = `✓ Saved ${fills.length} value(s) to the repo. Verifying...`;
 
-      // Re-check the just-saved (in-memory) workbook - no extra network
-      // round-trip needed, we already have the updated version.
-      const remaining = macroFindGaps(macroLoadedWorkbook);
+      // Re-verify against the just-written buffer - no extra fetch needed
+      const wb2 = XLSX.read(outBuffer, { type: 'array' });
+      const remaining = macroFindGaps(wb2);
       const scanStatusEl = document.getElementById('macro-scan-status');
       if (remaining.length === 0) {
         scanStatusEl.style.color = '#2e7d52';
         scanStatusEl.textContent = '✓ All caught up — no missing values in the last 3 months of any manual indicator.';
         document.getElementById('macro-fill-form').classList.add('hidden');
-        statusEl.textContent = `✓ Saved ${filledCount} value(s) — all clear.`;
+        statusEl.textContent = `✓ Saved ${fills.length} value(s) — all clear.`;
       } else {
         const names = [...new Set(remaining.map(r => r.name))];
         scanStatusEl.style.color = '#b8860b';
         scanStatusEl.textContent = `⚠ Saved, but ${remaining.length} value(s) still missing: ${names.join(', ')}`;
-        statusEl.textContent = `✓ Saved ${filledCount} value(s) — ${remaining.length} still outstanding, see updated list above.`;
-        // re-render the form with only what's still missing
+        statusEl.textContent = `✓ Saved ${fills.length} value(s) — ${remaining.length} still outstanding, see updated list above.`;
         macroRenderFillForm(remaining);
       }
-      macroLoadedWorkbook = null;
+      macroLoadedBuffer = null;
     } else {
       const err = await putResp.json().catch(() => ({}));
       statusEl.style.color = '#c62828';
