@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786083814">
+<link rel="stylesheet" href="style.css?v=1786084173">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786083814"></script>
+<script src="waar.js?v=1786084173"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786083814"></script>
-<script src="app.js?v=1786083814"></script>
+<script src="report.js?v=1786084173"></script>
+<script src="app.js?v=1786084173"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1277,10 +1277,10 @@ async function macroScanMissing() {
 
 function macroRenderFillForm(rows) {
   const formEl = document.getElementById('macro-fill-form');
-  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  let html = '<div style="display:flex;flex-direction:column;gap:10px" id="macro-fill-rows">';
   rows.forEach((r, i) => {
     html += `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:6px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:6px;flex-wrap:wrap" id="macro-fill-row-${i}">
         <div style="flex:1;min-width:220px">
           <div style="font-size:13px;font-weight:600;color:var(--text1)">${r.name}</div>
           <div style="font-size:11px;color:var(--text3)">${r.sheet} · missing: <strong>${r.month}</strong> · previous (${r.prevMonth}): ${r.prevValue}</div>
@@ -1288,13 +1288,79 @@ function macroRenderFillForm(rows) {
         <a href="${r.link}" target="_blank" rel="noopener" style="font-size:11px;color:#5b6abf;white-space:nowrap">source ↗</a>
         <input type="number" step="any" id="macro-fill-${i}" placeholder="new value"
           style="width:130px;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+        <button class="btn-secondary" onclick="macroSaveSingleFill(${i})" style="font-size:12px;padding:6px 10px;white-space:nowrap">💾 Save</button>
+        <span id="macro-fill-row-status-${i}" style="font-size:11px;color:var(--text3)"></span>
       </div>`;
   });
-  html += '</div><div style="margin-top:14px"><button class="btn-primary" onclick="macroSaveFills()" style="font-size:13px">💾 Save filled values</button> <span id="macro-save-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span></div>';
+  html += '</div><div style="margin-top:14px"><button class="btn-primary" onclick="macroSaveFills()" style="font-size:13px">💾 Save all filled values</button> <span id="macro-save-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span></div>';
 
   formEl.innerHTML = html;
   formEl.classList.remove('hidden');
   macroPendingFills = rows;
+}
+
+async function macroSaveSingleFill(i) {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+  if (!macroLoadedBuffer) { alert('Scan for missing months first'); return; }
+
+  const r = macroPendingFills[i];
+  const input = document.getElementById(`macro-fill-${i}`);
+  const rowStatusEl = document.getElementById(`macro-fill-row-status-${i}`);
+  const raw = input.value.trim();
+  if (raw === '') { alert('Enter a value first'); return; }
+  const num = parseFloat(raw);
+  if (isNaN(num)) { alert('Not a valid number'); return; }
+
+  rowStatusEl.style.color = 'var(--text3)';
+  rowStatusEl.textContent = '⏳ saving...';
+  input.disabled = true;
+
+  try {
+    const outBuffer = await macroPatchAndSave([{ sheet: r.sheet, cellRef: r.cellRef, value: num }]);
+    const base64Content = arrayBufferToBase64(outBuffer);
+
+    const getResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    const shaData = await getResp.json();
+
+    const putResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: `Manual fill: ${r.name} (${r.month}) via Macro View (${new Date().toISOString().slice(0,10)})`,
+        content: base64Content,
+        sha: shaData.sha,
+        branch: 'main',
+      }),
+    });
+
+    if (putResp.ok) {
+      // this row is saved - update our in-memory buffer so subsequent
+      // per-row saves (or the bulk save button) build on top of it,
+      // not the stale pre-edit version
+      macroLoadedBuffer = outBuffer;
+      const rowEl = document.getElementById(`macro-fill-row-${i}`);
+      rowEl.style.opacity = '0.5';
+      rowStatusEl.style.color = '#2e7d52';
+      rowStatusEl.textContent = '✓ saved';
+      input.disabled = true;
+    } else {
+      const err = await putResp.json().catch(() => ({}));
+      rowStatusEl.style.color = '#c62828';
+      rowStatusEl.textContent = `✗ ${err.message || putResp.status}`;
+      input.disabled = false;
+    }
+  } catch (e) {
+    rowStatusEl.style.color = '#c62828';
+    rowStatusEl.textContent = `✗ ${e.message}`;
+    input.disabled = false;
+  }
 }
 
 // Surgical XML patch via JSZip - the ONLY reliable write path found for
@@ -1363,6 +1429,7 @@ async function macroSaveFills() {
 
   macroPendingFills.forEach((r, i) => {
     const input = document.getElementById(`macro-fill-${i}`);
+    if (input.disabled) return;   // already saved individually via macroSaveSingleFill
     const raw = input.value.trim();
     if (raw === '') return;
     const num = parseFloat(raw);
@@ -1370,7 +1437,7 @@ async function macroSaveFills() {
     fills.push({ sheet: r.sheet, cellRef: r.cellRef, value: num });
   });
 
-  if (fills.length === 0) { alert('No values entered'); return; }
+  if (fills.length === 0) { alert('No values entered (or all already saved individually)'); return; }
 
   statusEl.style.color = 'var(--text3)';
   statusEl.textContent = `⏳ Saving ${fills.length} value(s)...`;
