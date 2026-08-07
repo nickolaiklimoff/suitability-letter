@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786081877">
+<link rel="stylesheet" href="style.css?v=1786082419">
 <body>
 <div class="app">
 
@@ -1025,11 +1025,22 @@
     <div id="macro-manual-list" class="hidden" style="margin-top:12px;max-height:340px;overflow-y:auto"></div>
   </div>
 
+  <!-- Fill Missing Values (inline) -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:8px">Fill Missing Values</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      Scans the workbook for recent gaps in the 27 manual indicators, shows the last known value for context, and lets you type the new one in — saved straight back to the repo, no download/upload round-trip.
+    </div>
+    <button class="btn-primary" onclick="macroScanMissing()" style="font-size:13px">🔍 Scan for Missing Months</button>
+    <div id="macro-scan-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+    <div id="macro-fill-form" class="hidden" style="margin-top:14px"></div>
+  </div>
+
   <!-- Upload Updated File -->
   <div class="form-card" style="margin-bottom:16px">
     <h3 style="margin-bottom:8px">Upload Updated File</h3>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      After manually updating the downloaded xlsx, upload it here — it will overwrite <code>usa_macro_indicators.xlsx</code> in the repo, so the next "Run Update" and any script re-run builds on YOUR edits rather than the stale automated version.
+      Alternative to the inline form above — for bulk edits. After manually updating a downloaded xlsx, upload it here — it will overwrite <code>usa_macro_indicators.xlsx</code> in the repo.
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <input type="file" id="macro-upload-file" accept=".xlsx" style="font-size:12px;color:var(--text2)">
@@ -1049,10 +1060,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786081877"></script>
+<script src="waar.js?v=1786082419"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786081877"></script>
-<script src="app.js?v=1786081877"></script>
+<script src="report.js?v=1786082419"></script>
+<script src="app.js?v=1786082419"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1123,6 +1134,218 @@ const MACRO_MANUAL_INDICATORS = [
   { region: 'China', name: '10Y CGB Yield', source: 'ChinaBond', link: 'https://tradingeconomics.com/china/government-bond-yield' },
   { region: 'China', name: 'Fixed Asset Investment YoY', source: 'NBS via economic calendar', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
 ];
+
+// Maps each manual indicator to its raw-data sheet + column code, so the
+// inline fill form can scan the actual cells. Region here = raw sheet
+// TAB NAME (not always same as MACRO_MANUAL_INDICATORS' region label,
+// e.g. Eurozone tab is 'Eurozone' not 'EU') - kept as a separate map
+// rather than reusing MACRO_MANUAL_INDICATORS directly, since column
+// codes are an implementation detail of the workbook, not something a
+// human reads.
+const MACRO_INDICATOR_CELLS = [
+  { name: 'ISM Mfg PMI', sheet: 'US', code: 'ISM_Mfg_PMI' },
+  { name: 'ISM Svcs PMI', sheet: 'US', code: 'ISM_Svcs_PMI' },
+  { name: 'Conf Board LEI', sheet: 'US', code: 'Conf_Board_LEI' },
+  { name: 'Consumer Confidence (US)', sheet: 'US', code: 'Consumer_Confidence' },
+  { name: 'PMI Manufacturing (Japan)', sheet: 'Japan', code: 'JP_PMI_Mfg' },
+  { name: 'Consumer Confidence (Japan)', sheet: 'Japan', code: 'JP_Consumer_Conf' },
+  { name: 'Bank Lending YoY (Japan)', sheet: 'Japan', code: 'JP_Bank_Lending' },
+  { name: 'Tankan Large Mfg DI', sheet: 'Japan', code: 'JP_Tankan' },
+  { name: 'Machinery Orders YoY (Japan)', sheet: 'Japan', code: 'JP_Machinery_Orders' },
+  { name: 'CPI YoY (Japan)', sheet: 'Japan', code: 'JP_CPI' },
+  { name: 'PMI Manufacturing (UK)', sheet: 'UK', code: 'UK_PMI_Mfg' },
+  { name: 'PMI Services (UK)', sheet: 'UK', code: 'UK_PMI_Services' },
+  { name: 'GfK Confidence', sheet: 'UK', code: 'UK_GfK_Conf' },
+  { name: 'Mortgage Approvals', sheet: 'UK', code: 'UK_Mortgage_Approv' },
+  { name: 'NBS PMI Manufacturing', sheet: 'China', code: 'CN_NBS_PMI' },
+  { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI' },
+  { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services' },
+  { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2' },
+  { name: 'Total Social Financing YoY', sheet: 'China', code: 'CN_TSF' },
+  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales' },
+  { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod' },
+  { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales' },
+  { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth' },
+  { name: 'PPI YoY', sheet: 'China', code: 'CN_PPI' },
+  { name: 'PBoC 7-Day Reverse Repo Rate', sheet: 'China', code: 'CN_PBoC_Rate' },
+  { name: '10Y CGB Yield', sheet: 'China', code: 'CN_10Y_CGB' },
+  { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI' },
+];
+
+let macroLoadedWorkbook = null;   // ExcelJS.Workbook, kept in memory between scan and save
+let macroPendingFills = [];        // [{sheet, row, col, name, month}]
+
+async function macroFetchWorkbookArrayBuffer(token) {
+  const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+  });
+  if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+  const data = await resp.json();
+  const binary = atob(data.content.replace(/\n/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return { buffer: bytes.buffer, sha: data.sha };
+}
+
+async function macroScanMissing() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const statusEl = document.getElementById('macro-scan-status');
+  const formEl = document.getElementById('macro-fill-form');
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Loading workbook...';
+  formEl.classList.add('hidden');
+  formEl.innerHTML = '';
+
+  try {
+    const { buffer } = await macroFetchWorkbookArrayBuffer(token);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    macroLoadedWorkbook = wb;
+
+    macroPendingFills = [];
+    const rows = [];
+
+    for (const ind of MACRO_INDICATOR_CELLS) {
+      const ws = wb.getWorksheet(ind.sheet);
+      if (!ws) continue;
+
+      // find the column matching this code in header row 5
+      let col = null;
+      const headerRow = ws.getRow(5);
+      headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        if (cell.value === ind.code) col = colNumber;
+      });
+      if (!col) continue;
+
+      // scan from the bottom up: find trailing gap (None/'n/a') and the
+      // last real value just before it, for context
+      let lastRealRow = null, lastRealValue = null, lastRealMonth = null;
+      const gapRows = [];
+      for (let r = ws.rowCount; r >= 6; r--) {
+        const month = ws.getRow(r).getCell(1).value;
+        if (!month) continue;
+        const val = ws.getRow(r).getCell(col).value;
+        const isEmpty = (val === null || val === undefined || val === 'n/a' || val === '');
+        if (isEmpty) {
+          gapRows.push({ row: r, month });
+        } else {
+          lastRealRow = r; lastRealValue = val; lastRealMonth = month;
+          break;
+        }
+      }
+      // only show gaps if there's a real prior value for context, and
+      // cap to the 3 most recent gap months (older gaps are usually
+      // structural, e.g. China's Jan/Feb - not worth surfacing here)
+      if (gapRows.length > 0 && lastRealValue !== null) {
+        const recentGaps = gapRows.slice(0, 3).reverse(); // oldest-of-the-recent first
+        recentGaps.forEach(g => {
+          rows.push({
+            sheet: ind.sheet, col, row: g.row, name: ind.name,
+            month: g.month, prevValue: lastRealValue, prevMonth: lastRealMonth,
+          });
+        });
+      }
+    }
+
+    if (rows.length === 0) {
+      statusEl.style.color = '#2e7d52';
+      statusEl.textContent = '✓ No gaps found in the last 3 months of any manual indicator.';
+      return;
+    }
+
+    statusEl.style.color = '#2e7d52';
+    statusEl.textContent = `✓ Found ${rows.length} missing value(s) across ${new Set(rows.map(r=>r.name)).size} indicators.`;
+
+    let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+    rows.forEach((r, i) => {
+      html += `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:6px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:13px;font-weight:600;color:var(--text1)">${r.name}</div>
+            <div style="font-size:11px;color:var(--text3)">${r.sheet} · missing: <strong>${r.month}</strong> · previous (${r.prevMonth}): ${r.prevValue}</div>
+          </div>
+          <input type="number" step="any" id="macro-fill-${i}" placeholder="new value"
+            style="width:130px;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+        </div>`;
+    });
+    html += '</div><div style="margin-top:14px"><button class="btn-primary" onclick="macroSaveFills()" style="font-size:13px">💾 Save filled values</button> <span id="macro-save-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span></div>';
+
+    formEl.innerHTML = html;
+    formEl.classList.remove('hidden');
+    macroPendingFills = rows;
+
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+
+async function macroSaveFills() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+  if (!macroLoadedWorkbook) { alert('Scan for missing months first'); return; }
+
+  const statusEl = document.getElementById('macro-save-status');
+  let filledCount = 0;
+
+  macroPendingFills.forEach((r, i) => {
+    const input = document.getElementById(`macro-fill-${i}`);
+    const raw = input.value.trim();
+    if (raw === '') return;
+    const num = parseFloat(raw);
+    const ws = macroLoadedWorkbook.getWorksheet(r.sheet);
+    ws.getRow(r.row).getCell(r.col).value = isNaN(num) ? raw : num;
+    filledCount++;
+  });
+
+  if (filledCount === 0) { alert('No values entered'); return; }
+
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = `⏳ Saving ${filledCount} value(s)...`;
+
+  try {
+    const outBuffer = await macroLoadedWorkbook.xlsx.writeBuffer();
+    const base64Content = arrayBufferToBase64(outBuffer);
+
+    // fetch a fresh sha right before writing, in case something else changed it
+    const getResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    const shaData = await getResp.json();
+
+    const putResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: `Manual fill: ${filledCount} value(s) via Macro View (${new Date().toISOString().slice(0,10)})`,
+        content: base64Content,
+        sha: shaData.sha,
+        branch: 'main',
+      }),
+    });
+
+    if (putResp.ok) {
+      statusEl.style.color = '#2e7d52';
+      statusEl.textContent = `✓ Saved ${filledCount} value(s) to the repo.`;
+      document.getElementById('macro-fill-form').classList.add('hidden');
+      macroLoadedWorkbook = null;
+      macroPendingFills = [];
+    } else {
+      const err = await putResp.json().catch(() => ({}));
+      statusEl.style.color = '#c62828';
+      statusEl.textContent = `✗ Error ${putResp.status}: ${err.message || 'Unknown error'}`;
+    }
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
 
 function macroToggleManualList() {
   const box = document.getElementById('macro-manual-list');
