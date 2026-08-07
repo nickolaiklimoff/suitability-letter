@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786009746">
+<link rel="stylesheet" href="style.css?v=1786081426">
 <body>
 <div class="app">
 
@@ -1049,10 +1049,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786009746"></script>
+<script src="waar.js?v=1786081426"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786009746"></script>
-<script src="app.js?v=1786009746"></script>
+<script src="report.js?v=1786081426"></script>
+<script src="app.js?v=1786081426"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1096,25 +1096,25 @@ const GH_API     = 'https://api.github.com';
 // manual set changes in the workbook.
 const MACRO_MANUAL_INDICATORS = [
   { region: 'US', name: 'ISM Mfg PMI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/business-confidence' },
-  { region: 'US', name: 'ISM Svcs PMI', source: 'Manual entry', link: 'https://en.macromicro.me/series/293/ism-nmi' },
+  { region: 'US', name: 'ISM Svcs PMI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/services-pmi' },
   { region: 'US', name: 'Conf Board LEI', source: 'Manual entry', link: 'https://tradingeconomics.com/united-states/leading-economic-index' },
   { region: 'US', name: 'Consumer Confidence', source: 'Manual entry', link: 'https://www.conference-board.org/topics/consumer-confidence' },
   { region: 'Japan', name: 'PMI Manufacturing', source: 'S&P Global / au Jibun Bank', link: 'https://cbonds.com/indexes/47379/' },
-  { region: 'Japan', name: 'Consumer Confidence', source: 'Cabinet Office', link: 'https://en.macromicro.me/charts/692/jp-consumer-confidence-index' },
+  { region: 'Japan', name: 'Consumer Confidence', source: 'Cabinet Office', link: 'https://tradingeconomics.com/japan/consumer-confidence' },
   { region: 'Japan', name: 'Bank Lending YoY', source: 'Bank of Japan', link: 'https://uk.investing.com/economic-calendar/bank-lending-372' },
   { region: 'Japan', name: 'Tankan Large Mfg DI', source: 'Bank of Japan', link: 'https://cbonds.com/indexes/47405/' },
   { region: 'Japan', name: 'Machinery Orders YoY', source: 'Cabinet Office', link: 'https://cbonds.com/indexes/47375/' },
-  { region: 'Japan', name: 'CPI YoY', source: 'Statistics Bureau of Japan', link: 'https://en.macromicro.me/charts/681/jp-cpi' },
+  { region: 'Japan', name: 'CPI YoY', source: 'Statistics Bureau of Japan', link: 'https://tradingeconomics.com/japan/inflation-cpi' },
   { region: 'UK', name: 'PMI Manufacturing', source: 'S&P Global / CIPS', link: 'https://tradingeconomics.com/united-kingdom/manufacturing-pmi' },
   { region: 'UK', name: 'PMI Services', source: 'S&P Global / CIPS', link: 'https://tradingeconomics.com/united-kingdom/services-pmi' },
   { region: 'UK', name: 'GfK Confidence', source: 'GfK', link: 'https://uk.investing.com/economic-calendar/gfk-consumer-confidence-330' },
   { region: 'UK', name: 'Mortgage Approvals', source: 'Bank of England', link: 'https://uk.investing.com/economic-calendar/mortgage-approvals-211' },
-  { region: 'China', name: 'NBS PMI Manufacturing', source: 'NBS', link: 'https://en.macromicro.me/series/798/cn-pmi' },
+  { region: 'China', name: 'NBS PMI Manufacturing', source: 'NBS', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { region: 'China', name: 'Caixin PMI Manufacturing', source: 'S&P Global / Caixin', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { region: 'China', name: 'NBS PMI Services', source: 'NBS', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
-  { region: 'China', name: 'M2 Money Supply YoY', source: 'PBoC', link: 'https://en.macromicro.me/series/832/cn-m2-period-yoy' },
-  { region: 'China', name: 'Total Social Financing YoY', source: 'PBoC', link: 'https://en.macromicro.me/series/5926/cn-total-social-financing-stock-yoy' },
-  { region: 'China', name: 'Property Sales Area YoY', source: 'NBS', link: 'https://en.macromicro.me/collections/26/cn-house-relative' },
+  { region: 'China', name: 'M2 Money Supply YoY', source: 'PBoC', link: 'https://tradingeconomics.com/china/money-supply-m2' },
+  { region: 'China', name: 'Total Social Financing YoY', source: 'PBoC', link: 'https://tradingeconomics.com/china/total-social-financing' },
+  { region: 'China', name: 'Property Sales Area YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/new-home-sales-yoy' },
   { region: 'China', name: 'Industrial Production YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/industrial-production' },
   { region: 'China', name: 'Retail Sales YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
   { region: 'China', name: 'Real GDP Growth YoY', source: 'NBS (FRED mirror dead since Jul 2023)', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
