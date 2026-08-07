@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786097280">
+<link rel="stylesheet" href="style.css?v=1786102903">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786097280"></script>
+<script src="waar.js?v=1786102903"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786097280"></script>
-<script src="app.js?v=1786097280"></script>
+<script src="report.js?v=1786102903"></script>
+<script src="app.js?v=1786102903"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1179,12 +1179,119 @@ const MACRO_CA_SHEET = { US: 'US Cycle Analysis', Japan: 'Japan Cycle Analysis',
 // e.g. central-bank-calendar text) into a JS Date. Returns null if it
 // can't confidently parse - callers should treat that as "unknown, don't
 // filter" rather than silently excluding something real.
-function macroParseNextReleaseDate(text) {
-  if (!text) return null;
-  const m = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})/);
-  if (!m) return null;
-  const months = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
-  return new Date(parseInt(m[3]), months[m[2]], parseInt(m[1]));
+// ── Per-indicator expected-release-date calculator ─────────────────────
+// Replaces the earlier "Next Release text" cross-check, which turned out
+// to give WRONG answers for same-month-cycle indicators (e.g. US
+// Consumer Confidence releases on the last Tuesday of the SAME month it
+// measures - the "next release" being in the future said nothing about
+// whether July's own figure, released ~28 Jul, was already out). Each
+// indicator here is classified by its ACTUAL empirical cadence (many
+// verified against a real Investing.com calendar dump earlier this
+// session), and the date is computed for the SPECIFIC reference month in
+// question - not inferred from a single generic "next release" date.
+function monthEnd(year, month0) {           // month0: 0-indexed
+  return new Date(year, month0 + 1, 0);
+}
+function nthBusinessDay(year, month0, n) {
+  let d = new Date(year, month0, 1), count = 0;
+  while (true) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) {
+      count++;
+      if (count === n) return d;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+}
+function lastWeekday(year, month0, targetDow) {  // targetDow: 0=Sun..6=Sat, null=last business day
+  let d = monthEnd(year, month0);
+  if (targetDow === null) {
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  } else {
+    while (d.getDay() !== targetDow) d.setDate(d.getDate() - 1);
+  }
+  return d;
+}
+function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
+
+// type definitions, keyed by MACRO_INDICATOR_CELLS' `name`:
+//   nextMonthNthBizDay(n)      - reference month M releases on the nth
+//                                business day of month M+1 (ISM/PMI-style)
+//   sameMonthLastWeekday(dow)  - releases on the last <weekday> of month M
+//                                itself (null = last business day)
+//   sameMonthDaysBeforeEnd(n)  - releases n days before month M's end
+//   daysAfterMonthEnd(n)       - releases n days after month M ends
+//   weeksAfterMonthEnd(n)      - releases n weeks after month M ends
+//   quarterlyNextMonthNthBizDay(n) - quarter ending in M releases nth
+//                                business day of the month after
+//   weeksAfterQuarterEnd(n)
+//   skip                       - no reliable schedule (unscheduled, or
+//                                daily-average series) - don't filter
+const MACRO_RELEASE_RULES = {
+  'ISM Mfg PMI':                  { type: 'nextMonthNthBizDay', n: 1 },
+  'ISM Svcs PMI':                 { type: 'nextMonthNthBizDay', n: 3 },
+  'Conf Board LEI':               { type: 'weeksAfterMonthEnd', n: 3 },
+  'Consumer Confidence (US)':     { type: 'sameMonthLastWeekday', dow: 2 },  // Tuesday
+  'PMI Manufacturing (Japan)':    { type: 'nextMonthNthBizDay', n: 1 },
+  'Consumer Confidence (Japan)':  { type: 'sameMonthDaysBeforeEnd', n: 7 },
+  'Bank Lending YoY (Japan)':     { type: 'daysAfterMonthEnd', n: 10 },
+  'Tankan Large Mfg DI':          { type: 'quarterlyNextMonthNthBizDay', n: 1, quarterMonths: [2, 5, 8, 11] }, // Mar/Jun/Sep/Dec (0-idx)
+  'Machinery Orders YoY (Japan)': { type: 'weeksAfterMonthEnd', n: 7 },
+  'CPI YoY (Japan)':              { type: 'weeksAfterMonthEnd', n: 3 },
+  'PMI Manufacturing (UK)':       { type: 'nextMonthNthBizDay', n: 1 },
+  'PMI Services (UK)':            { type: 'nextMonthNthBizDay', n: 3 },
+  'GfK Confidence':               { type: 'sameMonthLastWeekday', dow: 5 },  // Friday
+  'Mortgage Approvals':           { type: 'nextMonthNthBizDay', n: -1 },     // last business day of M+1 - handled specially below
+  'NBS PMI Manufacturing':        { type: 'sameMonthLastWeekday', dow: null },
+  'Caixin PMI Manufacturing':     { type: 'nextMonthNthBizDay', n: 1 },
+  'NBS PMI Services':             { type: 'sameMonthLastWeekday', dow: null },
+  'M2 Money Supply YoY':          { type: 'daysAfterMonthEnd', n: 13 },
+  'Total Social Financing YoY':   { type: 'daysAfterMonthEnd', n: 13 },
+  'Property Sales Area YoY':      { type: 'daysAfterMonthEnd', n: 21 },
+  'Industrial Production YoY (China)': { type: 'daysAfterMonthEnd', n: 17 },
+  'Retail Sales YoY (China)':     { type: 'daysAfterMonthEnd', n: 17 },
+  'Real GDP Growth YoY (China)':  { type: 'weeksAfterQuarterEnd', n: 3, quarterMonths: [2, 5, 8, 11] },
+  'PPI YoY':                      { type: 'daysAfterMonthEnd', n: 9 },
+  'PBoC 7-Day Reverse Repo Rate': { type: 'skip' },
+  '10Y CGB Yield':                { type: 'skip' },
+  'Fixed Asset Investment YoY':   { type: 'daysAfterMonthEnd', n: 20 },
+};
+
+// monthStr: "YYYY-MM" reference month. Returns expected release Date, or
+// null if unclassified (treated as "don't filter" by the caller).
+function macroExpectedReleaseDate(indicatorName, monthStr) {
+  const rule = MACRO_RELEASE_RULES[indicatorName];
+  if (!rule || rule.type === 'skip') return null;
+  const [y, m] = monthStr.split('-').map(Number);
+  const year = y, month0 = m - 1;   // 0-indexed month
+
+  switch (rule.type) {
+    case 'nextMonthNthBizDay': {
+      let ny = year, nm = month0 + 1;
+      if (nm > 11) { nm = 0; ny++; }
+      if (rule.n === -1) return lastWeekday(ny, nm, null);
+      return nthBusinessDay(ny, nm, rule.n);
+    }
+    case 'sameMonthLastWeekday':
+      return lastWeekday(year, month0, rule.dow);
+    case 'sameMonthDaysBeforeEnd':
+      return addDays(monthEnd(year, month0), -rule.n);
+    case 'daysAfterMonthEnd':
+      return addDays(monthEnd(year, month0), rule.n);
+    case 'weeksAfterMonthEnd':
+      return addDays(monthEnd(year, month0), rule.n * 7);
+    case 'quarterlyNextMonthNthBizDay': {
+      if (!rule.quarterMonths.includes(month0)) return null;  // not a quarter-end month
+      let ny = year, nm = month0 + 1;
+      if (nm > 11) { nm = 0; ny++; }
+      return nthBusinessDay(ny, nm, rule.n);
+    }
+    case 'weeksAfterQuarterEnd': {
+      if (!rule.quarterMonths.includes(month0)) return null;
+      return addDays(monthEnd(year, month0), rule.n * 7);
+    }
+    default:
+      return null;
+  }
 }
 
 let macroLoadedBuffer = null;   // raw ArrayBuffer of the fetched xlsx, kept between scan and save
@@ -1212,12 +1319,7 @@ async function macroFetchWorkbookArrayBuffer(token) {
 // writing. See macroPatchAndSave() below for how saving actually works.
 function macroFindGaps(wb) {
   const rows = [];
-  // Don't flag the current (or a future) calendar month as "missing" -
-  // its reference period hasn't concluded/been released yet for almost
-  // any monthly indicator (e.g. on Aug 7, August data simply doesn't
-  // exist yet - that's not a gap, it's just too early). Only flag months
-  // that are actually in the past.
-  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  const today = new Date();
 
   for (const ind of MACRO_INDICATOR_CELLS) {
     const ws = wb.Sheets[ind.sheet];
@@ -1233,47 +1335,34 @@ function macroFindGaps(wb) {
 
     let lastRealValue = null, lastRealMonth = null;
     const gapRows = [];
+    const rule = MACRO_RELEASE_RULES[ind.name];
+    const isQuarterly = rule && (rule.type === 'quarterlyNextMonthNthBizDay' || rule.type === 'weeksAfterQuarterEnd');
     for (let r = range.e.r; r >= 5; r--) {   // spreadsheet row 6 = 0-indexed 5
       const monthCell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
       if (!monthCell || !monthCell.v) continue;
-      if (monthCell.v >= currentMonthStr) continue;   // too early to expect data, skip silently
+      if (isQuarterly) {
+        const month0 = parseInt(monthCell.v.split('-')[1], 10) - 1;
+        if (!rule.quarterMonths.includes(month0)) continue;   // not a quarter-end month for this series - structurally n/a, not a gap
+      }
       const valAddr = XLSX.utils.encode_cell({ r, c: col });
       const valCell = ws[valAddr];
       const val = valCell ? valCell.v : null;
       const isEmpty = (val === null || val === undefined || val === 'n/a' || val === '');
       if (isEmpty) {
+        // Only a genuine gap if THIS SPECIFIC month's own expected
+        // release date has already passed - computed per-indicator, not
+        // inferred from a single generic "next release" (that approach
+        // wrongly excluded July for same-month-cycle indicators like US
+        // Consumer Confidence, which releases the last Tuesday of the
+        // SAME month it measures - caught 2026-08-07). An unclassified
+        // indicator (macroExpectedReleaseDate returns null) is treated
+        // as "don't know - show it" rather than silently hidden.
+        const expected = macroExpectedReleaseDate(ind.name, monthCell.v);
+        if (expected && expected > today) continue;   // too early, not a real gap - skip silently
         gapRows.push({ month: monthCell.v, cellRef: valAddr });
       } else {
         lastRealValue = val; lastRealMonth = monthCell.v;
         break;
-      }
-    }
-    if (gapRows.length > 0 && lastRealValue !== null) {
-      // Cross-check against this indicator's own "Next Release" estimate
-      // (column M in its Cycle Analysis sheet, already computed by this
-      // session's Release Calendar work) - if the next release hasn't
-      // happened yet, the MOST RECENT gap month is what that upcoming
-      // release covers and genuinely isn't out yet (e.g. Conf Board LEI:
-      // "3rd week of month" schedule text actually means ~3 weeks INTO
-      // the following month, so July's LEI isn't released until ~Aug 20
-      // even though July itself is in the past - caught 2026-08-07 when
-      // a user-entered value turned out to be misdated for exactly this
-      // reason). Drop just the one most-recent gap in that case.
-      const caSheetName = MACRO_CA_SHEET[ind.sheet];
-      const caWs = caSheetName ? wb.Sheets[caSheetName] : null;
-      if (caWs && caWs['!ref']) {
-        const caRange = XLSX.utils.decode_range(caWs['!ref']);
-        for (let r = 0; r <= caRange.e.r; r++) {
-          const labelCell = caWs[XLSX.utils.encode_cell({ r, c: 0 })];
-          if (labelCell && labelCell.v === ind.caName) {
-            const nextReleaseCell = caWs[XLSX.utils.encode_cell({ r, c: 12 })]; // col M
-            const nextDate = macroParseNextReleaseDate(nextReleaseCell ? nextReleaseCell.v : null);
-            if (nextDate && nextDate > new Date() && gapRows.length > 0) {
-              gapRows.shift();   // gapRows[0] is the most recent (built newest-first)
-            }
-            break;
-          }
-        }
       }
     }
     if (gapRows.length > 0 && lastRealValue !== null) {
@@ -1288,6 +1377,7 @@ function macroFindGaps(wb) {
   }
   return rows;
 }
+
 
 async function macroScanMissing() {
   const token = macroToken();
