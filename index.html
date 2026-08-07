@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786082419">
+<link rel="stylesheet" href="style.css?v=1786083074">
 <body>
 <div class="app">
 
@@ -1060,10 +1060,10 @@
 <script src="./exceljs.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786082419"></script>
+<script src="waar.js?v=1786083074"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786082419"></script>
-<script src="app.js?v=1786082419"></script>
+<script src="report.js?v=1786083074"></script>
+<script src="app.js?v=1786083074"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1187,6 +1187,46 @@ async function macroFetchWorkbookArrayBuffer(token) {
   return { buffer: bytes.buffer, sha: data.sha };
 }
 
+function macroFindGaps(wb) {
+  const rows = [];
+  for (const ind of MACRO_INDICATOR_CELLS) {
+    const ws = wb.getWorksheet(ind.sheet);
+    if (!ws) continue;
+
+    let col = null;
+    const headerRow = ws.getRow(5);
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      if (cell.value === ind.code) col = colNumber;
+    });
+    if (!col) continue;
+
+    let lastRealValue = null, lastRealMonth = null;
+    const gapRows = [];
+    for (let r = ws.rowCount; r >= 6; r--) {
+      const month = ws.getRow(r).getCell(1).value;
+      if (!month) continue;
+      const val = ws.getRow(r).getCell(col).value;
+      const isEmpty = (val === null || val === undefined || val === 'n/a' || val === '');
+      if (isEmpty) {
+        gapRows.push({ row: r, month });
+      } else {
+        lastRealValue = val; lastRealMonth = month;
+        break;
+      }
+    }
+    if (gapRows.length > 0 && lastRealValue !== null) {
+      const recentGaps = gapRows.slice(0, 3).reverse();
+      recentGaps.forEach(g => {
+        rows.push({
+          sheet: ind.sheet, col, row: g.row, name: ind.name,
+          month: g.month, prevValue: lastRealValue, prevMonth: lastRealMonth,
+        });
+      });
+    }
+  }
+  return rows;
+}
+
 async function macroScanMissing() {
   const token = macroToken();
   if (!token) { alert('Enter GitHub token first'); return; }
@@ -1205,49 +1245,7 @@ async function macroScanMissing() {
     macroLoadedWorkbook = wb;
 
     macroPendingFills = [];
-    const rows = [];
-
-    for (const ind of MACRO_INDICATOR_CELLS) {
-      const ws = wb.getWorksheet(ind.sheet);
-      if (!ws) continue;
-
-      // find the column matching this code in header row 5
-      let col = null;
-      const headerRow = ws.getRow(5);
-      headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-        if (cell.value === ind.code) col = colNumber;
-      });
-      if (!col) continue;
-
-      // scan from the bottom up: find trailing gap (None/'n/a') and the
-      // last real value just before it, for context
-      let lastRealRow = null, lastRealValue = null, lastRealMonth = null;
-      const gapRows = [];
-      for (let r = ws.rowCount; r >= 6; r--) {
-        const month = ws.getRow(r).getCell(1).value;
-        if (!month) continue;
-        const val = ws.getRow(r).getCell(col).value;
-        const isEmpty = (val === null || val === undefined || val === 'n/a' || val === '');
-        if (isEmpty) {
-          gapRows.push({ row: r, month });
-        } else {
-          lastRealRow = r; lastRealValue = val; lastRealMonth = month;
-          break;
-        }
-      }
-      // only show gaps if there's a real prior value for context, and
-      // cap to the 3 most recent gap months (older gaps are usually
-      // structural, e.g. China's Jan/Feb - not worth surfacing here)
-      if (gapRows.length > 0 && lastRealValue !== null) {
-        const recentGaps = gapRows.slice(0, 3).reverse(); // oldest-of-the-recent first
-        recentGaps.forEach(g => {
-          rows.push({
-            sheet: ind.sheet, col, row: g.row, name: ind.name,
-            month: g.month, prevValue: lastRealValue, prevMonth: lastRealMonth,
-          });
-        });
-      }
-    }
+    const rows = macroFindGaps(wb);
 
     if (rows.length === 0) {
       statusEl.style.color = '#2e7d52';
@@ -1258,28 +1256,33 @@ async function macroScanMissing() {
     statusEl.style.color = '#2e7d52';
     statusEl.textContent = `✓ Found ${rows.length} missing value(s) across ${new Set(rows.map(r=>r.name)).size} indicators.`;
 
-    let html = '<div style="display:flex;flex-direction:column;gap:10px">';
-    rows.forEach((r, i) => {
-      html += `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:6px;flex-wrap:wrap">
-          <div style="flex:1;min-width:220px">
-            <div style="font-size:13px;font-weight:600;color:var(--text1)">${r.name}</div>
-            <div style="font-size:11px;color:var(--text3)">${r.sheet} · missing: <strong>${r.month}</strong> · previous (${r.prevMonth}): ${r.prevValue}</div>
-          </div>
-          <input type="number" step="any" id="macro-fill-${i}" placeholder="new value"
-            style="width:130px;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
-        </div>`;
-    });
-    html += '</div><div style="margin-top:14px"><button class="btn-primary" onclick="macroSaveFills()" style="font-size:13px">💾 Save filled values</button> <span id="macro-save-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span></div>';
-
-    formEl.innerHTML = html;
-    formEl.classList.remove('hidden');
-    macroPendingFills = rows;
+    macroRenderFillForm(rows);
 
   } catch (e) {
     statusEl.style.color = '#c62828';
     statusEl.textContent = `✗ ${e.message}`;
   }
+}
+
+function macroRenderFillForm(rows) {
+  const formEl = document.getElementById('macro-fill-form');
+  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  rows.forEach((r, i) => {
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:6px;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:13px;font-weight:600;color:var(--text1)">${r.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${r.sheet} · missing: <strong>${r.month}</strong> · previous (${r.prevMonth}): ${r.prevValue}</div>
+        </div>
+        <input type="number" step="any" id="macro-fill-${i}" placeholder="new value"
+          style="width:130px;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+      </div>`;
+  });
+  html += '</div><div style="margin-top:14px"><button class="btn-primary" onclick="macroSaveFills()" style="font-size:13px">💾 Save filled values</button> <span id="macro-save-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span></div>';
+
+  formEl.innerHTML = html;
+  formEl.classList.remove('hidden');
+  macroPendingFills = rows;
 }
 
 async function macroSaveFills() {
@@ -1332,10 +1335,26 @@ async function macroSaveFills() {
 
     if (putResp.ok) {
       statusEl.style.color = '#2e7d52';
-      statusEl.textContent = `✓ Saved ${filledCount} value(s) to the repo.`;
-      document.getElementById('macro-fill-form').classList.add('hidden');
+      statusEl.textContent = `✓ Saved ${filledCount} value(s) to the repo. Verifying...`;
+
+      // Re-check the just-saved (in-memory) workbook - no extra network
+      // round-trip needed, we already have the updated version.
+      const remaining = macroFindGaps(macroLoadedWorkbook);
+      const scanStatusEl = document.getElementById('macro-scan-status');
+      if (remaining.length === 0) {
+        scanStatusEl.style.color = '#2e7d52';
+        scanStatusEl.textContent = '✓ All caught up — no missing values in the last 3 months of any manual indicator.';
+        document.getElementById('macro-fill-form').classList.add('hidden');
+        statusEl.textContent = `✓ Saved ${filledCount} value(s) — all clear.`;
+      } else {
+        const names = [...new Set(remaining.map(r => r.name))];
+        scanStatusEl.style.color = '#b8860b';
+        scanStatusEl.textContent = `⚠ Saved, but ${remaining.length} value(s) still missing: ${names.join(', ')}`;
+        statusEl.textContent = `✓ Saved ${filledCount} value(s) — ${remaining.length} still outstanding, see updated list above.`;
+        // re-render the form with only what's still missing
+        macroRenderFillForm(remaining);
+      }
       macroLoadedWorkbook = null;
-      macroPendingFills = [];
     } else {
       const err = await putResp.json().catch(() => ({}));
       statusEl.style.color = '#c62828';
