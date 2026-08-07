@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786089372">
+<link rel="stylesheet" href="style.css?v=1786090409">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786089372"></script>
+<script src="waar.js?v=1786090409"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786089372"></script>
-<script src="app.js?v=1786089372"></script>
+<script src="report.js?v=1786090409"></script>
+<script src="app.js?v=1786090409"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1198,6 +1198,13 @@ async function macroFetchWorkbookArrayBuffer(token) {
 // writing. See macroPatchAndSave() below for how saving actually works.
 function macroFindGaps(wb) {
   const rows = [];
+  // Don't flag the current (or a future) calendar month as "missing" -
+  // its reference period hasn't concluded/been released yet for almost
+  // any monthly indicator (e.g. on Aug 7, August data simply doesn't
+  // exist yet - that's not a gap, it's just too early). Only flag months
+  // that are actually in the past.
+  const currentMonthStr = new Date().toISOString().slice(0, 7);
+
   for (const ind of MACRO_INDICATOR_CELLS) {
     const ws = wb.Sheets[ind.sheet];
     if (!ws || !ws['!ref']) continue;
@@ -1215,6 +1222,7 @@ function macroFindGaps(wb) {
     for (let r = range.e.r; r >= 5; r--) {   // spreadsheet row 6 = 0-indexed 5
       const monthCell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
       if (!monthCell || !monthCell.v) continue;
+      if (monthCell.v >= currentMonthStr) continue;   // too early to expect data, skip silently
       const valAddr = XLSX.utils.encode_cell({ r, c: col });
       const valCell = ws[valAddr];
       const val = valCell ? valCell.v : null;
