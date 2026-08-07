@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786102903">
+<link rel="stylesheet" href="style.css?v=1786103902">
 <body>
 <div class="app">
 
@@ -1061,10 +1061,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786102903"></script>
+<script src="waar.js?v=1786103902"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786102903"></script>
-<script src="app.js?v=1786102903"></script>
+<script src="report.js?v=1786103902"></script>
+<script src="app.js?v=1786103902"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1479,14 +1479,17 @@ async function macroSaveSingleFill(i) {
   rowStatusEl.textContent = '⏳ saving...';
   input.disabled = true;
 
-  try {
+  // Fetch a FRESH buffer+sha right before patching (not the possibly-
+  // stale one from scan time or an earlier save) - root cause of the
+  // "does not match <sha>" error was patching an old buffer and only
+  // fetching the sha afterward, so the two came from different points
+  // in time and GitHub correctly rejected the mismatch. One retry if it
+  // still conflicts (genuine concurrent write).
+  async function attemptSave() {
+    const { buffer, sha } = await macroFetchWorkbookArrayBuffer(token);
+    macroLoadedBuffer = buffer;
     const outBuffer = await macroPatchAndSave([{ sheet: r.sheet, cellRef: r.cellRef, value: num }]);
     const base64Content = arrayBufferToBase64(outBuffer);
-
-    const getResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-    });
-    const shaData = await getResp.json();
 
     const putResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
       method: 'PUT',
@@ -1498,10 +1501,22 @@ async function macroSaveSingleFill(i) {
       body: JSON.stringify({
         message: `Manual fill: ${r.name} (${r.month}) via Macro View (${new Date().toISOString().slice(0,10)})`,
         content: base64Content,
-        sha: shaData.sha,
+        sha: sha,
         branch: 'main',
       }),
     });
+    return { putResp, outBuffer };
+  }
+
+  try {
+    let { putResp, outBuffer } = await attemptSave();
+    if (!putResp.ok) {
+      const err = await putResp.json().catch(() => ({}));
+      if (/does not match|sha/i.test(err.message || '')) {
+        rowStatusEl.textContent = '⏳ retrying (file changed)...';
+        ({ putResp, outBuffer } = await attemptSave());
+      }
+    }
 
     if (putResp.ok) {
       // this row is saved - update our in-memory buffer so subsequent
@@ -1625,14 +1640,14 @@ async function macroSaveFills() {
   statusEl.style.color = 'var(--text3)';
   statusEl.textContent = `⏳ Saving ${fills.length} value(s)...`;
 
-  try {
+  // Same fix as macroSaveSingleFill: fetch fresh buffer+sha right before
+  // patching, not after - patching a stale buffer then fetching sha
+  // afterward caused a real "does not match <sha>" rejection.
+  async function attemptBulkSave() {
+    const { buffer, sha } = await macroFetchWorkbookArrayBuffer(token);
+    macroLoadedBuffer = buffer;
     const outBuffer = await macroPatchAndSave(fills);
     const base64Content = arrayBufferToBase64(outBuffer);
-
-    const getResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-    });
-    const shaData = await getResp.json();
 
     const putResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${MACRO_XLSX_PATH}`, {
       method: 'PUT',
@@ -1644,10 +1659,22 @@ async function macroSaveFills() {
       body: JSON.stringify({
         message: `Manual fill: ${fills.length} value(s) via Macro View (${new Date().toISOString().slice(0,10)})`,
         content: base64Content,
-        sha: shaData.sha,
+        sha: sha,
         branch: 'main',
       }),
     });
+    return { putResp, outBuffer };
+  }
+
+  try {
+    let { putResp, outBuffer } = await attemptBulkSave();
+    if (!putResp.ok) {
+      const err = await putResp.json().catch(() => ({}));
+      if (/does not match|sha/i.test(err.message || '')) {
+        statusEl.textContent = '⏳ retrying (file changed)...';
+        ({ putResp, outBuffer } = await attemptBulkSave());
+      }
+    }
 
     if (putResp.ok) {
       statusEl.style.color = '#2e7d52';
