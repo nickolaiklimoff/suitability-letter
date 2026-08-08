@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786114327">
+<link rel="stylesheet" href="style.css?v=1786182163">
 <body>
 <div class="app">
 
@@ -1013,6 +1013,17 @@
     <div id="macro-download-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
   </div>
 
+  <!-- Recalculate Cycle Analysis -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:4px">🔄 Recalculate Cycle Analysis</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      Re-runs Claude-based Phase/Context classification for every indicator in all 5 regions, then recomputes each region's composite score. Use this after entering new manual data - Phase text otherwise stays stale until this is run. Takes 10-20 minutes (all regions run in parallel) - keep this tab open.
+    </div>
+    <button class="btn-primary" id="macro-recalc-btn" onclick="macroRecalculateCyclePhases()" style="font-size:13px;background:#8b5cf6">🔄 Recalculate All Regions</button>
+    <div id="macro-recalc-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+    <div id="macro-recalc-result" style="margin-top:10px"></div>
+  </div>
+
   <!-- Manual Updates Needed -->
   <div class="form-card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="macroToggleManualList()">
@@ -1061,10 +1072,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786114327"></script>
+<script src="waar.js?v=1786182163"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786114327"></script>
-<script src="app.js?v=1786114327"></script>
+<script src="report.js?v=1786182163"></script>
+<script src="app.js?v=1786182163"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1921,6 +1932,170 @@ async function macroWatchRun(token, workflowFile, statusEl) {
       }
     } catch(e) { /* silently continue polling */ }
   }, 10000);
+}
+
+// ── Recalculate Cycle Analysis (Phase/Context + composite score) ───────────
+const MACRO_CYCLE_REGIONS = [
+  { key: 'US',    caSheet: 'US Cycle Analysis',    patternWf: 'apply_pattern_analysis.yml',    compositeWf: 'recompute_composite_score.yml' },
+  { key: 'EZ',    caSheet: 'EZ Cycle Analysis',     patternWf: 'apply_pattern_analysis_ez.yml',  compositeWf: 'recompute_composite_score_ez.yml' },
+  { key: 'Japan', caSheet: 'Japan Cycle Analysis',  patternWf: 'apply_pattern_analysis_jp.yml',  compositeWf: 'recompute_composite_score_jp.yml' },
+  { key: 'UK',    caSheet: 'UK Cycle Analysis',     patternWf: 'apply_pattern_analysis_uk.yml',  compositeWf: 'recompute_composite_score_uk.yml' },
+  { key: 'China', caSheet: 'China Cycle Analysis',  patternWf: 'apply_pattern_analysis_cn.yml',  compositeWf: 'recompute_composite_score_cn.yml' },
+];
+
+function macroEscapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Dispatches a workflow with the given inputs, then polls until the NEW run
+// (the one created by this dispatch, not some earlier leftover run)
+// reaches 'completed'. Returns the finished run object. Generic - reused for
+// both pattern-analysis (with force_regen/only_rows inputs) and composite-
+// score (no inputs) workflows.
+async function macroDispatchAndWait(token, workflowFile, inputs, timeoutMs = 25 * 60 * 1000) {
+  const dispatchedAt = Date.now();
+  const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/dispatches`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref: 'main', inputs: inputs || {} }),
+  });
+  if (resp.status !== 204) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(`${workflowFile}: failed to trigger (${err.message || resp.status})`);
+  }
+
+  const start = Date.now();
+  let run = null;
+  while (Date.now() - start < timeoutMs) {
+    await new Promise(r => setTimeout(r, 8000));
+    const runsResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/runs?per_page=5`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+    });
+    const runsData = await runsResp.json();
+    const candidate = (runsData.workflow_runs || []).find(
+      r => new Date(r.created_at).getTime() >= dispatchedAt - 10000
+    );
+    if (candidate) {
+      run = candidate;
+      if (run.status === 'completed') return run;
+    }
+  }
+  throw new Error(`${workflowFile}: timed out waiting for completion`);
+}
+
+// Reads composite score text (row 3, col A) and every indicator's Phase
+// (col Q) from each region's Cycle Analysis sheet, keyed by indicator name -
+// a lightweight before/after snapshot for diffing, not a full data dump.
+function macroCaptureCycleSnapshot(wb) {
+  const snapshot = {};
+  for (const region of MACRO_CYCLE_REGIONS) {
+    const ws = wb.Sheets[region.caSheet];
+    if (!ws) continue;
+    const compositeCell = ws[XLSX.utils.encode_cell({ r: 2, c: 0 })];
+    const phases = {};
+    if (ws['!ref']) {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let r = 0; r <= range.e.r; r++) {
+        const nameCell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
+        const phaseCell = ws[XLSX.utils.encode_cell({ r, c: 16 })]; // col Q
+        if (nameCell && nameCell.v && nameCell.v !== 'Indicator' && phaseCell && phaseCell.v) {
+          phases[nameCell.v] = phaseCell.v;
+        }
+      }
+    }
+    snapshot[region.key] = { compositeText: compositeCell ? compositeCell.v : null, phases };
+  }
+  return snapshot;
+}
+
+function macroDiffCycleSnapshots(before, after) {
+  const diffs = [];
+  for (const region of MACRO_CYCLE_REGIONS) {
+    const b = before[region.key], a = after[region.key];
+    if (!b || !a) continue;
+    const compositeChanged = b.compositeText !== a.compositeText;
+    const phaseChanges = [];
+    for (const [name, aPhase] of Object.entries(a.phases)) {
+      const bPhase = b.phases[name];
+      if (bPhase && bPhase !== aPhase) phaseChanges.push({ name, before: bPhase, after: aPhase });
+    }
+    if (compositeChanged || phaseChanges.length > 0) {
+      diffs.push({ region: region.key, compositeBefore: b.compositeText, compositeAfter: a.compositeText, compositeChanged, phaseChanges });
+    }
+  }
+  return diffs;
+}
+
+async function macroRecalculateCyclePhases() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const btn = document.getElementById('macro-recalc-btn');
+  const statusEl = document.getElementById('macro-recalc-status');
+  const resultEl = document.getElementById('macro-recalc-result');
+  btn.disabled = true;
+  resultEl.innerHTML = '';
+  statusEl.style.color = 'var(--text3)';
+
+  try {
+    statusEl.textContent = '⏳ Reading current state...';
+    const { buffer: beforeBuf } = await macroFetchWorkbookArrayBuffer(token);
+    const before = macroCaptureCycleSnapshot(XLSX.read(beforeBuf, { type: 'array' }));
+
+    statusEl.textContent = `⏳ Running pattern analysis for ${MACRO_CYCLE_REGIONS.length} regions in parallel (10-20 min - keep this tab open)...`;
+    const patternResults = await Promise.allSettled(
+      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(token, r.patternWf, { force_regen: 'true', only_rows: '' }))
+    );
+    const patternFailed = MACRO_CYCLE_REGIONS.filter((r, i) =>
+      patternResults[i].status === 'rejected' || patternResults[i].value.conclusion !== 'success'
+    ).map(r => r.key);
+
+    statusEl.textContent = '⏳ Recomputing composite scores...';
+    const compositeResults = await Promise.allSettled(
+      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(token, r.compositeWf, {}))
+    );
+    const compositeFailed = MACRO_CYCLE_REGIONS.filter((r, i) =>
+      compositeResults[i].status === 'rejected' || compositeResults[i].value.conclusion !== 'success'
+    ).map(r => r.key);
+
+    statusEl.textContent = '⏳ Reading updated state...';
+    const { buffer: afterBuf } = await macroFetchWorkbookArrayBuffer(token);
+    const after = macroCaptureCycleSnapshot(XLSX.read(afterBuf, { type: 'array' }));
+    const diffs = macroDiffCycleSnapshots(before, after);
+
+    const totalFailed = new Set([...patternFailed, ...compositeFailed]);
+    if (totalFailed.size > 0) {
+      statusEl.style.color = '#b8860b';
+      statusEl.textContent = `⚠ Done, but ${totalFailed.size} region(s) had a failed step: ${[...totalFailed].join(', ')} - check GitHub Actions`;
+    } else {
+      statusEl.style.color = '#2e7d52';
+      statusEl.textContent = '✓ Recalculation complete';
+    }
+
+    let html = '';
+    if (diffs.length === 0) {
+      html = '<div style="font-size:12px;color:var(--text3)">No Phase or composite score changes detected.</div>';
+    } else {
+      diffs.forEach(d => {
+        html += `<div style="margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${macroEscapeHtml(d.region)}</div>`;
+        if (d.compositeChanged) {
+          html += `<div style="font-size:12px;color:var(--text2);margin-bottom:2px">Composite: ${macroEscapeHtml(d.compositeBefore || '—')} → <strong>${macroEscapeHtml(d.compositeAfter || '—')}</strong></div>`;
+        }
+        d.phaseChanges.forEach(pc => {
+          html += `<div style="font-size:12px;color:var(--text3)">${macroEscapeHtml(pc.name)}: ${macroEscapeHtml(pc.before)} → <strong>${macroEscapeHtml(pc.after)}</strong></div>`;
+        });
+        html += `</div>`;
+      });
+    }
+    resultEl.innerHTML = html;
+
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function macroDownloadArtifact(type) {
