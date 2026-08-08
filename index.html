@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786183545">
+<link rel="stylesheet" href="style.css?v=1786185271">
 <body>
 <div class="app">
 
@@ -1079,10 +1079,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786183545"></script>
+<script src="waar.js?v=1786185271"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786183545"></script>
-<script src="app.js?v=1786183545"></script>
+<script src="report.js?v=1786185271"></script>
+<script src="app.js?v=1786185271"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1985,7 +1985,7 @@ async function macroDispatchAndWait(token, workflowFile, inputs, onStatus, timeo
     );
     if (candidate) {
       run = candidate;
-      if (onStatus) onStatus(run.status); // 'queued' | 'in_progress' | 'completed'
+      if (onStatus) onStatus(run.status, run.conclusion); // status: 'queued'|'in_progress'|'completed'; conclusion only set once completed
       if (run.status === 'completed') return run;
     }
   }
@@ -2052,30 +2052,39 @@ async function macroRecalculateCyclePhases() {
   progressWrap.classList.remove('hidden');
   progressBar.style.width = '0%';
 
-  // Real progress, not a fake animation: 5 regions × 2 steps each
+  // Real progress, not a fake animation: 5 regions x 2 steps each
   // (pattern analysis, then composite score) = 10 trackable units. Each
   // unit only advances when GitHub Actions actually reports that specific
   // run as 'completed' - polled directly, not estimated from elapsed time.
+  // Each step stores {status, conclusion} - 'completed' alone doesn't mean
+  // success, a failed run also reaches 'completed' status (caught in
+  // testing: the summary correctly flagged 2 failed regions while the
+  // per-region line wrongly showed check for both, since it only checked
+  // status not conclusion - fixed here).
   const TOTAL_UNITS = MACRO_CYCLE_REGIONS.length * 2;
   const state = {};
-  MACRO_CYCLE_REGIONS.forEach(r => { state[r.key] = { pattern: 'pending', composite: 'pending' }; });
+  MACRO_CYCLE_REGIONS.forEach(r => { state[r.key] = { pattern: { status: 'pending', conclusion: null }, composite: { status: 'pending', conclusion: null } }; });
 
   function renderProgress() {
     let completed = 0;
     MACRO_CYCLE_REGIONS.forEach(r => {
-      if (state[r.key].pattern === 'completed') completed++;
-      if (state[r.key].composite === 'completed') completed++;
+      if (state[r.key].pattern.status === 'completed') completed++;
+      if (state[r.key].composite.status === 'completed') completed++;
     });
     const pct = Math.round((completed / TOTAL_UNITS) * 100);
     progressBar.style.width = pct + '%';
     progressText.textContent = `${completed}/${TOTAL_UNITS} steps done (${pct}%)`;
 
-    const icon = s => s === 'completed' ? '✓' : s === 'in_progress' ? '⏳' : s === 'queued' ? '…' : '·';
+    const icon = step => {
+      if (step.status === 'completed') return step.conclusion === 'success' ? '✓' : '✗';
+      if (step.status === 'in_progress') return '⏳';
+      if (step.status === 'queued') return '…';
+      return '·';
+    };
     regionStatusEl.textContent = MACRO_CYCLE_REGIONS.map(r =>
       `${r.key.padEnd(6)} pattern ${icon(state[r.key].pattern)}  composite ${icon(state[r.key].composite)}`
     ).join('\n');
   }
-  renderProgress();
 
   try {
     statusEl.textContent = '⏳ Reading current state...';
@@ -2084,10 +2093,17 @@ async function macroRecalculateCyclePhases() {
 
     statusEl.textContent = `⏳ Running pattern analysis for ${MACRO_CYCLE_REGIONS.length} regions in parallel (10-20 min - keep this tab open)...`;
     const patternResults = await Promise.allSettled(
-      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(
-        token, r.patternWf, { force_regen: 'true', only_rows: '' },
-        status => { state[r.key].pattern = status; renderProgress(); }
-      ))
+      MACRO_CYCLE_REGIONS.map(async (r, idx) => {
+        // Stagger dispatch by a few seconds per region - firing all 5
+        // literally simultaneously maximized how often their commits
+        // collided (observed: multiple regions failing even after 5
+        // retries each, all racing to push the same file at once).
+        await new Promise(res => setTimeout(res, idx * 4000));
+        return macroDispatchAndWait(
+          token, r.patternWf, { force_regen: 'true', only_rows: '' },
+          (status, conclusion) => { state[r.key].pattern = { status, conclusion }; renderProgress(); }
+        );
+      })
     );
     const patternFailed = MACRO_CYCLE_REGIONS.filter((r, i) =>
       patternResults[i].status === 'rejected' || patternResults[i].value.conclusion !== 'success'
@@ -2095,10 +2111,13 @@ async function macroRecalculateCyclePhases() {
 
     statusEl.textContent = '⏳ Recomputing composite scores...';
     const compositeResults = await Promise.allSettled(
-      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(
-        token, r.compositeWf, {},
-        status => { state[r.key].composite = status; renderProgress(); }
-      ))
+      MACRO_CYCLE_REGIONS.map(async (r, idx) => {
+        await new Promise(res => setTimeout(res, idx * 4000));
+        return macroDispatchAndWait(
+          token, r.compositeWf, {},
+          (status, conclusion) => { state[r.key].composite = { status, conclusion }; renderProgress(); }
+        );
+      })
     );
     const compositeFailed = MACRO_CYCLE_REGIONS.filter((r, i) =>
       compositeResults[i].status === 'rejected' || compositeResults[i].value.conclusion !== 'success'
