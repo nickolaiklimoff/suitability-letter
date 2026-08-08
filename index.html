@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786182163">
+<link rel="stylesheet" href="style.css?v=1786183545">
 <body>
 <div class="app">
 
@@ -1020,6 +1020,13 @@
       Re-runs Claude-based Phase/Context classification for every indicator in all 5 regions, then recomputes each region's composite score. Use this after entering new manual data - Phase text otherwise stays stale until this is run. Takes 10-20 minutes (all regions run in parallel) - keep this tab open.
     </div>
     <button class="btn-primary" id="macro-recalc-btn" onclick="macroRecalculateCyclePhases()" style="font-size:13px;background:#8b5cf6">🔄 Recalculate All Regions</button>
+    <div id="macro-recalc-progress-wrap" class="hidden" style="margin-top:10px">
+      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+        <div id="macro-recalc-progress-bar" style="height:100%;width:0%;background:#8b5cf6;transition:width 0.4s"></div>
+      </div>
+      <div id="macro-recalc-progress-text" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+      <div id="macro-recalc-region-status" style="font-size:11px;color:var(--text3);margin-top:6px;font-family:monospace;white-space:pre-line"></div>
+    </div>
     <div id="macro-recalc-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
     <div id="macro-recalc-result" style="margin-top:10px"></div>
   </div>
@@ -1072,10 +1079,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786182163"></script>
+<script src="waar.js?v=1786183545"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786182163"></script>
-<script src="app.js?v=1786182163"></script>
+<script src="report.js?v=1786183545"></script>
+<script src="app.js?v=1786183545"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1952,7 +1959,7 @@ function macroEscapeHtml(s) {
 // reaches 'completed'. Returns the finished run object. Generic - reused for
 // both pattern-analysis (with force_regen/only_rows inputs) and composite-
 // score (no inputs) workflows.
-async function macroDispatchAndWait(token, workflowFile, inputs, timeoutMs = 25 * 60 * 1000) {
+async function macroDispatchAndWait(token, workflowFile, inputs, onStatus, timeoutMs = 25 * 60 * 1000) {
   const dispatchedAt = Date.now();
   const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/dispatches`, {
     method: 'POST',
@@ -1963,6 +1970,7 @@ async function macroDispatchAndWait(token, workflowFile, inputs, timeoutMs = 25 
     const err = await resp.json().catch(() => ({}));
     throw new Error(`${workflowFile}: failed to trigger (${err.message || resp.status})`);
   }
+  if (onStatus) onStatus('queued');
 
   const start = Date.now();
   let run = null;
@@ -1977,6 +1985,7 @@ async function macroDispatchAndWait(token, workflowFile, inputs, timeoutMs = 25 
     );
     if (candidate) {
       run = candidate;
+      if (onStatus) onStatus(run.status); // 'queued' | 'in_progress' | 'completed'
       if (run.status === 'completed') return run;
     }
   }
@@ -2033,9 +2042,40 @@ async function macroRecalculateCyclePhases() {
   const btn = document.getElementById('macro-recalc-btn');
   const statusEl = document.getElementById('macro-recalc-status');
   const resultEl = document.getElementById('macro-recalc-result');
+  const progressWrap = document.getElementById('macro-recalc-progress-wrap');
+  const progressBar = document.getElementById('macro-recalc-progress-bar');
+  const progressText = document.getElementById('macro-recalc-progress-text');
+  const regionStatusEl = document.getElementById('macro-recalc-region-status');
   btn.disabled = true;
   resultEl.innerHTML = '';
   statusEl.style.color = 'var(--text3)';
+  progressWrap.classList.remove('hidden');
+  progressBar.style.width = '0%';
+
+  // Real progress, not a fake animation: 5 regions × 2 steps each
+  // (pattern analysis, then composite score) = 10 trackable units. Each
+  // unit only advances when GitHub Actions actually reports that specific
+  // run as 'completed' - polled directly, not estimated from elapsed time.
+  const TOTAL_UNITS = MACRO_CYCLE_REGIONS.length * 2;
+  const state = {};
+  MACRO_CYCLE_REGIONS.forEach(r => { state[r.key] = { pattern: 'pending', composite: 'pending' }; });
+
+  function renderProgress() {
+    let completed = 0;
+    MACRO_CYCLE_REGIONS.forEach(r => {
+      if (state[r.key].pattern === 'completed') completed++;
+      if (state[r.key].composite === 'completed') completed++;
+    });
+    const pct = Math.round((completed / TOTAL_UNITS) * 100);
+    progressBar.style.width = pct + '%';
+    progressText.textContent = `${completed}/${TOTAL_UNITS} steps done (${pct}%)`;
+
+    const icon = s => s === 'completed' ? '✓' : s === 'in_progress' ? '⏳' : s === 'queued' ? '…' : '·';
+    regionStatusEl.textContent = MACRO_CYCLE_REGIONS.map(r =>
+      `${r.key.padEnd(6)} pattern ${icon(state[r.key].pattern)}  composite ${icon(state[r.key].composite)}`
+    ).join('\n');
+  }
+  renderProgress();
 
   try {
     statusEl.textContent = '⏳ Reading current state...';
@@ -2044,7 +2084,10 @@ async function macroRecalculateCyclePhases() {
 
     statusEl.textContent = `⏳ Running pattern analysis for ${MACRO_CYCLE_REGIONS.length} regions in parallel (10-20 min - keep this tab open)...`;
     const patternResults = await Promise.allSettled(
-      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(token, r.patternWf, { force_regen: 'true', only_rows: '' }))
+      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(
+        token, r.patternWf, { force_regen: 'true', only_rows: '' },
+        status => { state[r.key].pattern = status; renderProgress(); }
+      ))
     );
     const patternFailed = MACRO_CYCLE_REGIONS.filter((r, i) =>
       patternResults[i].status === 'rejected' || patternResults[i].value.conclusion !== 'success'
@@ -2052,7 +2095,10 @@ async function macroRecalculateCyclePhases() {
 
     statusEl.textContent = '⏳ Recomputing composite scores...';
     const compositeResults = await Promise.allSettled(
-      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(token, r.compositeWf, {}))
+      MACRO_CYCLE_REGIONS.map(r => macroDispatchAndWait(
+        token, r.compositeWf, {},
+        status => { state[r.key].composite = status; renderProgress(); }
+      ))
     );
     const compositeFailed = MACRO_CYCLE_REGIONS.filter((r, i) =>
       compositeResults[i].status === 'rejected' || compositeResults[i].value.conclusion !== 'success'
