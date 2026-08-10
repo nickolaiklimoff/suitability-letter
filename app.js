@@ -1694,6 +1694,11 @@ Additional instruction: ${extraInstruction}`
     })
   });
   const data = await resp.json();
+  if (!resp.ok) {
+    const apiErr = data?.error?.message || JSON.stringify(data);
+    console.error('[commentary] API error:', resp.status, apiErr);
+    throw new Error(`Anthropic API error (${resp.status}): ${apiErr}`);
+  }
   return data.content?.[0]?.text?.trim() || null;
 }
 
