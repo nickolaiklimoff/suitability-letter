@@ -1269,13 +1269,25 @@ window.runPortfolioReport = async function() {
           portfolioData._analytics = fullA;
           // Regenerate report with full analytics
           const showClientName2 = document.getElementById('r-showClientName')?.checked !== false;
-          const html2 = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2);
+          const html2 = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2, depositData);
           document.getElementById('r-reportContent').innerHTML = html2;
         } else {
+          // Previously this only logged to console — Section 6/7/8/10 (Total
+          // Return, Sharpe, IRR, etc.) would silently vanish from the report
+          // with zero indication to the user why. Surface it visibly instead.
           console.warn('[analytics] full analytics returned null — check holding file matching');
+          const reason = window._lastAnalyticsError || 'holding price files did not match any holdings closely enough (check file names contain the ticker/ISIN/a distinctive word from the holding name)';
+          const banner = document.createElement('div');
+          banner.style.cssText = 'background:#fdecea;border:1px solid #e6a5a0;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#922B21';
+          banner.innerHTML = `⚠ <strong>Full portfolio analytics unavailable this run</strong> — Section 6 (Total Return/Volatility/Sharpe), Section 10 (IRR), and related sections were skipped. Reason: ${reason}`;
+          document.getElementById('r-reportContent')?.prepend(banner);
         }
       } catch(e) {
         console.warn('[analytics] full analytics error:', e);
+        const banner = document.createElement('div');
+        banner.style.cssText = 'background:#fdecea;border:1px solid #e6a5a0;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#922B21';
+        banner.innerHTML = `⚠ <strong>Full portfolio analytics failed</strong> — Section 6/10 were skipped. Error: ${crmEsc ? crmEsc(e.message||String(e)) : (e.message||String(e))}`;
+        document.getElementById('r-reportContent')?.prepend(banner);
       }
     }
 
