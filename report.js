@@ -654,7 +654,7 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
       body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
-    if (!resp.ok) { console.warn('[sectorExposure] API error:', data); return null; }
+    if (!resp.ok) { console.warn('[sectorExposure] API error:', resp.status, data?.error?.message || JSON.stringify(data)); return null; }
     const text = data.content?.[0]?.text || '';
     return parseClaudeJSON(text);
   } catch(e) {
@@ -1726,6 +1726,11 @@ Include one data point per month (or more if visible). Be precise about values.`
     });
 
     const data = await resp.json();
+    if (!resp.ok) {
+      const apiErr = data?.error?.message || JSON.stringify(data);
+      console.error('[extractChart] API error:', resp.status, apiErr);
+      throw new Error(`Anthropic API error (${resp.status}): ${apiErr}`);
+    }
     const text = data.content?.[0]?.text || '';
     console.log('[extractChart] Claude response:', text.slice(0, 300));
     // Extract JSON robustly — find first { ... } block
@@ -1856,7 +1861,7 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
       body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
-    if (!resp.ok) { console.warn('[countryExposure] API error:', data); return null; }
+    if (!resp.ok) { console.warn('[countryExposure] API error:', resp.status, data?.error?.message || JSON.stringify(data)); return null; }
     const text = data.content?.[0]?.text || '';
     return parseClaudeJSON(text);
   } catch(e) {
