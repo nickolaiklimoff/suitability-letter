@@ -1214,9 +1214,10 @@ function buildBondAnalysisSection(bonds, totalPortfolioValue) {
 // ─── Full Analytics Engine (from holding quotes) ─────────────────────────────
 
 window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) {
+  window._lastAnalyticsError = null;
   try {
     const holdingQuotes = window._holdingQuotesData || {};
-    if (Object.keys(holdingQuotes).length === 0) return null;
+    if (Object.keys(holdingQuotes).length === 0) { window._lastAnalyticsError = 'no holding price files were uploaded'; return null; }
 
     // ── Map holding names to quote files ──────────────────────────────────────
     // Match by ticker or name keyword in filename
@@ -1249,6 +1250,7 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
       'matched:', matchedCount, Object.keys(priceMap));
     if (matchedCount < 2) {
       console.warn('[fullAnalytics] too few matches (<2) — check file names match holding names');
+      window._lastAnalyticsError = `only ${matchedCount} of ${allHoldings.length} holdings matched to an uploaded price file (need at least 2) — check the price-file names contain the ticker, ISIN, or a distinctive word from the holding name`;
       return null;
     }
 
@@ -1450,6 +1452,7 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     };
   } catch(e) {
     console.error('Full analytics error:', e);
+    window._lastAnalyticsError = e.message || String(e);
     return null;
   }
 };
