@@ -130,7 +130,7 @@ Return ONLY valid JSON, no markdown:
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-8',
         max_tokens: 3000,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -314,7 +314,7 @@ Return ONLY valid JSON, no markdown:
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-8',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })
