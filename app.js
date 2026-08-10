@@ -1229,10 +1229,7 @@ window.runPortfolioReport = async function() {
     console.log('[analytics] mode=', analyticsMode, 'holding files=', holdingFiles.length, 'pending full=', portfolioData._pendingFullAnalytics);
 
     // Chart-based analytics: run if quick mode OR full mode has no files (fallback)
-    const chartCandidateExists = chartSrc && chartSrc.startsWith('data:');
-    const useChart = (analyticsMode !== 'full' || holdingFiles.length === 0) && chartCandidateExists && apiKey;
-    let chartSkippedNoKey = chartCandidateExists && !apiKey && (analyticsMode !== 'full' || holdingFiles.length === 0);
-    let chartFailedError = null;
+    const useChart = (analyticsMode !== 'full' || holdingFiles.length === 0) && chartSrc && chartSrc.startsWith('data:') && apiKey;
     if (useChart) {
       const btn2 = document.querySelector('.btn-generate');
       if (btn2) btn2.textContent = 'Reading chart…';
@@ -1242,7 +1239,6 @@ window.runPortfolioReport = async function() {
       } catch(e) {
         console.warn('[analytics] chart failed:', e);
         portfolioData._analytics = null;
-        chartFailedError = e.message || String(e);
       }
     }
 
@@ -1253,18 +1249,6 @@ window.runPortfolioReport = async function() {
     window._inceptionDate = inceptionDate;
     const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
     document.getElementById('r-reportContent').innerHTML = html;
-    if (chartSkippedNoKey || chartFailedError) {
-      // Same visibility fix as the full-analytics path below — this was
-      // previously a silent skip (no chart-derived Total Return/Sharpe/IRR,
-      // with zero indication why).
-      const reason = chartFailedError
-        ? `the chart-reading API call failed — ${chartFailedError} (often means the Anthropic API key is invalid or out of credits — check Settings → Plans & Billing on console.anthropic.com)`
-        : 'no Anthropic API key is configured, so the uploaded chart could not be read for Total Return/Volatility/Sharpe/IRR';
-      const banner = document.createElement('div');
-      banner.style.cssText = 'background:#fdecea;border:1px solid #e6a5a0;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#922B21';
-      banner.innerHTML = `⚠ <strong>Chart-based portfolio analytics unavailable this run</strong> — Section 6 (Total Return/Volatility/Sharpe), Section 10 (IRR), and related sections were skipped. Reason: ${reason}`;
-      document.getElementById('r-reportContent')?.prepend(banner);
-    }
     // Store key metrics for commentary generation
     window._lastWaar = analytics?.waar ?? null;
     window._lastEquityPct = analytics?.equityPct != null ? (analytics.equityPct*100).toFixed(1)+'%' : 'N/A';
@@ -1704,7 +1688,7 @@ Additional instruction: ${extraInstruction}`
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
       max_tokens: 1400,
       messages: [{ role: 'user', content: userContent }]
     })
@@ -1861,7 +1845,7 @@ Return ONLY JSON: {"ratings": [{"index":1,"rating":2}, ...]}`;
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-8',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -3124,7 +3108,7 @@ window.bpLoadBcaPdf = async function(input) {
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+          model: 'claude-sonnet-5',
           max_tokens: 4000,
           messages: [{
             role: 'user',
@@ -3685,7 +3669,7 @@ window.dbFormat = async function() {
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5',
         max_tokens: 2000,
         messages: [{
           role: 'user',
@@ -6084,7 +6068,7 @@ Keep it under 100 words total.`;
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5',
         max_tokens: 700,
         messages: [{ role: 'user', content: prompt }],
         tools: [{ type: 'web_search_20250305', name: 'web_search' }]
