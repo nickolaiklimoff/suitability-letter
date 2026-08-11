@@ -6650,17 +6650,21 @@ function runRebalance() {
       underLines2.forEach(r => {
         const lineAlloc = budgetSufficient ? r.deficit : (r.deficit / totalDeficit) * effectiveBudget;
         r.buyAmt = lineAlloc;
-        r.holdings.forEach(h => {
-          const qty_now = h.quantity || 0;
-          const price = qty_now > 0 ? (h.convertedHoldingValue||0) / qty_now : (h.price || h.lastPrice || 0);
-          if (price <= 0) return;
-          const hShare = r.curVal > 0 ? (h.convertedHoldingValue||0) / r.curVal : 1 / Math.max(r.holdings.length, 1);
-          const hAlloc = lineAlloc * hShare;
-          const qty    = Math.floor(hAlloc / price);
-          const spent  = qty * price;
-          holdingTrades.push({ holding:h, qty, spent, price, alloc:hAlloc });
-          totalSpent += spent;
-        });
+        // Route the whole segment's buy to its single largest existing holding —
+        // avoids fragmenting into trivial odd-lot top-ups of small/stub positions
+        // that happen to share the same segment as a much larger fund.
+        const target = r.holdings.reduce((best, h) =>
+          (h.convertedHoldingValue||0) > (best?.convertedHoldingValue||0) ? h : best, null);
+        if (target) {
+          const qty_now = target.quantity || 0;
+          const price = qty_now > 0 ? (target.convertedHoldingValue||0) / qty_now : (target.price || target.lastPrice || 0);
+          if (price > 0) {
+            const qty = Math.floor(lineAlloc / price);
+            const spent = qty * price;
+            holdingTrades.push({ holding: target, qty, spent, price, alloc: lineAlloc });
+            totalSpent += spent;
+          }
+        }
       });
       // Greedy remainder: sort by fractional leftover (alloc mod price) descending
       holdingTrades
@@ -6861,17 +6865,20 @@ function runRebalance() {
       const budgetSufficient = effectiveBudget >= totalDeficit;
       underLines2.forEach(r => {
         const lineAlloc = budgetSufficient ? r.deficit : (r.deficit / totalDeficit) * effectiveBudget;
-        r.holdings.forEach(h => {
-          const qty_now = h.quantity || 0;
-          const price = qty_now > 0 ? (h.convertedHoldingValue||0) / qty_now : (h.price || h.lastPrice || 0);
-          if (price <= 0) return;
-          const hShare = r.curVal > 0 ? (h.convertedHoldingValue||0) / r.curVal : 1 / Math.max(r.holdings.length, 1);
-          const hAlloc = lineAlloc * hShare;
-          const qty    = Math.floor(hAlloc / price);
-          const spent  = qty * price;
-          holdingTrades.push({ holding:h, qty, spent, price, alloc:hAlloc, row:r });
-          totalSpent += spent;
-        });
+        // Route the whole line's buy to its single largest existing holding —
+        // avoids fragmenting into trivial odd-lot top-ups of small/stub positions.
+        const target = r.holdings.reduce((best, h) =>
+          (h.convertedHoldingValue||0) > (best?.convertedHoldingValue||0) ? h : best, null);
+        if (target) {
+          const qty_now = target.quantity || 0;
+          const price = qty_now > 0 ? (target.convertedHoldingValue||0) / qty_now : (target.price || target.lastPrice || 0);
+          if (price > 0) {
+            const qty = Math.floor(lineAlloc / price);
+            const spent = qty * price;
+            holdingTrades.push({ holding: target, qty, spent, price, alloc: lineAlloc, row: r });
+            totalSpent += spent;
+          }
+        }
       });
       holdingTrades
         .filter(t => t.price > 0)
