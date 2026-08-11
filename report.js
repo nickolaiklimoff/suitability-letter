@@ -620,13 +620,19 @@ function buildIncomeMap(portfolioData) {
 
 // ─── Robust JSON parser — handles trailing commas, truncated responses ─────────
 function parseClaudeJSON(text) {
-  const clean = text.replace(/```json|```/g, '').trim();
+  let clean = text.replace(/```json|```/g, '').trim();
+  // Discard any prose before/after the outermost JSON object or array — a trailing
+  // note after the closing brace (or leading preamble) makes strict JSON.parse fail
+  // even though the JSON itself is well-formed.
+  const firstBrace = clean.search(/[{[]/);
+  const lastBrace = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
+  if (firstBrace !== -1 && lastBrace > firstBrace) clean = clean.slice(firstBrace, lastBrace + 1);
   try { return JSON.parse(clean); } catch(e) {}
   const fixed = clean.replace(/,\s*([}\]])/g, '$1').replace(/,?\s*$/, '');
   let opens=0,closes=0,aOpens=0,aCloses=0;
   for (const c of fixed) { if(c==='{')opens++; if(c==='}')closes++; if(c==='[')aOpens++; if(c===']')aCloses++; }
   const padded = fixed + '}'.repeat(Math.max(0,opens-closes)) + ']'.repeat(Math.max(0,aOpens-aCloses));
-  try { return JSON.parse(padded); } catch(e2) { console.warn('[parseClaudeJSON]',e2.message); return null; }
+  try { return JSON.parse(padded); } catch(e2) { console.warn('[parseClaudeJSON]',e2.message, '| text was:', text.slice(0,500)); return null; }
 }
 
 // Extracts the text content block from a Messages API response, regardless of position.
@@ -660,7 +666,7 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
     if (!resp.ok) { console.warn('[sectorExposure] API error:', resp.status, data?.error?.message || JSON.stringify(data)); return null; }
@@ -1868,7 +1874,7 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
     if (!resp.ok) {
@@ -1880,8 +1886,12 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
     const text = extractClaudeText(data);
     const parsed = parseClaudeJSON(text);
     if (!parsed) {
-      console.warn('[countryExposure] Claude response was not parseable JSON:', text.slice(0, 500));
-      window._lastCountryExposureError = `Claude returned a response that could not be parsed as JSON (response started with: "${text.slice(0, 120).replace(/\s+/g,' ').trim()}${text.length > 120 ? '…' : ''}")`;
+      console.warn('[countryExposure] Claude response was not parseable JSON:', text);
+      const head = text.slice(0, 200).replace(/\s+/g,' ').trim();
+      const tail = text.length > 400 ? text.slice(-200).replace(/\s+/g,' ').trim() : '';
+      window._lastCountryExposureError = `Claude returned a response that could not be parsed as JSON. Start: "${head}${text.length > 200 ? '…' : ''}"` +
+        (tail ? ` End: "…${tail}"` : '') +
+        ` (${text.length} chars total — if it ends mid-word/mid-object, the response was likely cut off by the token limit)`;
     }
     return parsed;
   } catch(e) {
@@ -2907,5 +2917,6 @@ window.exportReportToWord = async function() {
   a.click();
   URL.revokeObjectURL(url);
 };
+
 
 
