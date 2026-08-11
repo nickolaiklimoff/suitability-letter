@@ -2307,7 +2307,17 @@ window.bpLoadEtfQuotes = async function(input) {
     const annRet = r => r.length ? ((r.reduce((a,v)=>a*(1+v),1)**(12/r.length))-1)*100 : null;
     const annVol = r => { if(r.length<2)return null; const m=r.reduce((a,v)=>a+v,0)/r.length; return Math.sqrt(r.reduce((a,v)=>a+(v-m)**2,0)/(r.length-1)*12)*100; };
     const l12=rets.slice(-12), l36=rets.slice(-36);
-    return { ret1y:annRet(l12), vol1y:annVol(l12), ret3y:l36.length>=33?annRet(l36):null, vol3y:l36.length>=33?annVol(l36):null };
+    // Require near-full coverage before annualizing — extrapolating e.g. 3
+    // months of data to a "1y return" via (12/3)=4th-power compounding
+    // produces wildly distorted, misleading figures with no indication the
+    // underlying window was too short. Same ~92% coverage bar as ret3y already had.
+    return {
+      ret1y: l12.length>=11 ? annRet(l12) : null,
+      vol1y: l12.length>=11 ? annVol(l12) : null,
+      ret3y: l36.length>=33 ? annRet(l36) : null,
+      vol3y: l36.length>=33 ? annVol(l36) : null,
+      monthsAvailable: rets.length,
+    };
   }
 
   let done = 0;
@@ -2345,7 +2355,16 @@ window.bpLoadEtfQuotes = async function(input) {
       if (done === files.length) {
         lsSet('suitability-bp-etf', JSON.stringify(_bpEtfData));
         const keys = Object.keys(_bpEtfData).filter(k=>k!=='BIL');
-        if (status) status.textContent = `Loaded: ${keys.join(', ')} · Fetching cash rates from FRED...`;
+        const thin = keys.filter(k => (_bpEtfData[k].monthsAvailable||0) < 11);
+        if (status) {
+          status.textContent = `Loaded: ${keys.join(', ')} · Fetching cash rates from FRED...`;
+          if (thin.length) {
+            const warn = document.createElement('div');
+            warn.style.cssText = 'color:#a32d2d;font-size:11px;margin-top:4px';
+            warn.textContent = `⚠ ${thin.join(', ')} — only ${thin.map(k=>_bpEtfData[k].monthsAvailable||0).join('/')} month(s) of price history found; 1y return needs ~11+ months, so it will show "—" until a longer export is uploaded.`;
+            status.parentElement?.appendChild(warn);
+          }
+        }
         bpFetchFredGS1(status);
       }
     };
@@ -2536,13 +2555,15 @@ function bpRenderOutputTable(W, rets, source) {
   ];
 
   function weighted(metric, ir) {
-    let sum=0, ok=false;
-    ETF_META.forEach(e => {
+    let sum=0;
+    for (const e of ETF_META) {
       const w = BP_BM_WEIGHTS[e.type][ir];
+      if (w<=0) continue;
       const v = (_bpEtfData[e.key]||{})[metric];
-      if (v!=null&&!isNaN(v)&&w>0) { sum+=w*v; ok=true; }
-    });
-    return ok ? sum : null;
+      if (v==null||isNaN(v)) return null; // incomplete data for this weight — don't show a misleadingly partial blend
+      sum += w*v;
+    }
+    return sum;
   }
 
   // Styles
