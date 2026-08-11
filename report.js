@@ -1838,6 +1838,7 @@ function buildCommentarySection(commentaryText) {
 
 // ─── Country Exposure via Claude API ──────────────────────────────────────────
 window.fetchCountryExposure = async function(equityHoldings, apiKey) {
+  window._lastCountryExposureError = null;
   // equityHoldings: array of {name, ticker, convertedHoldingValue}
   const items = equityHoldings
     .filter(h => h.ticker || h.name)
@@ -1868,7 +1869,12 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
       return null;
     }
     const text = data.content?.[0]?.text || '';
-    return parseClaudeJSON(text);
+    const parsed = parseClaudeJSON(text);
+    if (!parsed) {
+      console.warn('[countryExposure] Claude response was not parseable JSON:', text.slice(0, 500));
+      window._lastCountryExposureError = `Claude returned a response that could not be parsed as JSON (response started with: "${text.slice(0, 120).replace(/\s+/g,' ').trim()}${text.length > 120 ? '…' : ''}")`;
+    }
+    return parsed;
   } catch(e) {
     console.warn('[countryExposure] API error:', e);
     window._lastCountryExposureError = e.message || String(e);
@@ -2892,4 +2898,5 @@ window.exportReportToWord = async function() {
   a.click();
   URL.revokeObjectURL(url);
 };
+
 
