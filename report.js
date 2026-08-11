@@ -629,6 +629,15 @@ function parseClaudeJSON(text) {
   try { return JSON.parse(padded); } catch(e2) { console.warn('[parseClaudeJSON]',e2.message); return null; }
 }
 
+// Extracts the text content block from a Messages API response, regardless of position.
+// Sonnet 5+ puts a thinking block first (adaptive thinking on by default), so content[0]
+// is often {type:"thinking"} with no .text field — content[0].text alone silently returns ''.
+function extractClaudeText(data) {
+  const blocks = data?.content || [];
+  const textBlock = blocks.find(b => b?.type === 'text');
+  return textBlock?.text || '';
+}
+
 // ─── Sector Exposure for broad equity ETFs (real composition, not benchmark proxy) ──
 window.fetchSectorExposure = async function(broadHoldings, apiKey) {
   // broadHoldings: array of {name, ticker}
@@ -655,7 +664,7 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
     });
     const data = await resp.json();
     if (!resp.ok) { console.warn('[sectorExposure] API error:', resp.status, data?.error?.message || JSON.stringify(data)); return null; }
-    const text = data.content?.[0]?.text || '';
+    const text = extractClaudeText(data);
     return parseClaudeJSON(text);
   } catch(e) {
     console.warn('[sectorExposure] error:', e);
@@ -1731,7 +1740,7 @@ Include one data point per month (or more if visible). Be precise about values.`
       console.error('[extractChart] API error:', resp.status, apiErr);
       throw new Error(`Anthropic API error (${resp.status}): ${apiErr}`);
     }
-    const text = data.content?.[0]?.text || '';
+    const text = extractClaudeText(data);
     console.log('[extractChart] Claude response:', text.slice(0, 300));
     // Extract JSON robustly — find first { ... } block
     let clean = text.replace(/```json|```/g, '').trim();
@@ -1868,7 +1877,7 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
       window._lastCountryExposureError = `Anthropic API error (${resp.status}): ${apiErr}`;
       return null;
     }
-    const text = data.content?.[0]?.text || '';
+    const text = extractClaudeText(data);
     const parsed = parseClaudeJSON(text);
     if (!parsed) {
       console.warn('[countryExposure] Claude response was not parseable JSON:', text.slice(0, 500));
