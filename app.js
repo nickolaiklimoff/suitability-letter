@@ -1240,15 +1240,18 @@ window.runPortfolioReport = async function() {
 
     // Chart-based analytics: run if quick mode OR full mode has no files (fallback)
     const useChart = (analyticsMode !== 'full' || holdingFiles.length === 0) && chartSrc && chartSrc.startsWith('data:') && apiKey;
+    let _chartAnalyticsFailReason = null;
     if (useChart) {
       const btn2 = document.querySelector('.btn-generate');
       if (btn2) btn2.textContent = 'Reading chart…';
       try {
         portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
         console.log('[analytics] chart result:', portfolioData._analytics ? 'OK' : 'null');
+        if (!portfolioData._analytics) _chartAnalyticsFailReason = 'the chart image could not be read into a usable time series (fewer than 3 data points recognized, or the response was not valid JSON) — check console for [extractChart] logs';
       } catch(e) {
         console.warn('[analytics] chart failed:', e);
         portfolioData._analytics = null;
+        _chartAnalyticsFailReason = e.message || String(e);
       }
     }
 
@@ -1259,6 +1262,12 @@ window.runPortfolioReport = async function() {
     window._inceptionDate = inceptionDate;
     const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
     document.getElementById('r-reportContent').innerHTML = html;
+    if (useChart && !portfolioData._analytics) {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#fdecea;border:1px solid #e6a5a0;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#922B21';
+      banner.innerHTML = `⚠ <strong>Portfolio Analytics unavailable this run</strong> — Section 6 (Total Return/Volatility/Sharpe), Section 7 (Risk), Section 8 (Benchmark) were skipped. Reason: ${_chartAnalyticsFailReason}`;
+      document.getElementById('r-reportContent')?.prepend(banner);
+    }
     // Store key metrics for commentary generation
     window._lastWaar = analytics?.waar ?? null;
     window._lastEquityPct = analytics?.equityPct != null ? (analytics.equityPct*100).toFixed(1)+'%' : 'N/A';
