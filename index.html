@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786394463">
+<link rel="stylesheet" href="style.css?v=1786429435">
 <body>
 <div class="app">
 
@@ -1017,7 +1017,7 @@
   <div class="form-card" style="margin-bottom:16px">
     <h3 style="margin-bottom:4px">🔄 Recalculate Cycle Analysis</h3>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      Re-runs Claude-based Phase/Context classification for every indicator in all 5 regions, then recomputes each region's composite score. Use this after entering new manual data - Phase text otherwise stays stale until this is run. Takes 10-20 minutes (all regions run in parallel) - keep this tab open.
+      Re-runs Claude-based Phase/Context classification for every indicator in all 5 regions, then recomputes each region's composite score. Use this after entering new manual data - Phase text otherwise stays stale until this is run. Takes 10-20 minutes normally, up to ~45 if a region needs a retry (auto-retries up to 2x if a run gets stuck or cancelled) - keep this tab open.
     </div>
     <button class="btn-primary" id="macro-recalc-btn" onclick="macroRecalculateCyclePhases()" style="font-size:13px;background:#8b5cf6">🔄 Recalculate All Regions</button>
     <div id="macro-recalc-progress-wrap" class="hidden" style="margin-top:10px">
@@ -1079,10 +1079,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786394463"></script>
+<script src="waar.js?v=1786429435"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786394463"></script>
-<script src="app.js?v=1786394463"></script>
+<script src="report.js?v=1786429435"></script>
+<script src="app.js?v=1786429435"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1992,6 +1992,33 @@ async function macroDispatchAndWait(token, workflowFile, inputs, onStatus, timeo
   throw new Error(`${workflowFile}: timed out waiting for completion`);
 }
 
+// Wraps macroDispatchAndWait with self-healing retries. The workflow's OWN
+// internal retry loop (added earlier) only handles git-push conflicts - it
+// can't recover from the run itself being cancelled or getting stuck past
+// its timeout (both observed in practice: a runner-level cancellation, and
+// a run that sat well past its 40-minute timeout without GitHub actually
+// killing it). Those failure modes need a fresh dispatch, not a retry
+// inside the same run. Up to 2 extra attempts (3 total) before giving up.
+async function macroDispatchAndWaitWithRetry(token, workflowFile, inputs, onStatus, maxAttempts = 3) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const run = await macroDispatchAndWait(token, workflowFile, inputs, onStatus);
+      if (run.conclusion === 'success') return run;
+      // Completed but not successfully (failure/cancelled/timed_out) - stuck
+      // runs that exceed their timeout without GitHub marking them
+      // 'completed' won't reach here at all; macroDispatchAndWait's own
+      // timeoutMs (25 min) throws instead, caught below.
+      lastErr = new Error(`${workflowFile}: run finished with conclusion '${run.conclusion}'`);
+      if (attempt < maxAttempts && onStatus) onStatus('queued', null); // signal a retry is starting
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxAttempts && onStatus) onStatus('queued', null);
+    }
+  }
+  throw lastErr;
+}
+
 // Reads composite score text (row 3, col A) and every indicator's Phase
 // (col Q) from each region's Cycle Analysis sheet, keyed by indicator name -
 // a lightweight before/after snapshot for diffing, not a full data dump.
@@ -2099,7 +2126,7 @@ async function macroRecalculateCyclePhases() {
         // collided (observed: multiple regions failing even after 5
         // retries each, all racing to push the same file at once).
         await new Promise(res => setTimeout(res, idx * 4000));
-        return macroDispatchAndWait(
+        return macroDispatchAndWaitWithRetry(
           token, r.patternWf, { force_regen: 'true', only_rows: '' },
           (status, conclusion) => { state[r.key].pattern = { status, conclusion }; renderProgress(); }
         );
@@ -2113,7 +2140,7 @@ async function macroRecalculateCyclePhases() {
     const compositeResults = await Promise.allSettled(
       MACRO_CYCLE_REGIONS.map(async (r, idx) => {
         await new Promise(res => setTimeout(res, idx * 4000));
-        return macroDispatchAndWait(
+        return macroDispatchAndWaitWithRetry(
           token, r.compositeWf, {},
           (status, conclusion) => { state[r.key].composite = { status, conclusion }; renderProgress(); }
         );
