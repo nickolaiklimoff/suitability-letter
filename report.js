@@ -1861,11 +1861,17 @@ ${items.map(h => `- Ticker: ${h.ticker || 'N/A'}, Name: ${h.name}`).join('\n')}`
       body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await resp.json();
-    if (!resp.ok) { console.warn('[countryExposure] API error:', resp.status, data?.error?.message || JSON.stringify(data)); return null; }
+    if (!resp.ok) {
+      const apiErr = data?.error?.message || JSON.stringify(data);
+      console.warn('[countryExposure] API error:', resp.status, apiErr);
+      window._lastCountryExposureError = `Anthropic API error (${resp.status}): ${apiErr}`;
+      return null;
+    }
     const text = data.content?.[0]?.text || '';
     return parseClaudeJSON(text);
   } catch(e) {
     console.warn('[countryExposure] API error:', e);
+    window._lastCountryExposureError = e.message || String(e);
     return null;
   }
 };
@@ -1975,9 +1981,15 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const equityHoldings = [...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]
     .filter(h => (h.convertedHoldingValue||0) > 0);
   let countryHtml = '';
-  if (equityHoldings.length > 0 && apiKey) {
+  let countryFailReason = null;
+  if (equityHoldings.length === 0) {
+    countryFailReason = 'no equity holdings found in this portfolio';
+  } else if (!apiKey) {
+    countryFailReason = 'no Anthropic API key is configured (Settings → API key)';
+  } else {
     try {
       const perEtf = await window.fetchCountryExposure(equityHoldings, apiKey);
+      if (!perEtf) countryFailReason = window._lastCountryExposureError || 'the API call returned no usable data — check the browser console for the exact error';
       if (perEtf) {
         window._lastCountryExposure = perEtf;
         const weighted = window.buildWeightedCountryExposure(equityHoldings, perEtf);
@@ -2027,7 +2039,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             </div>`;
         }
       }
-    } catch(e) { console.warn('[countryExposure]', e); }
+    } catch(e) { console.warn('[countryExposure]', e); countryFailReason = e.message || String(e); }
   }
 
   // Performance: cost basis helper
@@ -2301,7 +2313,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
         <div class="report-section report-section-numbered">
         <div class="report-section-title">3b. Equity — Geographic Exposure</div>
-        ${countryHtml || '<p style="color:#888;font-size:13px">Country exposure data not available (API key required)</p>'}
+        ${countryHtml || `<p style="color:#888;font-size:13px">Country exposure data not available — ${countryFailReason || 'unknown reason'}.</p>`}
       </div>
 
       <div class="report-section report-section-numbered">
