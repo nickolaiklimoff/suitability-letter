@@ -1,5 +1,15 @@
 // ─── State ───────────────────────────────────────────────────────────────────
 
+// Extracts the text content block from a Messages API response, regardless of position.
+// Sonnet 5 / Opus 4.7+ / Opus 4.8 put a thinking block first (adaptive/extended thinking
+// on by default), so content[0] is often {type:"thinking"} with no .text field —
+// content[0].text alone silently returns ''/undefined.
+function extractClaudeText(data) {
+  const blocks = data?.content || [];
+  const textBlock = blocks.find(b => b?.type === 'text');
+  return textBlock?.text || '';
+}
+
 let clients = {};       // { id: { name, profile, letters[] } }
 let currentClientId = null;
 let currentStep = 0;
@@ -1699,7 +1709,7 @@ Additional instruction: ${extraInstruction}`
     console.error('[commentary] API error:', resp.status, apiErr);
     throw new Error(`Anthropic API error (${resp.status}): ${apiErr}`);
   }
-  return data.content?.[0]?.text?.trim() || null;
+  return extractClaudeText(data).trim() || null;
 }
 
 // Auto-generate commentary after report is rendered
@@ -1856,7 +1866,7 @@ Return ONLY JSON: {"ratings": [{"index":1,"rating":2}, ...]}`;
       })
     });
     const data = await resp.json();
-    const text = data.content?.[0]?.text || '';
+    const text = extractClaudeText(data);
     const clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
     const result = JSON.parse(clean);
     const ratings = {};
@@ -3722,7 +3732,7 @@ ${text}`
 
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error?.message || resp.status);
-    let result = data.content?.[0]?.text?.trim() || '';
+    let result = extractClaudeText(data).trim() || '';
 
     // Safety net: strip any markdown that slipped through despite the prompt
     // instruction — Telegram publishing uses parse_mode:HTML, so raw ** / ##
