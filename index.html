@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786443768">
+<link rel="stylesheet" href="style.css?v=1786712549">
 <body>
 <div class="app">
 
@@ -1079,10 +1079,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786443768"></script>
+<script src="waar.js?v=1786712549"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786447233"></script>
-<script src="app.js?v=1786706555"></script>
+<script src="report.js?v=1786712549"></script>
+<script src="app.js?v=1786712549"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1143,7 +1143,6 @@ const MACRO_MANUAL_INDICATORS = [
   { region: 'China', name: 'Caixin PMI Manufacturing', source: 'S&P Global / Caixin', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { region: 'China', name: 'NBS PMI Services', source: 'NBS', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { region: 'China', name: 'M2 Money Supply YoY', source: 'PBoC', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { region: 'China', name: 'Total Social Financing YoY', source: 'PBoC', link: 'https://tradingeconomics.com/china/total-social-financing' },
   { region: 'China', name: 'Property Sales Area YoY', source: 'NBS (cumulative YTD, in monthly \'Investment in Real Estate Development\' release)', link: 'https://www.stats.gov.cn/english/PressRelease/' },
   { region: 'China', name: 'Industrial Production YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/industrial-production' },
   { region: 'China', name: 'Retail Sales YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
@@ -1180,7 +1179,6 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', caName: 'Caixin PMI Manufacturing', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', caName: 'NBS PMI Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', caName: 'M2 Money Supply YoY', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { name: 'Total Social Financing YoY', sheet: 'China', code: 'CN_TSF', caName: 'Total Social Financing YoY', link: 'https://tradingeconomics.com/china/total-social-financing' },
   { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Area YoY', link: 'https://www.stats.gov.cn/english/PressRelease/' },
   { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', caName: 'Industrial Production YoY', link: 'https://tradingeconomics.com/china/industrial-production' },
   { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', caName: 'Retail Sales YoY', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
@@ -1263,7 +1261,6 @@ const MACRO_RELEASE_RULES = {
   'Caixin PMI Manufacturing':     { type: 'nextMonthNthBizDay', n: 1 },
   'NBS PMI Services':             { type: 'sameMonthLastWeekday', dow: null },
   'M2 Money Supply YoY':          { type: 'daysAfterMonthEnd', n: 13 },
-  'Total Social Financing YoY':   { type: 'daysAfterMonthEnd', n: 13 },
   'Property Sales Area YoY':      { type: 'daysAfterMonthEnd', n: 21 },
   'Industrial Production YoY (China)': { type: 'daysAfterMonthEnd', n: 17 },
   'Retail Sales YoY (China)':     { type: 'daysAfterMonthEnd', n: 17 },
