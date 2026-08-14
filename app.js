@@ -1315,10 +1315,15 @@ window.runPortfolioReport = async function() {
       autoGenerateCommentary();
     }
 
-    // Reset display currency to report base currency
+    // Reset display currency to report base currency, then re-apply the user's
+    // last explicit Display-in choice (if any) so it survives regeneration —
+    // this was previously wiped on every "Generate report" click.
     _displayCcy = portCcy;
     _displayFxRates = { [portCcy]: 1, _base: portCcy };
     document.querySelectorAll('.ccy-btn').forEach(b => b.classList.toggle('active', b.dataset.ccy === portCcy));
+    if (_userPickedDisplayCcy && _userPickedDisplayCcy !== portCcy) {
+      await applyDisplayCcy(_userPickedDisplayCcy);
+    }
     saveReportState();  // persist generated report for this client
     document.getElementById('r-reportOutput').classList.remove('hidden');
     document.getElementById('r-reportOutput').scrollIntoView({ behavior: 'smooth' });
@@ -1779,16 +1784,25 @@ window.rewriteCommentary = async function() {
 // ─── Display currency switcher ───────────────────────────────────────────────
 let _displayCcy = 'USD';
 let _displayFxRates = { USD: 1 };
+let _userPickedDisplayCcy = null; // remembers an explicit user click on a Display-in currency button
 
 async function switchDisplayCcy(toCcy, btn) {
-  document.querySelectorAll('.ccy-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  _userPickedDisplayCcy = toCcy; // explicit user choice — honor this across report regenerations
+  await applyDisplayCcy(toCcy);
+}
+
+// Applies a display currency to the already-rendered report content ([data-usd] elements).
+// Shared by the manual button click (switchDisplayCcy) and by the post-generate step that
+// re-applies a previously chosen display currency after the report HTML is rebuilt.
+async function applyDisplayCcy(toCcy) {
+  document.querySelectorAll('.ccy-btn').forEach(b => b.classList.toggle('active', b.dataset.ccy === toCcy));
+  const btn = document.querySelector(`.ccy-btn[data-ccy="${toCcy}"]`);
   if (toCcy === _displayCcy) return;
 
   // Fetch rates based on report base currency (not always USD)
   const baseCcy = _displayFxRates._base || 'USD';
   if (!_displayFxRates[toCcy] || !_displayFxRates[_displayCcy]) {
-    btn.textContent = '…';
+    if (btn) btn.textContent = '…';
     try {
       const resp = await fetch('https://open.er-api.com/v6/latest/' + baseCcy);
       const data = await resp.json();
@@ -1800,7 +1814,7 @@ async function switchDisplayCcy(toCcy, btn) {
       const vs = { USD:1.163, EUR:1, GBP:0.851, CHF:0.965, RUB:107.5 };
       _displayFxRates = { ...vs, _base: baseCcy };
     }
-    btn.textContent = toCcy;
+    if (btn) btn.textContent = toCcy;
   }
 
   // Factor: from current display ccy to target
