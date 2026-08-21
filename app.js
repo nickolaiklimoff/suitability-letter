@@ -5973,6 +5973,7 @@ window.crmSetBirthday = function() {
   bucket.birthday = (d && m) ? { day: d, month: m } : null; // no year stored — data minimisation
   crmSaveBucket(ref);
   crmRefreshActiveView();
+  crmSyncBirthdays(); // keep Telegram reminders in sync automatically — no-ops quietly if no GitHub token is configured
 };
 
 window.crmSetInterests = function(val) {
@@ -6085,12 +6086,14 @@ window.crmAddFamily = function() {
   });
   crmSaveBucket(ref);
   crmRenderDetail();
+  crmSyncBirthdays(); // keep Telegram reminders in sync automatically
 };
 window.crmDeleteFamily = function(id) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
   bucket.family = (bucket.family || []).filter(x => x.id !== id);
   crmSaveBucket(ref);
   crmRenderDetail();
+  crmSyncBirthdays(); // keep Telegram reminders in sync automatically
 };
 window.crmDeleteOpportunity = function(id) {
   const ref = crmDetailPersonRef; const bucket = crmGetBucket(ref); if (!bucket) return;
@@ -7060,3 +7063,4 @@ function runRebalance() {
 
 function onRebalanceFileChange() {}  // kept for compatibility
 function buildRebalTable() {}
+
