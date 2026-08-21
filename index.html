@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1787292866">
+<link rel="stylesheet" href="style.css?v=1787293256">
 <body>
 <div class="app">
 
@@ -1079,10 +1079,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1787292866"></script>
+<script src="waar.js?v=1787293256"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1787292866"></script>
-<script src="app.js?v=1787292866"></script>
+<script src="report.js?v=1787293256"></script>
+<script src="app.js?v=1787293256"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1179,7 +1179,7 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', caName: 'Caixin PMI Manufacturing', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', caName: 'NBS PMI Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', caName: 'M2 Money Supply YoY', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Area YoY', link: 'https://www.stats.gov.cn/english/PressRelease/' },
+  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Area YoY', link: 'https://www.stats.gov.cn/english/PressRelease/', hint: 'Click "Investment in Real Estate Development from January to [month]" (no fixed URL - new page each month)' },
   { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', caName: 'Industrial Production YoY', link: 'https://tradingeconomics.com/china/industrial-production' },
   { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', caName: 'Retail Sales YoY', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
   { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth', caName: 'Real GDP Growth YoY', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
@@ -1384,7 +1384,7 @@ function macroFindGaps(wb) {
       const recentGaps = gapRows.slice(0, 3).reverse();
       recentGaps.forEach(g => {
         rows.push({
-          sheet: ind.sheet, cellRef: g.cellRef, name: ind.name, link: ind.link,
+          sheet: ind.sheet, cellRef: g.cellRef, name: ind.name, link: ind.link, hint: ind.hint,
           month: g.month, prevValue: lastRealValue, prevMonth: lastRealMonth,
         });
       });
@@ -1440,7 +1440,7 @@ function macroRenderFillForm(rows) {
   const groupByName = {};
   rows.forEach((r, i) => {
     if (!groupByName[r.name]) {
-      groupByName[r.name] = { name: r.name, sheet: r.sheet, link: r.link, entries: [] };
+      groupByName[r.name] = { name: r.name, sheet: r.sheet, link: r.link, hint: r.hint, entries: [] };
       groups.push(groupByName[r.name]);
     }
     groupByName[r.name].entries.push({ ...r, i });
@@ -1452,7 +1452,7 @@ function macroRenderFillForm(rows) {
       <div style="padding:10px 12px;border:1px solid var(--border);border-radius:6px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div style="font-size:13px;font-weight:600;color:var(--text1)">${g.name} <span style="font-weight:400;color:var(--text3);font-size:11px">(${g.sheet})</span></div>
-          <a href="${g.link}" target="_blank" rel="noopener" style="font-size:11px;color:#5b6abf;white-space:nowrap">source ↗</a>
+          <a href="${g.link}" target="_blank" rel="noopener" title="${g.hint ? g.hint.replace(/"/g, '&quot;') : ''}" style="font-size:11px;color:#5b6abf;white-space:nowrap">source ↗</a>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">`;
     g.entries.forEach(r => {
