@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1786712549">
+<link rel="stylesheet" href="style.css?v=1787292866">
 <body>
 <div class="app">
 
@@ -1079,10 +1079,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1786712549"></script>
+<script src="waar.js?v=1787292866"></script>
 <script src="portfolio-import.js"></script>
-<script src="report.js?v=1786712549"></script>
-<script src="app.js?v=1786712549"></script>
+<script src="report.js?v=1787292866"></script>
+<script src="app.js?v=1787292866"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1245,7 +1245,7 @@ function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n)
 const MACRO_RELEASE_RULES = {
   'ISM Mfg PMI':                  { type: 'nextMonthNthBizDay', n: 1 },
   'ISM Svcs PMI':                 { type: 'nextMonthNthBizDay', n: 3 },
-  'Conf Board LEI':               { type: 'weeksAfterMonthEnd', n: 3 },
+  'Conf Board LEI':               { type: 'daysAfterMonthEnd', n: 20 },  // ~3rd Thursday of the following month; day-count tightened 2026-08 after observing releases land at 18-20 days, not a full 21-day/3-week mark
   'Consumer Confidence (US)':     { type: 'sameMonthLastWeekday', dow: 2 },  // Tuesday
   'PMI Manufacturing (Japan)':    { type: 'nextMonthNthBizDay', n: 1 },
   'Consumer Confidence (Japan)':  { type: 'sameMonthDaysBeforeEnd', n: 7 },
