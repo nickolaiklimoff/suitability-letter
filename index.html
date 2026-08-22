@@ -1956,6 +1956,19 @@ const MACRO_CYCLE_REGIONS = [
   { key: 'US-Manual', caSheet: 'US Cycle Analysis', patternWf: 'apply_pattern_analysis_manual.yml', compositeWf: 'recompute_composite_score.yml' },
 ];
 
+// The "Global Cycle & Strategic Views" sheet is NOT covered by the loop
+// above - it's a separate GDP-weighted rollup of the 5 regional composite
+// scores, computed by a workflow of its own. Found 2026-08-22: this step
+// was missing entirely from Recalculate, so after regional composite
+// scores changed, the Global Cycle tab silently kept showing stale
+// numbers (observed drift: EZ off by 0.52, US off by 0.14, Japan off by
+// 0.17) until someone happened to re-run it by hand. recompute_strategic_
+// views.yml runs apply_global_cycle_score.py first, then apply_strategic_
+// views.py (which reads the just-recomputed global score as an input) -
+// must run sequentially, not in parallel with anything else, since it
+// depends on every regional composite score already being final.
+const MACRO_GLOBAL_WF = 'recompute_strategic_views.yml';
+
 function macroEscapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -2094,9 +2107,13 @@ async function macroRecalculateCyclePhases() {
   // testing: the summary correctly flagged 2 failed regions while the
   // per-region line wrongly showed check for both, since it only checked
   // status not conclusion - fixed here).
-  const TOTAL_UNITS = MACRO_CYCLE_REGIONS.length * 2;
+  // +1 unit for the Global Cycle & Strategic Views rollup, which must run
+  // after every region's composite score is final (see MACRO_GLOBAL_WF
+  // comment above).
+  const TOTAL_UNITS = MACRO_CYCLE_REGIONS.length * 2 + 1;
   const state = {};
   MACRO_CYCLE_REGIONS.forEach(r => { state[r.key] = { pattern: { status: 'pending', conclusion: null }, composite: { status: 'pending', conclusion: null } }; });
+  state['Global'] = { global: { status: 'pending', conclusion: null } };
 
   function renderProgress() {
     let completed = 0;
@@ -2104,6 +2121,7 @@ async function macroRecalculateCyclePhases() {
       if (state[r.key].pattern.status === 'completed') completed++;
       if (state[r.key].composite.status === 'completed') completed++;
     });
+    if (state['Global'].global.status === 'completed') completed++;
     const pct = Math.round((completed / TOTAL_UNITS) * 100);
     progressBar.style.width = pct + '%';
     progressText.textContent = `${completed}/${TOTAL_UNITS} steps done (${pct}%)`;
@@ -2114,9 +2132,11 @@ async function macroRecalculateCyclePhases() {
       if (step.status === 'queued') return '…';
       return '·';
     };
-    regionStatusEl.textContent = MACRO_CYCLE_REGIONS.map(r =>
+    const lines = MACRO_CYCLE_REGIONS.map(r =>
       `${r.key.padEnd(6)} pattern ${icon(state[r.key].pattern)}  composite ${icon(state[r.key].composite)}`
-    ).join('\n');
+    );
+    lines.push(`${'Global'.padEnd(6)} rollup  ${icon(state['Global'].global)}`);
+    regionStatusEl.textContent = lines.join('\n');
   }
 
   try {
@@ -2156,12 +2176,31 @@ async function macroRecalculateCyclePhases() {
       compositeResults[i].status === 'rejected' || compositeResults[i].value.conclusion !== 'success'
     ).map(r => r.key);
 
+    // Global Cycle & Strategic Views rollup - must run after ALL regional
+    // composite scores above are final, since it's a GDP-weighted average
+    // of exactly those numbers. Runs even if some regions failed above
+    // (it just reads whatever composite score currently sits in each
+    // region's sheet - stale is better than not-run-at-all for the
+    // regions that did succeed).
+    let globalFailed = false;
+    statusEl.textContent = '⏳ Recomputing Global Cycle & Strategic Views...';
+    try {
+      const globalRun = await macroDispatchAndWaitWithRetry(
+        token, MACRO_GLOBAL_WF, {},
+        (status, conclusion) => { state['Global'].global = { status, conclusion }; renderProgress(); }
+      );
+      globalFailed = globalRun.conclusion !== 'success';
+    } catch (e) {
+      globalFailed = true;
+    }
+
     statusEl.textContent = '⏳ Reading updated state...';
     const { buffer: afterBuf } = await macroFetchWorkbookArrayBuffer(token);
     const after = macroCaptureCycleSnapshot(XLSX.read(afterBuf, { type: 'array' }));
     const diffs = macroDiffCycleSnapshots(before, after);
 
     const totalFailed = new Set([...patternFailed, ...compositeFailed]);
+    if (globalFailed) totalFailed.add('Global rollup');
     if (totalFailed.size > 0) {
       statusEl.style.color = '#b8860b';
       statusEl.textContent = `⚠ Done, but ${totalFailed.size} region(s) had a failed step: ${[...totalFailed].join(', ')} - check GitHub Actions`;
