@@ -1151,6 +1151,18 @@ const MACRO_MANUAL_INDICATORS = [
   { region: 'China', name: 'PBoC 7-Day Reverse Repo Rate', source: 'PBoC', link: 'https://tradingeconomics.com/china/reverse-repo-rate' },
   { region: 'China', name: '10Y CGB Yield', source: 'ChinaBond', link: 'https://tradingeconomics.com/china/government-bond-yield' },
   { region: 'China', name: 'Fixed Asset Investment YoY', source: 'NBS via economic calendar', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
+  // Added 2026-09-01: these 3 aren't "manual" in the workbook's own
+  // source column (they carry a live Eurostat teibs010/020 filter_key,
+  // not the literal "MANUAL" tag China/UK/Japan indicators use) - but
+  // that live feed has returned empty for EA21 since Jan 2026, so
+  // fetch_indicators.py has needed hand-typed values via
+  // EZ_SENTIMENT_BACKFILL all along. They behave exactly like manual
+  // entries in practice and were falling through this tool's scan
+  // silently - see fetch_indicators.py's "Preserve manual overrides
+  // typed directly into the sheet" block for the matching Python-side fix.
+  { region: 'EZ', name: 'Econ Sentiment (ESI)', source: 'EC BCS (Eurostat teibs010 API dead for EA21 since Jan 2026)', link: 'https://tradingeconomics.com/euro-area/economic-optimism-index' },
+  { region: 'EZ', name: 'Industrial Confidence', source: 'EC BCS (Eurostat teibs020 API dead for EA21 since Jan 2026)', link: 'https://tradingeconomics.com/euro-area/industrial-sentiment' },
+  { region: 'EZ', name: 'Services Confidence', source: 'EC BCS (Eurostat teibs020 API dead for EA21 since Jan 2026)', link: 'https://tradingeconomics.com/euro-area/services-sentiment' },
 ];
 
 // Maps each manual indicator to its raw-data sheet + column code, so the
@@ -1187,6 +1199,10 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'PBoC 7-Day Reverse Repo Rate', sheet: 'China', code: 'CN_PBoC_Rate', caName: 'PBoC 7-Day Reverse Repo Rate', link: 'https://tradingeconomics.com/china/reverse-repo-rate' },
   { name: '10Y CGB Yield', sheet: 'China', code: 'CN_10Y_CGB', caName: '10Y CGB Yield', link: 'https://tradingeconomics.com/china/government-bond-yield' },
   { name: 'Fixed Asset Investment YoY', sheet: 'China', code: 'CN_FAI', caName: 'Fixed Asset Investment YoY', link: 'https://tradingeconomics.com/china/fixed-asset-investment' },
+  // Added 2026-09-01 - see matching MACRO_MANUAL_INDICATORS note above.
+  { name: 'Econ Sentiment (ESI)', sheet: 'Eurozone', code: 'EZ_Econ_Sentiment', caName: 'Econ Sentiment (ESI)', link: 'https://tradingeconomics.com/euro-area/economic-optimism-index' },
+  { name: 'Industrial Confidence', sheet: 'Eurozone', code: 'EZ_Industrial_Conf', caName: 'Industrial Conf', link: 'https://tradingeconomics.com/euro-area/industrial-sentiment' },
+  { name: 'Services Confidence', sheet: 'Eurozone', code: 'EZ_Services_Conf', caName: 'Services Conf', link: 'https://tradingeconomics.com/euro-area/services-sentiment' },
 ];
 
 const MACRO_CA_SHEET = { US: 'US Cycle Analysis', Japan: 'Japan Cycle Analysis', UK: 'UK Cycle Analysis', China: 'China Cycle Analysis' };
@@ -1269,6 +1285,15 @@ const MACRO_RELEASE_RULES = {
   'PBoC 7-Day Reverse Repo Rate': { type: 'skip' },
   '10Y CGB Yield':                { type: 'skip' },
   'Fixed Asset Investment YoY':   { type: 'daysAfterMonthEnd', n: 20 },
+  // Added 2026-09-01: EC's full monthly BCS release (ESI/Industrial/
+  // Services Conf together) lands on the last working day of the SAME
+  // reference month - see the workbook's own "Release Schedule" column
+  // for these rows. Consumer Conf isn't added here since it already has
+  // a live-updating flash release ~10 days earlier and isn't part of
+  // this tool's manual-indicator list.
+  'Econ Sentiment (ESI)':         { type: 'sameMonthLastWeekday', dow: null },
+  'Industrial Confidence':        { type: 'sameMonthLastWeekday', dow: null },
+  'Services Confidence':          { type: 'sameMonthLastWeekday', dow: null },
 };
 
 // monthStr: "YYYY-MM" reference month. Returns expected release Date, or
