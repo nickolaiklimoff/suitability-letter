@@ -2269,10 +2269,18 @@ async function macroDownloadArtifact(type) {
 
   try {
     // Get latest successful run for the relevant workflow
+    // cache: 'no-store' on both GET calls below - added 2026-09-01 after
+    // user reported "Download Latest" returning a month-old artifact on
+    // repeated clicks. GitHub's contents/runs endpoints are cacheable by
+    // default (Cache-Control: private, max-age=60), and some browsers/
+    // proxies cache far more aggressively than that for a repeated GET
+    // to the same URL - without an explicit override there was nothing
+    // stopping a stale response from being served indefinitely instead
+    // of a fresh "latest run" lookup.
     const workflow = type === 'pptx' ? 'generate_pptx.yml' : 'update.yml';
     const runsResp = await fetch(
-      `${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflow}/runs?status=success&per_page=1`,
-      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+      `${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflow}/runs?status=success&per_page=1&_=${Date.now()}`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }, cache: 'no-store' }
     );
     const runsData = await runsResp.json();
     const run = runsData.workflow_runs?.[0];
@@ -2280,18 +2288,20 @@ async function macroDownloadArtifact(type) {
 
     // Get artifacts for that run
     const artResp = await fetch(
-      `${GH_API}/repos/${MACRO_REPO}/actions/runs/${run.id}/artifacts`,
-      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+      `${GH_API}/repos/${MACRO_REPO}/actions/runs/${run.id}/artifacts?_=${Date.now()}`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }, cache: 'no-store' }
     );
     const artData = await artResp.json();
     const artifact = artData.artifacts?.[0];
     if (!artifact) { statusEl.textContent = '✗ No artifacts in latest run'; return; }
 
-    // Download — GitHub redirects to a zip
-    statusEl.textContent = `⬇ Downloading ${artifact.name}.zip...`;
+    // Surface exactly which run/artifact was picked, so a stale result
+    // (if one still slips through some other caching layer) is visible
+    // immediately instead of silently downloading the wrong file.
+    statusEl.textContent = `⬇ Downloading ${artifact.name}.zip (run #${run.run_number}, ${new Date(run.created_at).toLocaleString()})...`;
     const dlResp = await fetch(
       `${GH_API}/repos/${MACRO_REPO}/actions/artifacts/${artifact.id}/zip`,
-      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+      { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }, cache: 'no-store' }
     );
     const blob = await dlResp.blob();
     const url  = URL.createObjectURL(blob);
