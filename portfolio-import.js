@@ -1,5 +1,31 @@
 // ─── Portfolio Import & WAAR via Claude API ───────────────────────────────────
 
+// Extracts the text content block from a Messages API response, regardless of position.
+// Sonnet 5 / Opus 4.7+ / Opus 4.8 put a thinking block first (adaptive/extended thinking
+// on by default), so content[0] is often {type:"thinking"} with no .text field —
+// content[0].text alone silently returns ''/undefined.
+function piExtractClaudeText(data) {
+  const blocks = data?.content || [];
+  const textBlock = blocks.find(b => b?.type === 'text');
+  return textBlock?.text || '';
+}
+
+// Strips code fences and any leading/trailing prose (e.g. "Let me analyze...") outside
+// the outermost JSON object, then parses. Throws the original JSON.parse error (with the
+// full response text logged) if the result still isn't valid JSON.
+function piParseClaudeJSON(text) {
+  let clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) clean = clean.slice(firstBrace, lastBrace + 1);
+  try {
+    return JSON.parse(clean);
+  } catch(e) {
+    console.warn('[piParseClaudeJSON] failed to parse. Full response text:', text);
+    throw e;
+  }
+}
+
 const METHODOLOGY_PROMPT = `You are a risk analyst at Orion Ridge Capital.
 Assign risk ratings strictly per this methodology:
 
@@ -138,9 +164,8 @@ Return ONLY valid JSON, no markdown:
 
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
-    const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-    const result = JSON.parse(clean);
+    const text = piExtractClaudeText(data);
+    const result = piParseClaudeJSON(text);
 
     // Apply ratings back to table rows
     const tbody = document.getElementById('l-existingRows');
@@ -322,9 +347,8 @@ Return ONLY valid JSON, no markdown:
 
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
-    const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-    const result = JSON.parse(clean);
+    const text = piExtractClaudeText(data);
+    const result = piParseClaudeJSON(text);
 
     // Store ratings for WAAR calculation
     window._transactionRatings = (result.investments || []).map((inv, i) => ({
@@ -422,3 +446,4 @@ window.importInvestExcel = function(input) {
   };
   reader.readAsArrayBuffer(file);
 };
+
