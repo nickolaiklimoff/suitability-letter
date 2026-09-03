@@ -2184,13 +2184,13 @@ const BP_BM_WEIGHTS = {
 const BP_IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
 
 const BP_SECTORS = [
-  {label:'Financials',w:0.164},{label:'Info Tech',w:0.287},{label:'Health Care',w:0.096},
-  {label:'Consumer Discretionary',w:0.068},{label:'Industrials',w:0.120},
-  {label:'Communication Services',w:0.098},{label:'Consumer Staples',w:0.026},
-  {label:'Energy',w:0.051},{label:'Materials',w:0.047},{label:'Utilities',w:0.027},{label:'Real Estate',w:0.017}
+  {label:'Financials',w:0.169},{label:'Info Tech',w:0.312},{label:'Health Care',w:0.094},
+  {label:'Consumer Discretionary',w:0.096},{label:'Industrials',w:0.079},
+  {label:'Communication Services',w:0.086},{label:'Consumer Staples',w:0.047},
+  {label:'Energy',w:0.04},{label:'Materials',w:0.038},{label:'Utilities',w:0.023},{label:'Real Estate',w:0.016}
 ];
 const BP_BOND_SEGS = [
-  {label:'Government',w:0.755},{label:'Investment Grade',w:0.195},{label:'High Yield',w:0.018},{label:'EM Debt',w:0.031}
+  {label:'Government',w:0.6937},{label:'Investment Grade',w:0.1972},{label:'High Yield',w:0.0891},{label:'EM Debt',w:0.02}
 ];
 
 const BP_BCA_ITEMS = [
