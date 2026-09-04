@@ -177,11 +177,16 @@ function crmBackupFilename() {
 }
 
 function crmDownloadBackup(silent) {
-  if (!clients || Object.keys(clients).length === 0) {
-    if (!silent) alert('Nothing to back up yet — client list is empty.');
+  const totalRecords = Object.keys(clients||{}).length + Object.keys(prospects||{}).length +
+    (businessTasks||[]).length + (meetings||[]).length + (legalPipeline||[]).length;
+  if (totalRecords === 0) {
+    if (!silent) alert('Nothing to back up yet — everything is empty.');
     return;
   }
-  const payload = { exportedAt: new Date().toISOString(), clients };
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    clients, prospects, businessTasks, meetings, legalPipeline,
+  };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -210,14 +215,37 @@ function crmRestoreBackup(input) {
   reader.onload = async (e) => {
     try {
       const parsed = JSON.parse(e.target.result);
-      const restored = parsed.clients || parsed; // support raw {clients:{...}} or bare {id:{...}}
-      const count = Object.keys(restored).length;
-      if (!count) { alert('That file has no clients in it.'); return; }
-      if (!confirm(`This will REPLACE the current client list (${Object.keys(clients||{}).length} clients) with ${count} clients from the backup file. Continue?`)) return;
-      clients = restored;
-      await idbSet('suitability-clients', clients);
+      // Support both the new multi-store format and the old {clients:{...}}-only
+      // (or bare {id:{...}}) format from before this backup was expanded.
+      const isMultiStore = parsed && typeof parsed === 'object' &&
+        ('clients' in parsed || 'prospects' in parsed || 'businessTasks' in parsed ||
+         'meetings' in parsed || 'legalPipeline' in parsed);
+      const restoredClients      = isMultiStore ? (parsed.clients || {}) : (parsed || {});
+      const restoredProspects    = isMultiStore ? (parsed.prospects || {}) : {};
+      const restoredBizTasks     = isMultiStore ? (parsed.businessTasks || []) : [];
+      const restoredMeetings     = isMultiStore ? (parsed.meetings || []) : [];
+      const restoredLegalPipe    = isMultiStore ? (parsed.legalPipeline || []) : [];
+      const summary = `${Object.keys(restoredClients).length} clients, ${Object.keys(restoredProspects).length} prospects, ` +
+        `${restoredBizTasks.length} business tasks, ${restoredMeetings.length} meetings, ${restoredLegalPipe.length} legal pipeline entries`;
+      if (!Object.keys(restoredClients).length && !Object.keys(restoredProspects).length &&
+          !restoredBizTasks.length && !restoredMeetings.length && !restoredLegalPipe.length) {
+        alert('That file has no data in it.'); return;
+      }
+      if (!confirm(`This will REPLACE all current data with the backup:\n${summary}\n\nContinue?`)) return;
+      clients = restoredClients;
+      prospects = restoredProspects;
+      businessTasks = restoredBizTasks;
+      meetings = restoredMeetings;
+      legalPipeline = restoredLegalPipe;
+      await Promise.all([
+        idbSet('suitability-clients', clients),
+        idbSet('crm-prospects', prospects),
+        idbSet('crm-business-tasks', businessTasks),
+        idbSet('crm-meetings', meetings),
+        idbSet('crm-legal-pipeline', legalPipeline),
+      ]);
       localStorage.setItem('suitability-last-local-backup', String(Date.now()));
-      alert(`Restored ${count} clients. Reloading...`);
+      alert(`Restored: ${summary}. Reloading...`);
       location.reload();
     } catch (err) {
       alert('Could not read that file as a backup: ' + err.message);
@@ -4036,6 +4064,7 @@ function saveProspectsToStorage() {
     console.error('Failed to save CRM prospects', err);
     alert('⚠️ Failed to save prospect data — browser storage is full.\n\n' + err.message);
   });
+  crmMaybeAutoBackup();
 }
 
 let businessTasks = [];
@@ -4055,6 +4084,7 @@ function saveBusinessTasksToStorage() {
     console.error('Failed to save business tasks', err);
     alert('⚠️ Failed to save business tasks — browser storage is full.\n\n' + err.message);
   });
+  crmMaybeAutoBackup();
 }
 
 let meetings = [];
@@ -4074,6 +4104,7 @@ function saveMeetingsToStorage() {
     console.error('Failed to save meetings', err);
     alert('⚠️ Failed to save meetings — browser storage is full.\n\n' + err.message);
   });
+  crmMaybeAutoBackup();
 }
 
 let legalPipeline = [];
@@ -4093,6 +4124,7 @@ function saveLegalPipelineToStorage() {
     console.error('Failed to save legal pipeline', err);
     alert('⚠️ Failed to save legal pipeline — browser storage is full.\n\n' + err.message);
   });
+  crmMaybeAutoBackup();
 }
 
 const CRM_URGENCY_ICONS = { eagle: '🦅', dove: '🕊️', chicken: '🐔' };
