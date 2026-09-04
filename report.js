@@ -159,30 +159,65 @@ window.parseCbondsExport = function(file) {
           return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
         };
 
+        // Column lookup by header name instead of hardcoded position — cbonds has
+        // changed export column order before (e.g. inserting a 'Currency' column
+        // into bonds/funds/stocks), which silently broke fixed-index parsing and
+        // produced wrong totals with no error. Matches case-insensitively and
+        // tries each candidate name in order; returns -1 (not found) otherwise.
+        const findCol = (header, ...candidates) => {
+          const norm = s => String(s == null ? '' : s).trim().toLowerCase();
+          const hdr = (header || []).map(norm);
+          for (const c of candidates) {
+            const i = hdr.indexOf(norm(c));
+            if (i !== -1) return i;
+          }
+          return -1;
+        };
+        const numAt = (r, i) => i < 0 ? 0 : (parseFloat(r[i]) || 0);
+        const strAt = (r, i) => i < 0 ? '' : String(r[i] == null ? '' : r[i]).trim();
+
         // Parse currencies (cash)
         const currRows = getSheet('currencies').slice(1);
         const cash = currRows.reduce((s, r) => s + (parseFloat(r[2]) || 0), 0);
 
-        // Parse bonds — col indices verified against actual file
-        const bondRows = getSheet('bonds').slice(1).filter(r => r[0]);
+        // Parse bonds — columns resolved by header name (see findCol above)
+        const bondSheetRows = getSheet('bonds');
+        const bHdr = bondSheetRows[0] || [];
+        const bCol = {
+          name:      findCol(bHdr, 'Bond'),
+          qty:       findCol(bHdr, 'Quantity'),
+          faceValue: findCol(bHdr, 'Amount in Face Value'),
+          price:     findCol(bHdr, 'Price'),
+          holdVal:   findCol(bHdr, 'Holding value', 'Holding Value'),
+          purchPx:   findCol(bHdr, 'Purchase price', 'Purchase Price'),
+          convHold:  findCol(bHdr, 'Converted holding value', 'Converted Holding Value'),
+          unrPnL:    findCol(bHdr, 'Unrealized PnL'),
+          intInc:    findCol(bHdr, 'Interest income', 'Interest Income'),
+          duration:  findCol(bHdr, 'Duration'),
+          rating:    findCol(bHdr, "Issuer rating M/S&P/F, int'l scale", 'Issuer rating M/S&P/F'),
+          isin:      findCol(bHdr, 'ISIN'),
+          maturity:  findCol(bHdr, 'Maturity date', 'Maturity Date'),
+          pctPort:   findCol(bHdr, '% of Total Portfolio'),
+        };
+        const bondRows = bondSheetRows.slice(1).filter(r => r[bCol.name]);
         const bonds = bondRows.map(r => ({
-          name:                  String(r[0]).trim(),
+          name:                  strAt(r, bCol.name),
           type:                  'bond',
-          quantity:              parseFloat(String(r[2]||'').replace(/,/g,'')) || 0,
-          faceValueStr:          String(r[3]||'').trim(),
-          faceValueNum:          parseFloat(String(r[3]||'').replace(/,/g,'')) || 0,
-          price:                 parseFloat(r[4]) || 0,
-          holdingValue:          parseFloat(r[5]) || 0,
-          purchasePrice:         parseFloat(r[6]) || 0,
-          convertedHoldingValue: parseFloat(r[7]) || parseFloat(r[5]) || 0,
-          unrealizedPnL:         parseFloat(r[8]) || 0,
-          interestIncome:        parseFloat(r[10]) || 0,
-          durationDays:          parseFloat(String(r[18]||'').replace(/,/g,'')) || 0,
-          issuerRating:          String(r[22]||'').trim(),
-          isin:                  String(r[24]||'').trim(),
-          maturityDate:          r[27] ? (r[27] instanceof Date ? r[27].toLocaleDateString('en-GB') : new Date(r[27]).toLocaleDateString('en-GB')) : '',
-          maturityDateRaw:       r[27] ? (r[27] instanceof Date ? r[27] : new Date(r[27])) : null,
-          pctOfPortfolio:        parseFloat(r[29]) || 0,
+          quantity:              parseFloat(String(r[bCol.qty]||'').replace(/,/g,'')) || 0,
+          faceValueStr:          strAt(r, bCol.faceValue),
+          faceValueNum:          parseFloat(String(r[bCol.faceValue]||'').replace(/,/g,'')) || 0,
+          price:                 numAt(r, bCol.price),
+          holdingValue:          numAt(r, bCol.holdVal),
+          purchasePrice:         numAt(r, bCol.purchPx),
+          convertedHoldingValue: numAt(r, bCol.convHold) || numAt(r, bCol.holdVal) || 0,
+          unrealizedPnL:         numAt(r, bCol.unrPnL),
+          interestIncome:        numAt(r, bCol.intInc),
+          durationDays:          parseFloat(String(r[bCol.duration]||'').replace(/,/g,'')) || 0,
+          issuerRating:          strAt(r, bCol.rating),
+          isin:                  strAt(r, bCol.isin),
+          maturityDate:          r[bCol.maturity] ? (r[bCol.maturity] instanceof Date ? r[bCol.maturity].toLocaleDateString('en-GB') : new Date(r[bCol.maturity]).toLocaleDateString('en-GB')) : '',
+          maturityDateRaw:       r[bCol.maturity] ? (r[bCol.maturity] instanceof Date ? r[bCol.maturity] : new Date(r[bCol.maturity])) : null,
+          pctOfPortfolio:        numAt(r, bCol.pctPort),
         }));
 
         // NOTE on GBX holdings: cbonds' "Converted Holding Value" column is unreliable for
@@ -194,63 +229,96 @@ window.parseCbondsExport = function(file) {
         const fixGbxConversion = (ccy, holdingValueOrig, convertedRaw) =>
           ccy === 'GBX' ? holdingValueOrig : (convertedRaw || holdingValueOrig || 0);
 
-        // Parse funds/ETFs — verified col indices
-        const fundRows = getSheet('funds').slice(1).filter(r => r[0]);
+        // Parse funds/ETFs — columns resolved by header name (see findCol above)
+        const fundSheetRows = getSheet('funds');
+        const fHdr = fundSheetRows[0] || [];
+        const fCol = {
+          name:     findCol(fHdr, 'Name'),
+          exchange: findCol(fHdr, 'Exchange'),
+          qty:      findCol(fHdr, 'Quantity'),
+          price:    findCol(fHdr, 'Price'),
+          currency: findCol(fHdr, 'Currency', 'Trading Currency'),
+          holdVal:  findCol(fHdr, 'Holding Value', 'Holding value'),
+          purchPx:  findCol(fHdr, 'Purchase Price', 'Purchase price'),
+          convHold: findCol(fHdr, 'Converted Holding Value', 'Converted holding value'),
+          unrPnL:   findCol(fHdr, 'Unrealized PnL'),
+          ticker:   findCol(fHdr, 'Ticker'),
+          isin:     findCol(fHdr, 'ISIN'),
+          pctPort:  findCol(fHdr, '% of Total Portfolio'),
+        };
+        const fundRows = fundSheetRows.slice(1).filter(r => r[fCol.name]);
         const funds = fundRows.map(r => {
-          const holdingValueOrig = parseFloat(r[4]) || 0;
-          const ccy = String(r[11]||'').trim() || 'USD';
+          const holdingValueOrig = numAt(r, fCol.holdVal);
+          const ccy = strAt(r, fCol.currency) || 'USD';
           return {
-            name:                  String(r[0]).trim(),
+            name:                  strAt(r, fCol.name),
             type:                  'etf',
-            exchange:              String(r[1]||'').trim(),
-            quantity:              parseFloat(r[2]) || 0,
-            price:                 parseFloat(r[3]) || 0,
+            exchange:              strAt(r, fCol.exchange),
+            quantity:              numAt(r, fCol.qty),
+            price:                 numAt(r, fCol.price),
             holdingValueOrig,  // in original ccy (EUR/USD/GBX)
             holdingValue:          holdingValueOrig,
-            purchasePrice:         parseFloat(r[5]) || 0,
-            convertedHoldingValue: fixGbxConversion(ccy, holdingValueOrig, parseFloat(r[6])),
-            unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
-            unrealizedPnL:         parseFloat(r[7]) || 0,
+            purchasePrice:         numAt(r, fCol.purchPx),
+            convertedHoldingValue: fixGbxConversion(ccy, holdingValueOrig, numAt(r, fCol.convHold)),
+            unrealizedPnLOrig:     numAt(r, fCol.unrPnL),  // in original ccy
+            unrealizedPnL:         numAt(r, fCol.unrPnL),
             currency:              ccy,
-            ticker:                String(r[10]||'').trim(),
-            isin:                  String(r[14]||'').trim(),
-            pctOfPortfolio:        parseFloat(r[18]) || 0,
+            ticker:                strAt(r, fCol.ticker),
+            isin:                  strAt(r, fCol.isin),
+            pctOfPortfolio:        numAt(r, fCol.pctPort),
           };
         });
 
-        // Parse stocks — col: 0=Name,1=Exchange,2=Qty,3=Price,4=HoldingVal,5=PurchPrice,6=ConvHoldingVal,7=UnrealPnL,8=RealPnL,12=TradingCcy,16=Ticker,18=%Port
-        const stockRows = getSheet('stocks').slice(1).filter(r => r[0]);
+        // Parse stocks — columns resolved by header name (see findCol above)
+        const stockSheetRows = getSheet('stocks');
+        const sHdr = stockSheetRows[0] || [];
+        const sCol = {
+          name:     findCol(sHdr, 'Name'),
+          exchange: findCol(sHdr, 'Exchange'),
+          qty:      findCol(sHdr, 'Quantity'),
+          price:    findCol(sHdr, 'Price'),
+          holdVal:  findCol(sHdr, 'Holding Value', 'Holding value'),
+          purchPx:  findCol(sHdr, 'Purchase Price', 'Purchase price'),
+          convHold: findCol(sHdr, 'Converted Holding Value', 'Converted holding value'),
+          unrPnL:   findCol(sHdr, 'Unrealized PnL'),
+          realPnL:  findCol(sHdr, 'Realized PnL'),
+          intInc:   findCol(sHdr, 'Interest Income'),
+          currency: findCol(sHdr, 'Trading Currency', 'Currency'),
+          ticker:   findCol(sHdr, 'Ticker'),
+          pctPort:  findCol(sHdr, '% of Total Portfolio'),
+        };
+        const stockRows = stockSheetRows.slice(1).filter(r => r[sCol.name]);
         const stocks = stockRows.map(r => {
-          const holdingValueOrig = parseFloat(r[4]) || 0;
+          const holdingValueOrig = numAt(r, sCol.holdVal);
           const currency = (() => {
-            const ccy = String(r[12]||'').trim();
+            const ccy = strAt(r, sCol.currency);
             if (ccy) return ccy;
             // Infer from exchange when Trading Currency cell is blank
-            const exch = String(r[1]||'').toLowerCase();
+            const exch = strAt(r, sCol.exchange).toLowerCase();
             if (exch.includes('london')) return 'GBX'; // LSE stocks quote in pence
             if (exch.includes('frankfurt') || exch.includes('xetra') || exch.includes('berlin') ||
                 exch.includes('munich') || exch.includes('stuttgart') || exch.includes('hamburg')) return 'EUR';
             return 'USD';
           })();
           return {
-            name:                  String(r[0]).trim(),
+            name:                  strAt(r, sCol.name),
             type:                  'equity',
-            exchange:              String(r[1]||'').trim(),
-            quantity:              parseFloat(r[2]) || 0,
-            price:                 parseFloat(r[3]) || 0,
+            exchange:              strAt(r, sCol.exchange),
+            quantity:              numAt(r, sCol.qty),
+            price:                 numAt(r, sCol.price),
             holdingValueOrig,  // in original ccy (EUR/USD/GBX)
             holdingValue:          holdingValueOrig,
-            purchasePrice:         parseFloat(r[5]) || 0,
-            convertedHoldingValue: fixGbxConversion(currency, holdingValueOrig, parseFloat(r[6])),
-            unrealizedPnLOrig:     parseFloat(r[7]) || 0,  // in original ccy
-            unrealizedPnL:         parseFloat(r[7]) || 0,
-            realizedPnLOrig:       parseFloat(r[8]) || 0,  // in original ccy
-            realizedPnL:           parseFloat(r[8]) || 0,
-            interestIncomeOrig:    parseFloat(r[9]) || 0,  // in original ccy
-            interestIncome:        parseFloat(r[9]) || 0,
+            purchasePrice:         numAt(r, sCol.purchPx),
+            convertedHoldingValue: fixGbxConversion(currency, holdingValueOrig, numAt(r, sCol.convHold)),
+            unrealizedPnLOrig:     numAt(r, sCol.unrPnL),  // in original ccy
+            unrealizedPnL:         numAt(r, sCol.unrPnL),
+            realizedPnLOrig:       numAt(r, sCol.realPnL),  // in original ccy
+            realizedPnL:           numAt(r, sCol.realPnL),
+            interestIncomeOrig:    numAt(r, sCol.intInc),  // in original ccy
+            interestIncome:        numAt(r, sCol.intInc),
             currency,
-            ticker:                String(r[16]||'').trim(),
-            pctOfPortfolio:        parseFloat(r[18]) || 0,
+            ticker:                strAt(r, sCol.ticker),
+            pctOfPortfolio:        numAt(r, sCol.pctPort),
           };
         });
 
