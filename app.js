@@ -58,6 +58,7 @@ function updateStorageHealthBar() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadFromStorage();
+  crmMaybeAutoBackup();
   await loadProspects();
   await loadBusinessTasks();
   await loadMeetings();
@@ -162,6 +163,68 @@ function saveToStorage() {
     console.error('Failed to save client data', err);
     alert('Error saving client data: ' + err.message);
   });
+  crmMaybeAutoBackup();
+}
+
+// ─── Local file backup (survives clearing browser cache/site data — IndexedDB
+// does not) ───────────────────────────────────────────────────────────────
+const CRM_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // once per day max, auto
+
+function crmBackupFilename() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `crm-backup-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+}
+
+function crmDownloadBackup(silent) {
+  if (!clients || Object.keys(clients).length === 0) {
+    if (!silent) alert('Nothing to back up yet — client list is empty.');
+    return;
+  }
+  const payload = { exportedAt: new Date().toISOString(), clients };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = crmBackupFilename();
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  localStorage.setItem('suitability-last-local-backup', String(Date.now()));
+  const st = document.getElementById('crmBackupStatus');
+  if (st) st.textContent = `Last backup: ${new Date().toLocaleString()}`;
+}
+
+function crmMaybeAutoBackup() {
+  const last = parseInt(localStorage.getItem('suitability-last-local-backup') || '0', 10);
+  if (Date.now() - last > CRM_BACKUP_INTERVAL_MS) {
+    crmDownloadBackup(true);
+  }
+}
+
+function crmRestoreBackup(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const restored = parsed.clients || parsed; // support raw {clients:{...}} or bare {id:{...}}
+      const count = Object.keys(restored).length;
+      if (!count) { alert('That file has no clients in it.'); return; }
+      if (!confirm(`This will REPLACE the current client list (${Object.keys(clients||{}).length} clients) with ${count} clients from the backup file. Continue?`)) return;
+      clients = restored;
+      await idbSet('suitability-clients', clients);
+      localStorage.setItem('suitability-last-local-backup', String(Date.now()));
+      alert(`Restored ${count} clients. Reloading...`);
+      location.reload();
+    } catch (err) {
+      alert('Could not read that file as a backup: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 // ─── Client list ─────────────────────────────────────────────────────────────
@@ -3908,6 +3971,9 @@ window.settingsOpen = function() {
   if (tok)    document.getElementById('tgBotToken').value = tok;
   if (chat)   document.getElementById('tgChatId').value = chat;
   if (crmGh)  document.getElementById('crmGhToken').value = crmGh;
+  const lastBackup = parseInt(localStorage.getItem('suitability-last-local-backup') || '0', 10);
+  const lastBackupEl = document.getElementById('crmBackupLastText');
+  if (lastBackupEl) lastBackupEl.textContent = lastBackup ? new Date(lastBackup).toLocaleString() : 'never';
 };
 
 window.settingsClose = function() {
