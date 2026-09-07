@@ -2274,10 +2274,20 @@ const BP_BM_WEIGHTS = {
 };
 const BP_IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
 
+// MSCI ACWI Index sector benchmark weights (passive market-cap weights,
+// NOT BCA's actual GAA allocation) - reverted 2026-09-07 per explicit
+// instruction to decouple BP_SECTORS from BCA and pull from MSCI instead.
+// Sourced from MSCI's own live index page (msci.com/indexes/index/892400),
+// "Data as of Aug. 31, 2026" - same source/date as equity_sector_rows in
+// the macro-dashboard repo's build_weights_tab.py, kept identical
+// deliberately so the two systems don't drift apart; update both if
+// either is revised. (Briefly repurposed 2026-09-03 to track BCA's Sept
+// 2026 GAA sector allocation instead - see that commit if this ever needs
+// to switch back.)
 const BP_SECTORS = [
-  {label:'Financials',w:0.169},{label:'Info Tech',w:0.312},{label:'Health Care',w:0.094},
-  {label:'Consumer Discretionary',w:0.096},{label:'Industrials',w:0.079},
-  {label:'Communication Services',w:0.086},{label:'Consumer Staples',w:0.047},
+  {label:'Financials',w:0.169},{label:'Info Tech',w:0.312},{label:'Health Care',w:0.085},
+  {label:'Consumer Discretionary',w:0.087},{label:'Industrials',w:0.106},
+  {label:'Communication Services',w:0.077},{label:'Consumer Staples',w:0.047},
   {label:'Energy',w:0.04},{label:'Materials',w:0.038},{label:'Utilities',w:0.023},{label:'Real Estate',w:0.016}
 ];
 const BP_BOND_SEGS = [
