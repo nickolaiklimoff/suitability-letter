@@ -2290,8 +2290,20 @@ const BP_SECTORS = [
   {label:'Communication Services',w:0.077},{label:'Consumer Staples',w:0.047},
   {label:'Energy',w:0.04},{label:'Materials',w:0.038},{label:'Utilities',w:0.023},{label:'Real Estate',w:0.016}
 ];
+// Bond segment benchmark weights - market value share of 4 Bloomberg
+// segment indices (Global Treasury / Global Corporate / Global High-Yield
+// / EM USD Aggregate Sovereign), NOT BCA's actual GAA fixed-income
+// allocation - reverted 2026-09-07, same decision and same day as
+// BP_SECTORS above (decoupling from BCA entirely, not just for sectors -
+// per the 2026-09 decision to stop treating BCA as a dependency at all).
+// Source/date matches the Bond Segment Weights table in the macro-
+// dashboard repo's build_weights_tab.py Weights sheet - kept identical
+// deliberately, update both if either is revised. (Also briefly
+// repurposed 2026-09-03 to track BCA's Sept 2026 GAA fixed-income
+// allocation instead, same commit as BP_SECTORS' repurposing - see that
+// commit if this ever needs to switch back.)
 const BP_BOND_SEGS = [
-  {label:'Government',w:0.6937},{label:'Investment Grade',w:0.1972},{label:'High Yield',w:0.0891},{label:'EM Debt',w:0.02}
+  {label:'Government',w:0.690},{label:'Investment Grade',w:0.239},{label:'High Yield',w:0.051},{label:'EM Debt',w:0.021}
 ];
 
 const BP_BCA_ITEMS = [
