@@ -1074,6 +1074,17 @@
     <div id="macro-fill-form" class="hidden" style="margin-top:14px"></div>
   </div>
 
+  <!-- Fundamentals Sector Snapshot (monthly, manual — Finviz has no free API) -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:8px">📊 Fundamentals Sector Snapshot</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      11-sector PEG / EPS growth / P/E snapshot feeding the Weights tab's Fundamentals factor. Finviz has no free API, so this is a monthly manual copy — same as the 27 indicators above, but a full table rather than one number. Recommended cadence: 1st of each month.
+    </div>
+    <button class="btn-primary" onclick="fundCheckSnapshot()" style="font-size:13px">🔍 Check Snapshot Status</button>
+    <div id="fund-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+    <div id="fund-form" class="hidden" style="margin-top:14px"></div>
+  </div>
+
   <!-- Upload Updated File -->
   <div class="form-card" style="margin-bottom:16px">
     <h3 style="margin-bottom:8px">Upload Updated File</h3>
@@ -1828,6 +1839,201 @@ function arrayBufferToBase64(buffer) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
+}
+
+// ── Fundamentals Sector Snapshot ─────────────────────────────────────
+// Separate from the MACRO_MANUAL_INDICATORS system above on purpose:
+// that system is built for one scalar per missing month on a named raw-
+// data sheet+cell (macroFindGaps/macroPatchAndSave patch single xlsx
+// cells). This factor is an 11-sector x 4-field TABLE refreshed as a
+// whole each month, not a scalar time series - forcing it through the
+// same gap-scanner would mean either faking 44 fictitious "indicators"
+// into MACRO_INDICATOR_CELLS or restructuring the xlsx itself, neither
+// of which is worth it for something that isn't a macro cycle indicator
+// in the first place. Reads/writes its own JSON file instead of the
+// xlsx, via the same GitHub Contents API pattern as macroSaveSingleFill
+// (GET for sha, PUT with base64 content, retry once on sha mismatch).
+const FUND_SNAPSHOT_PATH = 'data/fundamentals_finviz_snapshot.json';
+const FUND_DUE_AFTER_DAYS = 25;  // recommended cadence is 1st-of-month; flag
+                                   // "due" a few days early rather than
+                                   // exactly on day 30, so it's not
+                                   // borderline every time this is opened
+                                   // near month-end
+const FUND_SECTORS = [
+  // [Finviz display name, GICS name shown alongside it]
+  ['Basic Materials', 'Materials'],
+  ['Communication Services', 'Communication Services'],
+  ['Consumer Cyclical', 'Consumer Discretionary'],
+  ['Consumer Defensive', 'Consumer Staples'],
+  ['Energy', 'Energy'],
+  ['Financial', 'Financials'],
+  ['Healthcare', 'Health Care'],
+  ['Industrials', 'Industrials'],
+  ['Real Estate', 'Real Estate'],
+  ['Technology', 'Information Technology'],
+  ['Utilities', 'Utilities'],
+];
+const FUND_FINVIZ_URL = 'https://finviz.com/groups?g=sector&v=120&o=name&st=d1';
+let fundLoadedData = null;  // { as_of, sectors } from the last fetch, or null if file didn't exist yet
+
+async function fundFetchSnapshot(token) {
+  const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${FUND_SNAPSHOT_PATH}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+  });
+  if (resp.status === 404) return { data: null, sha: null };
+  if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+  const meta = await resp.json();
+  const jsonText = decodeURIComponent(escape(atob(meta.content.replace(/\n/g, ''))));
+  return { data: JSON.parse(jsonText), sha: meta.sha };
+}
+
+async function fundCheckSnapshot() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const statusEl = document.getElementById('fund-status');
+  const formEl = document.getElementById('fund-form');
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Checking...';
+  formEl.classList.add('hidden');
+  formEl.innerHTML = '';
+
+  try {
+    const { data } = await fundFetchSnapshot(token);
+    fundLoadedData = data;
+
+    if (!data) {
+      statusEl.style.color = '#c62828';
+      statusEl.textContent = '✗ No snapshot found yet — fill in the form below to create one.';
+    } else {
+      const asOf = new Date(data.as_of + 'T00:00:00Z');
+      const daysOld = Math.floor((Date.now() - asOf.getTime()) / 86400000);
+      if (daysOld >= FUND_DUE_AFTER_DAYS) {
+        statusEl.style.color = '#c62828';
+        statusEl.textContent = `✗ Due — last snapshot ${data.as_of} (${daysOld} days ago). Update from Finviz below.`;
+      } else {
+        statusEl.style.color = '#2e7d52';
+        statusEl.textContent = `✓ Up to date — last snapshot ${data.as_of} (${daysOld} days ago).`;
+      }
+    }
+
+    fundRenderForm(data);
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+
+function fundRenderForm(data) {
+  const formEl = document.getElementById('fund-form');
+  const sectors = (data && data.sectors) || {};
+
+  let html = `<div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+    Open <a href="${FUND_FINVIZ_URL}" target="_blank" rel="noopener">Finviz Group Screener — Valuation</a>
+    and copy P/E, Fwd P/E, PEG, EPS next 5Y for each sector below (values pre-filled with the last saved snapshot).</div>`;
+  html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="text-align:left;color:var(--text3)">
+      <th style="padding:4px 6px">Sector (Finviz)</th>
+      <th style="padding:4px 6px">P/E</th>
+      <th style="padding:4px 6px">Fwd P/E</th>
+      <th style="padding:4px 6px">PEG</th>
+      <th style="padding:4px 6px">EPS next 5Y %</th>
+    </tr></thead><tbody>`;
+
+  FUND_SECTORS.forEach(([finvizName, gicsName]) => {
+    const existing = sectors[finvizName] || {};
+    const val = (k) => (existing[k] !== undefined ? existing[k] : '');
+    html += `<tr id="fund-row-${finvizName.replace(/\s/g, '_')}">
+      <td style="padding:4px 6px;white-space:nowrap">${finvizName} <span style="color:var(--text3);font-size:10px">(${gicsName})</span></td>
+      <td style="padding:4px 6px"><input type="number" step="any" id="fund-pe-${finvizName.replace(/\s/g, '_')}" value="${val('pe')}" style="width:70px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
+      <td style="padding:4px 6px"><input type="number" step="any" id="fund-fwdpe-${finvizName.replace(/\s/g, '_')}" value="${val('fwd_pe')}" style="width:70px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
+      <td style="padding:4px 6px"><input type="number" step="any" id="fund-peg-${finvizName.replace(/\s/g, '_')}" value="${val('peg')}" style="width:60px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
+      <td style="padding:4px 6px"><input type="number" step="any" id="fund-eps5y-${finvizName.replace(/\s/g, '_')}" value="${val('eps_next5y')}" style="width:70px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>
+    <div style="margin-top:12px">
+      <button class="btn-primary" onclick="fundSaveSnapshot()" style="font-size:13px">💾 Save snapshot</button>
+      <span id="fund-save-status" style="font-size:11px;color:var(--text3);margin-left:8px"></span>
+    </div>`;
+
+  formEl.innerHTML = html;
+  formEl.classList.remove('hidden');
+}
+
+async function fundSaveSnapshot() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+
+  const saveStatusEl = document.getElementById('fund-save-status');
+  saveStatusEl.style.color = 'var(--text3)';
+  saveStatusEl.textContent = '⏳ Reading form...';
+
+  const sectors = {};
+  for (const [finvizName] of FUND_SECTORS) {
+    const key = finvizName.replace(/\s/g, '_');
+    const pe = parseFloat(document.getElementById(`fund-pe-${key}`).value);
+    const fwdPe = parseFloat(document.getElementById(`fund-fwdpe-${key}`).value);
+    const peg = parseFloat(document.getElementById(`fund-peg-${key}`).value);
+    const eps5y = parseFloat(document.getElementById(`fund-eps5y-${key}`).value);
+    if ([pe, fwdPe, peg, eps5y].some(isNaN)) {
+      saveStatusEl.style.color = '#c62828';
+      saveStatusEl.textContent = `✗ ${finvizName}: all 4 fields must be filled with numbers.`;
+      return;
+    }
+    sectors[finvizName] = { pe, fwd_pe: fwdPe, peg, eps_next5y: eps5y };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const payload = { as_of: today, sectors };
+  const jsonStr = JSON.stringify(payload, null, 2);
+  const base64Content = btoa(unescape(encodeURIComponent(jsonStr)));
+
+  async function attemptSave() {
+    const { sha } = await fundFetchSnapshot(token);  // fresh sha right before writing, same
+                                                       // reasoning as macroSaveSingleFill above
+    const body = {
+      message: `Fundamentals snapshot update (${today}) via Macro View`,
+      content: base64Content,
+      branch: 'main',
+    };
+    if (sha) body.sha = sha;  // omit sha entirely on first-ever creation (file doesn't exist yet)
+    return fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${FUND_SNAPSHOT_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  try {
+    saveStatusEl.textContent = '⏳ Saving...';
+    let putResp = await attemptSave();
+    if (!putResp.ok) {
+      const err = await putResp.json().catch(() => ({}));
+      if (/does not match|sha/i.test(err.message || '')) {
+        saveStatusEl.textContent = '⏳ retrying (file changed)...';
+        putResp = await attemptSave();
+      }
+    }
+    if (putResp.ok) {
+      saveStatusEl.style.color = '#2e7d52';
+      saveStatusEl.textContent = `✓ Saved — as_of ${today}. Next Weights tab rebuild will use this.`;
+      document.getElementById('fund-status').style.color = '#2e7d52';
+      document.getElementById('fund-status').textContent = `✓ Up to date — last snapshot ${today} (0 days ago).`;
+    } else {
+      const err = await putResp.json().catch(() => ({}));
+      saveStatusEl.style.color = '#c62828';
+      saveStatusEl.textContent = `✗ ${err.message || putResp.status}`;
+    }
+  } catch (e) {
+    saveStatusEl.style.color = '#c62828';
+    saveStatusEl.textContent = `✗ ${e.message}`;
+  }
 }
 
 async function macroUploadFile() {
