@@ -1874,6 +1874,22 @@ const FUND_SECTORS = [
   ['Utilities', 'Utilities'],
 ];
 const FUND_FINVIZ_URL = 'https://finviz.com/groups?g=sector&v=120&o=name&st=d1';
+// Matches factor_fundamentals_diagnostic.py's _REQUIRED_FIELDS exactly (macro-dashboard repo) -
+// keep these two lists in sync if either changes. Market Cap, Volume and
+// Change% are deliberately excluded (not fundamentals signals, see that
+// script's own docstring).
+const FUND_FIELDS = [
+  { key: 'pe',            label: 'P/E',           width: 60 },
+  { key: 'fwd_pe',        label: 'Fwd P/E',       width: 60 },
+  { key: 'peg',           label: 'PEG',           width: 55 },
+  { key: 'ps',            label: 'P/S',           width: 55 },
+  { key: 'pb',            label: 'P/B',           width: 55 },
+  { key: 'pc',            label: 'P/C',           width: 60 },
+  { key: 'pfcf',          label: 'P/FCF',         width: 65 },
+  { key: 'eps_past5y',    label: 'EPS past 5Y %', width: 70 },
+  { key: 'eps_next5y',    label: 'EPS next 5Y %', width: 70 },
+  { key: 'sales_past5y',  label: 'Sales past 5Y %', width: 75 },
+];
 let fundLoadedData = null;  // { as_of, sectors } from the last fetch, or null if file didn't exist yet
 
 async function fundFetchSnapshot(token) {
@@ -1930,25 +1946,20 @@ function fundRenderForm(data) {
 
   let html = `<div style="font-size:11px;color:var(--text3);margin-bottom:10px">
     Open <a href="${FUND_FINVIZ_URL}" target="_blank" rel="noopener">Finviz Group Screener — Valuation</a>
-    and copy P/E, Fwd P/E, PEG, EPS next 5Y for each sector below (values pre-filled with the last saved snapshot).</div>`;
+    and copy the columns below for each sector (values pre-filled with the last saved snapshot). Market Cap, Volume and Change% are not used - only these 10 fundamentals-relevant fields.</div>`;
   html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="text-align:left;color:var(--text3)">
       <th style="padding:4px 6px">Sector (Finviz)</th>
-      <th style="padding:4px 6px">P/E</th>
-      <th style="padding:4px 6px">Fwd P/E</th>
-      <th style="padding:4px 6px">PEG</th>
-      <th style="padding:4px 6px">EPS next 5Y %</th>
+      ${FUND_FIELDS.map(f => `<th style="padding:4px 6px">${f.label}</th>`).join('')}
     </tr></thead><tbody>`;
 
   FUND_SECTORS.forEach(([finvizName, gicsName]) => {
     const existing = sectors[finvizName] || {};
     const val = (k) => (existing[k] !== undefined ? existing[k] : '');
-    html += `<tr id="fund-row-${finvizName.replace(/\s/g, '_')}">
+    const key = finvizName.replace(/\s/g, '_');
+    html += `<tr id="fund-row-${key}">
       <td style="padding:4px 6px;white-space:nowrap">${finvizName} <span style="color:var(--text3);font-size:10px">(${gicsName})</span></td>
-      <td style="padding:4px 6px"><input type="number" step="any" id="fund-pe-${finvizName.replace(/\s/g, '_')}" value="${val('pe')}" style="width:70px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
-      <td style="padding:4px 6px"><input type="number" step="any" id="fund-fwdpe-${finvizName.replace(/\s/g, '_')}" value="${val('fwd_pe')}" style="width:70px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
-      <td style="padding:4px 6px"><input type="number" step="any" id="fund-peg-${finvizName.replace(/\s/g, '_')}" value="${val('peg')}" style="width:60px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
-      <td style="padding:4px 6px"><input type="number" step="any" id="fund-eps5y-${finvizName.replace(/\s/g, '_')}" value="${val('eps_next5y')}" style="width:70px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>
+      ${FUND_FIELDS.map(f => `<td style="padding:4px 6px"><input type="number" step="any" id="fund-${f.key}-${key}" value="${val(f.key)}" style="width:${f.width}px;font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)"></td>`).join('')}
     </tr>`;
   });
 
@@ -1973,16 +1984,19 @@ async function fundSaveSnapshot() {
   const sectors = {};
   for (const [finvizName] of FUND_SECTORS) {
     const key = finvizName.replace(/\s/g, '_');
-    const pe = parseFloat(document.getElementById(`fund-pe-${key}`).value);
-    const fwdPe = parseFloat(document.getElementById(`fund-fwdpe-${key}`).value);
-    const peg = parseFloat(document.getElementById(`fund-peg-${key}`).value);
-    const eps5y = parseFloat(document.getElementById(`fund-eps5y-${key}`).value);
-    if ([pe, fwdPe, peg, eps5y].some(isNaN)) {
+    const rowVals = {};
+    let hasNaN = false;
+    for (const f of FUND_FIELDS) {
+      const v = parseFloat(document.getElementById(`fund-${f.key}-${key}`).value);
+      if (isNaN(v)) hasNaN = true;
+      rowVals[f.key] = v;
+    }
+    if (hasNaN) {
       saveStatusEl.style.color = '#c62828';
-      saveStatusEl.textContent = `✗ ${finvizName}: all 4 fields must be filled with numbers.`;
+      saveStatusEl.textContent = `✗ ${finvizName}: all ${FUND_FIELDS.length} fields must be filled with numbers.`;
       return;
     }
-    sectors[finvizName] = { pe, fwd_pe: fwdPe, peg, eps_next5y: eps5y };
+    sectors[finvizName] = rowVals;
   }
 
   const today = new Date().toISOString().slice(0, 10);
