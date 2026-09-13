@@ -1078,7 +1078,7 @@
   <div class="form-card" style="margin-bottom:16px">
     <h3 style="margin-bottom:8px">📊 Fundamentals Sector Snapshot</h3>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      11-sector PEG / EPS growth / P/E snapshot feeding the Weights tab's Fundamentals factor. Finviz has no free API, so this is a monthly manual copy — same as the 27 indicators above, but a full table rather than one number. Recommended cadence: 1st of each month.
+      11-sector PEG / EPS growth / P/E snapshot feeding the Weights tab's Fundamentals reference columns. As of 2026-09-13 this refreshes automatically every Friday via GitHub Actions (finviz.com has no free API — Nikolai made an informed decision to accept the ToS risk of scheduled scraping for this internal-only use). This panel is now a manual override/spot-check tool rather than the primary update path: use it to correct a bad automated fetch or verify the numbers look right.
     </div>
     <button class="btn-primary" onclick="fundCheckSnapshot()" style="font-size:13px">🔍 Check Snapshot Status</button>
     <div id="fund-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
@@ -1854,11 +1854,13 @@ function arrayBufferToBase64(buffer) {
 // xlsx, via the same GitHub Contents API pattern as macroSaveSingleFill
 // (GET for sha, PUT with base64 content, retry once on sha mismatch).
 const FUND_SNAPSHOT_PATH = 'data/fundamentals_finviz_snapshot.json';
-const FUND_DUE_AFTER_DAYS = 25;  // recommended cadence is 1st-of-month; flag
-                                   // "due" a few days early rather than
-                                   // exactly on day 30, so it's not
-                                   // borderline every time this is opened
-                                   // near month-end
+const FUND_DUE_AFTER_DAYS = 10;  // now auto-updated every Friday via GitHub
+                                   // Actions (fetch_finviz_fundamentals.py,
+                                   // added 2026-09-13) - 10 days catches a
+                                   // stalled automation within ~1-2 missed
+                                   // Fridays rather than waiting for a
+                                   // whole month like the old manual-only
+                                   // threshold assumed
 const FUND_SECTORS = [
   // [Finviz display name, GICS name shown alongside it]
   ['Basic Materials', 'Materials'],
