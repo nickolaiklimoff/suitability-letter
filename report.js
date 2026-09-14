@@ -1119,7 +1119,12 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
       const v15 = parseFloat(r[15]);
       const v12 = parseFloat(r[12]);
       const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
-      const value = (!isNaN(v12) && v12 > 0) ? v12 : (!isNaN(v15) && v15 > 0) ? v15 : vCalc;
+      // Converted trade value (r[15]) is always in the portfolio's reporting
+      // currency (USD) — must take priority. Trade value (r[12]) is in the
+      // trade's OWN currency, which for non-USD trades (e.g. GBP/EUR UCITS
+      // ETFs) is a different, smaller number than the USD amount and must
+      // not be used as-is.
+      const value = (!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc;
       if (!date || !value || isNaN(value)) return;
       const key = date.toISOString().slice(0,10);
       const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
