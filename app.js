@@ -2274,36 +2274,14 @@ const BP_BM_WEIGHTS = {
 };
 const BP_IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
 
-// MSCI ACWI Index sector benchmark weights (passive market-cap weights,
-// NOT BCA's actual GAA allocation) - reverted 2026-09-07 per explicit
-// instruction to decouple BP_SECTORS from BCA and pull from MSCI instead.
-// Sourced from MSCI's own live index page (msci.com/indexes/index/892400),
-// "Data as of Aug. 31, 2026" - same source/date as equity_sector_rows in
-// the macro-dashboard repo's build_weights_tab.py, kept identical
-// deliberately so the two systems don't drift apart; update both if
-// either is revised. (Briefly repurposed 2026-09-03 to track BCA's Sept
-// 2026 GAA sector allocation instead - see that commit if this ever needs
-// to switch back.)
 const BP_SECTORS = [
-  {label:'Financials',w:0.169},{label:'Info Tech',w:0.312},{label:'Health Care',w:0.085},
-  {label:'Consumer Discretionary',w:0.087},{label:'Industrials',w:0.106},
-  {label:'Communication Services',w:0.077},{label:'Consumer Staples',w:0.047},
+  {label:'Financials',w:0.169},{label:'Info Tech',w:0.312},{label:'Health Care',w:0.094},
+  {label:'Consumer Discretionary',w:0.096},{label:'Industrials',w:0.079},
+  {label:'Communication Services',w:0.086},{label:'Consumer Staples',w:0.047},
   {label:'Energy',w:0.04},{label:'Materials',w:0.038},{label:'Utilities',w:0.023},{label:'Real Estate',w:0.016}
 ];
-// Bond segment benchmark weights - market value share of 4 Bloomberg
-// segment indices (Global Treasury / Global Corporate / Global High-Yield
-// / EM USD Aggregate Sovereign), NOT BCA's actual GAA fixed-income
-// allocation - reverted 2026-09-07, same decision and same day as
-// BP_SECTORS above (decoupling from BCA entirely, not just for sectors -
-// per the 2026-09 decision to stop treating BCA as a dependency at all).
-// Source/date matches the Bond Segment Weights table in the macro-
-// dashboard repo's build_weights_tab.py Weights sheet - kept identical
-// deliberately, update both if either is revised. (Also briefly
-// repurposed 2026-09-03 to track BCA's Sept 2026 GAA fixed-income
-// allocation instead, same commit as BP_SECTORS' repurposing - see that
-// commit if this ever needs to switch back.)
 const BP_BOND_SEGS = [
-  {label:'Government',w:0.690},{label:'Investment Grade',w:0.239},{label:'High Yield',w:0.051},{label:'EM Debt',w:0.021}
+  {label:'Government',w:0.6937},{label:'Investment Grade',w:0.1972},{label:'High Yield',w:0.0891},{label:'EM Debt',w:0.02}
 ];
 
 const BP_BCA_ITEMS = [
@@ -6605,14 +6583,17 @@ function rbExportXlsx() {
   XL.utils.book_append_sheet(wb, ws1, 'Allocation');
 
   // Sheet 2: Buy Orders
-  const buyRows = [['Holding', 'ISIN', 'Price per unit', 'Units to buy', 'Amount USD']];
+  const buyRows = [['Holding', 'ISIN / Ticker', 'Price per unit', 'Units to buy', 'Amount USD']];
   trades.forEach(t => {
     // Support both new format {holding, qty, spent, price} and legacy {h, buyAmt}
     const holding = t.holding || t.h;
     const qty     = t.qty !== undefined ? t.qty : (t.price > 0.01 ? Math.floor((t.buyAmt||0) / t.price) : 0);
     const price   = t.price || (holding?.quantity > 0 ? (holding.convertedHoldingValue||0)/holding.quantity : 0);
     const amount  = Math.round(qty * price);
-    if (qty > 0 && amount > 0) buyRows.push([holding?.name||'', holding?.isin||'', parseFloat(price.toFixed(2)), qty, amount]);
+    // ETFs/funds often have no ISIN in the cbonds export (only bonds do) —
+    // fall back to ticker so the identifier column isn't blank.
+    const identifier = holding?.isin || holding?.ticker || '';
+    if (qty > 0 && amount > 0) buyRows.push([holding?.name||'', identifier, parseFloat(price.toFixed(2)), qty, amount]);
   });
   const ws2 = XL.utils.aoa_to_sheet(buyRows);
   ws2['!cols'] = [{wch:50},{wch:16},{wch:14},{wch:14},{wch:14}];
