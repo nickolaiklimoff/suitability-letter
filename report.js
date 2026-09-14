@@ -1088,6 +1088,38 @@ function computeIRR(cashflows) {
   return (lo + hi) / 2;
 }
 
+// Build {date, amount} cashflows from a trade ledger — Buy = negative outflow,
+// Sell = positive inflow. Converted trade value (col 15, always USD/reporting
+// currency) takes priority over native Trade value (col 12), which for
+// non-USD trades (GBP/EUR UCITS ETFs etc.) is a different, smaller number and
+// must not be used as-is. Shared by the IRR box, the Sharpe-annualization
+// path, and the cashflow-based Total Return used in Summary/Section 6.
+function buildTradeCashflows(tradeRows) {
+  const cfByDate = {};
+  (tradeRows || []).forEach(r => {
+    const date = r[0] ? new Date(r[0]) : null;
+    const dir  = String(r[2]||'').trim().toLowerCase();
+    const v15 = parseFloat(r[15]);
+    const v12 = parseFloat(r[12]);
+    const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
+    const value = (!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc;
+    if (!date || !value || isNaN(value)) return;
+    const key = date.toISOString().slice(0,10);
+    const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
+    cfByDate[key] = (cfByDate[key] || 0) + cf;
+  });
+  return Object.entries(cfByDate).map(([d, amount]) => ({ date: new Date(d), amount }));
+}
+
+// Total capital actually deployed via trades (sum of buy outflows). This is
+// the denominator for the cashflow-consistent Total Return used in the
+// Summary table and Section 6 — same capital base as the IRR (MWR) box, so
+// all three figures agree instead of drifting apart under different
+// methodologies (cost-basis accounting vs money-weighted cashflow).
+function computeTotalInvested(tradeRows) {
+  return buildTradeCashflows(tradeRows).filter(cf => cf.amount < 0).reduce((s, cf) => s - cf.amount, 0);
+}
+
 async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) {
   const today = new Date();
   const dwRows = portfolioData.depositWithdrawalRows || [];
@@ -1112,26 +1144,8 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
     // experience. Note: this can overstate IRR if a trade is really an
     // internal rotation (e.g. reinvesting matured-bond proceeds) rather than
     // fresh external capital, since both look identical here.
-    const cfByDate = {};
-    tradeRows.forEach(r => {
-      const date = r[0] ? new Date(r[0]) : null;
-      const dir  = String(r[2]||'').trim().toLowerCase();
-      const v15 = parseFloat(r[15]);
-      const v12 = parseFloat(r[12]);
-      const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
-      // Converted trade value (r[15]) is always in the portfolio's reporting
-      // currency (USD) — must take priority. Trade value (r[12]) is in the
-      // trade's OWN currency, which for non-USD trades (e.g. GBP/EUR UCITS
-      // ETFs) is a different, smaller number than the USD amount and must
-      // not be used as-is.
-      const value = (!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc;
-      if (!date || !value || isNaN(value)) return;
-      const key = date.toISOString().slice(0,10);
-      const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
-      cfByDate[key] = (cfByDate[key] || 0) + cf;
-    });
-    cashflows = Object.entries(cfByDate).map(([d, amount]) => ({ date: new Date(d), amount }));
-    basisLabel = `<strong>${Object.keys(cfByDate).length}</strong> trade dates`;
+    cashflows = buildTradeCashflows(tradeRows);
+    basisLabel = `<strong>${cashflows.length}</strong> trade dates`;
   } else if (dwRows.length > 0) {
     // Fallback for exports without a trade ledger — uses deposit/withdrawal
     // dates instead, FX-converted to the reporting currency.
@@ -1762,8 +1776,8 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
-          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`
-          : `Analytics from portfolio value chart (AI image recognition, ±2–3%). Total Return from actual P&L. Sharpe: (Return − rf) / σ.`}
+          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted (same capital base as IRR below). Sharpe: (Return − rf) / σ.`
+          : `Analytics from portfolio value chart (AI image recognition, ±2–3%) — vol., Sharpe, drawdown and monthly stats only. Total Return: money-weighted (same capital base as IRR below), not from the chart.`}
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
@@ -2262,11 +2276,20 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const totalCostBasis = bondTotCost + fundTotCost + stockTotCostUSD;
   const totalIncome = bondTotIncome + fundTotIncome + stockTotIncome;
   const totalPnL = totalUnrealizedPnL + stockTotReal + totalIncome;
-  const totalPnLPct = totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—';
+  // Cashflow-consistent Total Return — same capital base as the IRR (MWR) box
+  // below: total actually invested via trades vs. current total value. Used
+  // for the PORTFOLIO TOTAL row and Section 6 "Total Return" so both agree
+  // with the IRR figure instead of drifting from it under cost-basis
+  // accounting (which excludes idle/un-deployed cash and can diverge
+  // meaningfully — see conversation history for a worked example).
+  const totalInvested = computeTotalInvested(portfolioData.tradeRows);
+  const cashflowTotalPnL = totalInvested > 0 ? (portfolioData.totalValue || 0) - totalInvested : totalPnL;
+  const cashflowReturn = totalInvested > 0 ? cashflowTotalPnL / totalInvested : (totalCostBasis>0 ? totalPnL/totalCostBasis : 0);
+  const totalPnLPct = totalInvested>0 ? (cashflowReturn*100).toFixed(1)+'%' : (totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—');
   // Expose for full analytics computation
   portfolioData._realCostBasis = totalCostBasis;
   portfolioData._realTotalPnL  = totalPnL;
-  const pc = totalPnL>=0?'#3b6d11':'#a32d2d';
+  const pc = cashflowTotalPnL>=0?'#3b6d11':'#a32d2d';
 
   // Section 13: commentary placeholder (text injected async after generation)
   const commentaryHtml = buildCommentarySection('');
@@ -2277,7 +2300,10 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   let benchmarkHtml = '';
   if (portfolioData._analytics) {
     const a = portfolioData._analytics;
-    const realReturn = totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn;
+    // Same cashflow-consistent figure as the Summary row and the IRR box —
+    // see comment above totalInvested. Falls back to cost-basis accounting
+    // only when there's no trade ledger to build cashflows from.
+    const realReturn = totalInvested > 0 ? cashflowReturn : (totalCostBasis > 0 ? totalPnL / totalCostBasis : a.totalReturn);
     const rf2 = a.rf || 0.026;
     // Annualize realReturn (period may be <1 year)
     const periodYears = a.n && a.freq ? a.n / a.freq : 1;
@@ -2290,16 +2316,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         // Methodology: cashflow timing = trade date, not deposit date — see
         // buildIRRSection for the full rationale. Deliberately ignores any
         // period cash sat waiting to be deployed.
-        const _cfByDate = {};
-        portfolioData.tradeRows.forEach(r => {
-          const _date = r[0] ? new Date(r[0]) : null;
-          const _dir = String(r[2]||'').trim().toLowerCase();
-          const _val = parseFloat(r[12]) || parseFloat(r[15]) || (parseFloat(r[6])||0)*(parseFloat(r[7])||0);
-          if (!_date || !_val || isNaN(_val)) return;
-          const _key = _date.toISOString().slice(0,10);
-          _cfByDate[_key] = (_cfByDate[_key]||0) + (_dir==='buy' ? -Math.abs(_val) : Math.abs(_val));
-        });
-        _cfs = Object.entries(_cfByDate).map(([d,v])=>({date:new Date(d),amount:v}));
+        _cfs = buildTradeCashflows(portfolioData.tradeRows);
       } else if (portfolioData.depositWithdrawalRows?.length > 0) {
         // Fallback for exports without a trade ledger — deposit dates, FX-converted.
         let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
@@ -2517,8 +2534,8 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fmtUSD(totalCostBasis)}</td>
               <td>${fmtUSD(totalIncome)}</td>
               <td style="color:${totalUnrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(totalUnrealizedPnL)}</td>
-              <td style="color:${pc}">${fmtUSDSigned(totalPnL)}</td>
-              <td style="color:${pc}">${totalPnL>=0?'+':''}${totalPnLPct}</td>
+              <td style="color:${pc}">${fmtUSDSigned(cashflowTotalPnL)}</td>
+              <td style="color:${pc}">${cashflowTotalPnL>=0?'+':''}${totalPnLPct}</td>
             </tr>
           </tbody>
         </table>
