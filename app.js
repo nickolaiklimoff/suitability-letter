@@ -3820,7 +3820,7 @@ window.dbFormat = async function() {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [{
           role: 'user',
           content: `Перефразируй следующий текст на профессиональном русском языке для публикации в Telegram канале об инвестициях.
