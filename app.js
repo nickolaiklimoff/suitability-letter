@@ -779,6 +779,108 @@ function addInvestRow(name='', isin='', amount='', fee='0') {
 
 function escVal(s) { return String(s||'').replace(/"/g,'&quot;'); }
 
+// ─── Export "Profiling Calculator" xlsx (ORCAP internal WAAR review format) ──
+window.exportProfilingCalculator = function() {
+  const client = clients[currentClientId];
+  if (!client) { alert('Select a client first.'); return; }
+
+  const existing = getExistingRows(); // {isin, name, amount, rating}
+  const newInvInputs = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
+    const i = tr.querySelectorAll('input');
+    return { name: i[0]?.value||'', isin: i[1]?.value||'', amount: parseFloat(i[2]?.value)||0 };
+  }).filter(r => r.name || r.amount);
+  const txRatings = window._transactionRatings || [];
+  const newInv = newInvInputs.map((r, idx) => ({ ...r, rating: txRatings[idx]?.rating || 0 }))
+    .filter(r => r.amount > 0 && r.rating > 0);
+  const existingValid = existing.filter(r => r.amount > 0 && r.rating > 0);
+
+  if (!existingValid.length && !newInv.length) {
+    alert('No rated rows yet — assign ratings to the existing portfolio and/or new investment first.');
+    return;
+  }
+
+  const { waarAfter, irAfter } = updateWAAR();
+
+  const totalNew = newInv.reduce((s,r)=>s+r.amount, 0);
+  const totalExisting = existingValid.reduce((s,r)=>s+r.amount, 0);
+  const grandTotal = totalNew + totalExisting;
+  const pct = (amt) => grandTotal>0 ? amt/grandTotal : 0;
+  const waarContrib = (rating, amt) => rating * pct(amt);
+
+  const ir = irAfter || 'IR3';
+  const maxWaar = (window.IR_CORRIDORS && window.IR_CORRIDORS[ir]) ? window.IR_CORRIDORS[ir].max : null;
+  const dateStr = document.getElementById('l-date')?.value ?
+    new Date(document.getElementById('l-date').value).toLocaleDateString('en-GB') :
+    new Date().toLocaleDateString('en-GB');
+
+  const rows = [];
+  const set = (r, c, v) => { while (rows.length <= r) rows.push([]); rows[r][c] = v; };
+
+  set(0, 3, 'Investor Rating'); set(0, 4, ir);
+  set(1, 3, 'Date'); set(1, 4, dateStr);
+  set(2, 3, 'Client name / number'); set(2, 4, client.name || '');
+  set(3, 3, 'Maker'); set(3, 4, 'Nikolai Klimov');
+  set(4, 3, 'Checker'); set(4, 4, '');
+
+  set(9, 0, 'Proposed New Investment'); set(9, 1, 'Currency of the product');
+  set(9, 2, 'Risk Rating'); set(9, 3, 'Amount (Converted to same ccy)');
+  set(9, 4, 'Portfolio Allocation %'); set(9, 5, 'WAAR');
+  let r = 10;
+  newInv.forEach(x => {
+    set(r, 0, x.name); set(r, 1, 'USD'); set(r, 2, x.rating);
+    set(r, 3, x.amount); set(r, 4, pct(x.amount)); set(r, 5, waarContrib(x.rating, x.amount));
+    r++;
+  });
+  set(r, 0, 'Total New Investments'); set(r, 3, totalNew); set(r, 4, pct(totalNew));
+  r += 1;
+
+  set(r, 0, 'Current Investments'); set(r, 1, 'Currency of product');
+  set(r, 2, 'Risk'); set(r, 3, 'Amount (Converted to same ccy)');
+  set(r, 4, 'Portfolio Allocation %'); set(r, 5, 'WAAR');
+  r++;
+  existingValid.forEach(x => {
+    set(r, 0, x.name); set(r, 1, 'USD'); set(r, 2, x.rating);
+    set(r, 3, x.amount); set(r, 4, pct(x.amount)); set(r, 5, waarContrib(x.rating, x.amount));
+    r++;
+  });
+  set(r, 0, 'Total existing assets'); set(r, 3, totalExisting); set(r, 4, pct(totalExisting));
+  r++;
+  set(r, 0, 'Total including new investments'); set(r, 3, grandTotal); set(r, 4, grandTotal>0?1:0);
+  r += 3;
+  set(r, 0, 'Total Liabilities');
+  r += 2;
+  set(r, 0, 'Net Assets'); set(r, 3, grandTotal);
+  r += 3;
+  set(r, 4, 'Maximum Permitted WAAR'); r++;
+  set(r, 4, maxWaar);
+  r += 2;
+  set(r, 4, 'WAAR'); r++;
+  set(r, 4, waarAfter);
+
+  const wb = XL.utils.book_new();
+  const ws1 = XL.utils.aoa_to_sheet(rows);
+  ws1['!cols'] = [{wch:32},{wch:20},{wch:10},{wch:26},{wch:20},{wch:12}];
+  XL.utils.book_append_sheet(wb, ws1, 'Client Holdings');
+
+  // Static IR corridor reference sheet — matches the standard ORCAP template
+  const limitRows = [
+    [],
+    ['IR Limits'],
+    ['Investor Rating', 'WAAR'],
+    [null, 'Lower Corridor', null, 'Higher Corridor'],
+  ];
+  ['IR1','IR2','IR3','IR4','IR5','IR6'].forEach(k => {
+    const c = window.IR_CORRIDORS?.[k];
+    limitRows.push([k, c?.min ?? '', null, c?.max ?? '']);
+  });
+  const ws2 = XL.utils.aoa_to_sheet(limitRows);
+  ws2['!cols'] = [{wch:16},{wch:14},{wch:4},{wch:14}];
+  XL.utils.book_append_sheet(wb, ws2, 'IR limits');
+
+  const fname = `profiling_calculator_${(client.name||'client').replace(/[^\w]+/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XL.writeFile(wb, fname);
+};
+
 function addPortfolioRow(prefix) {
   const tbody = document.getElementById(`l-${prefix}Rows`);
   if (!tbody) return;
