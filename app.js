@@ -800,6 +800,7 @@ window.exportProfilingCalculator = function() {
   }
 
   const { waarAfter, irAfter } = updateWAAR();
+  const XL = window.XLSX;
 
   const totalNew = newInv.reduce((s,r)=>s+r.amount, 0);
   const totalExisting = existingValid.reduce((s,r)=>s+r.amount, 0);
