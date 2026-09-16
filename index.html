@@ -236,6 +236,7 @@
                 <span class="waar-val" id="waar-after">—</span>
               </div>
               <div style="display:none"><tbody id="l-newRows"></tbody></div>
+              <button class="btn-secondary" onclick="exportProfilingCalculator()" style="font-size:13px;margin-top:12px">↓ Export Profiling Calculator (xlsx)</button>
             </div>
 
           </div>
@@ -1102,7 +1103,7 @@
 <script src="waar.js?v=1787406672"></script>
 <script src="portfolio-import.js?v=1788272247"></script>
 <script src="report.js?v=1789392258"></script>
-<script src="app.js?v=1789455391"></script>
+<script src="app.js?v=1789563726"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
@@ -1163,7 +1164,7 @@ const MACRO_MANUAL_INDICATORS = [
   { region: 'China', name: 'Caixin PMI Manufacturing', source: 'S&P Global / Caixin', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { region: 'China', name: 'NBS PMI Services', source: 'NBS', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { region: 'China', name: 'M2 Money Supply YoY', source: 'PBoC', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { region: 'China', name: 'Property Sales Value YoY', source: 'NBS (cumulative YTD, in monthly \'Investment in Real Estate Development\' release) - switched from Area to Value 2026-08-28, longer history (Cbonds-sourced backfill)', link: 'https://www.stats.gov.cn/english/PressRelease/' },
+  { region: 'China', name: 'Property Sales Area YoY', source: 'NBS (cumulative YTD, in monthly \'Investment in Real Estate Development\' release)', link: 'https://www.stats.gov.cn/english/PressRelease/' },
   { region: 'China', name: 'Industrial Production YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/industrial-production' },
   { region: 'China', name: 'Retail Sales YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
   { region: 'China', name: 'Real GDP Growth YoY', source: 'NBS (FRED mirror dead since Jul 2023)', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
@@ -1211,7 +1212,7 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', caName: 'Caixin PMI Manufacturing', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', caName: 'NBS PMI Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', caName: 'M2 Money Supply YoY', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { name: 'Property Sales Value YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Value YoY', link: 'https://www.stats.gov.cn/english/PressRelease/', hint: 'No fixed URL (new page each month, ~1 day after the main IP/Retail/FAI release) - fastest way to find it: Google search "Investment in Real Estate Development from January to [month] [year]" (NBS\'s exact, predictable article title) rather than paging through the Latest Releases list. Find the SALES VALUE (CNY) line, not the sales area/floor-space line - this column switched from Area to Value 2026-08-28' },
+  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Area YoY', link: 'https://www.stats.gov.cn/english/PressRelease/', hint: 'Click "Investment in Real Estate Development from January to [month]" (no fixed URL - new page each month)' },
   { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', caName: 'Industrial Production YoY', link: 'https://tradingeconomics.com/china/industrial-production' },
   { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', caName: 'Retail Sales YoY', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
   { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth', caName: 'Real GDP Growth YoY', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
@@ -1297,39 +1298,14 @@ const MACRO_RELEASE_RULES = {
   'Caixin PMI Manufacturing':     { type: 'nextMonthNthBizDay', n: 1 },
   'NBS PMI Services':             { type: 'sameMonthLastWeekday', dow: null },
   'M2 Money Supply YoY':          { type: 'daysAfterMonthEnd', n: 13 },
-  'Property Sales Value YoY':      { type: 'fixedDates', dates: {
-    // NBS's own calendar page groups this with the Industrial Production/
-    // Retail Sales/FAI bundle (same date every month) - but in practice
-    // the specific "Investment in Real Estate Development" document that
-    // carries the sales-value figure consistently comes out ONE DAY AFTER
-    // that bundle, not the same day: confirmed against several real
-    // examples (e.g. the January-June 2026 edition, covering June data,
-    // published 2026-07-16 - one day after July 15's main release, which
-    // covered June data). Dates below are the bundle dates +1 day.
-    '2026-07': '2026-08-18', '2026-08': '2026-09-16', '2026-09': '2026-10-20',
-    '2026-10': '2026-11-17', '2026-11': '2026-12-16',
-  }},
-  'Industrial Production YoY (China)': { type: 'fixedDates', dates: {
-    '2026-07': '2026-08-17', '2026-08': '2026-09-15', '2026-09': '2026-10-19',
-    '2026-10': '2026-11-16', '2026-11': '2026-12-15',
-  }},
-  'Retail Sales YoY (China)':     { type: 'fixedDates', dates: {
-    '2026-07': '2026-08-17', '2026-08': '2026-09-15', '2026-09': '2026-10-19',
-    '2026-10': '2026-11-16', '2026-11': '2026-12-15',
-  }},
+  'Property Sales Area YoY':      { type: 'daysAfterMonthEnd', n: 21 },
+  'Industrial Production YoY (China)': { type: 'daysAfterMonthEnd', n: 17 },
+  'Retail Sales YoY (China)':     { type: 'daysAfterMonthEnd', n: 17 },
   'Real GDP Growth YoY (China)':  { type: 'weeksAfterQuarterEnd', n: 3, quarterMonths: [2, 5, 8, 11] },
-  'PPI YoY':                      { type: 'fixedDates', dates: {
-    // Separate NBS release bundle from the one above (CPI+PPI together,
-    // own date pattern) - same source page, verified 2026-09-15.
-    '2026-07': '2026-08-09', '2026-08': '2026-09-09', '2026-09': '2026-10-14',
-    '2026-10': '2026-11-09', '2026-11': '2026-12-09',
-  }},
+  'PPI YoY':                      { type: 'daysAfterMonthEnd', n: 9 },
   'PBoC 7-Day Reverse Repo Rate': { type: 'skip' },
   '10Y CGB Yield':                { type: 'skip' },
-  'Fixed Asset Investment YoY':   { type: 'fixedDates', dates: {
-    '2026-07': '2026-08-17', '2026-08': '2026-09-15', '2026-09': '2026-10-19',
-    '2026-10': '2026-11-16', '2026-11': '2026-12-15',
-  }},
+  'Fixed Asset Investment YoY':   { type: 'daysAfterMonthEnd', n: 20 },
   // Added 2026-09-01: EC's full monthly BCS release (ESI/Industrial/
   // Services Conf together) lands on the last working day of the SAME
   // reference month - see the workbook's own "Release Schedule" column
@@ -1373,19 +1349,6 @@ function macroExpectedReleaseDate(indicatorName, monthStr) {
     case 'weeksAfterQuarterEnd': {
       if (!rule.quarterMonths.includes(month0)) return null;
       return addDays(monthEnd(year, month0), rule.n * 7);
-    }
-    case 'fixedDates': {
-      // rule.dates maps the DATA month ("YYYY-MM", the reference period,
-      // same as monthStr) directly to its real, already-known release
-      // date - for publishers (NBS, BLS, etc.) whose own official
-      // calendar moves the date around month to month rather than
-      // following a fixed day-count. Falls through to null (treated as
-      // "unclassified, don't filter" by the caller, same as any
-      // unrecognized rule) for a month not yet in the map - safer to
-      // flag an unclassified gap for review than to silently apply a
-      // day-count guess we already know is wrong for this indicator.
-      const iso = rule.dates[monthStr];
-      return iso ? new Date(iso + 'T00:00:00') : null;
     }
     default:
       return null;
