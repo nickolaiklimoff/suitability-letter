@@ -1163,7 +1163,7 @@ const MACRO_MANUAL_INDICATORS = [
   { region: 'China', name: 'Caixin PMI Manufacturing', source: 'S&P Global / Caixin', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { region: 'China', name: 'NBS PMI Services', source: 'NBS', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { region: 'China', name: 'M2 Money Supply YoY', source: 'PBoC', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { region: 'China', name: 'Property Sales Area YoY', source: 'NBS (cumulative YTD, in monthly \'Investment in Real Estate Development\' release)', link: 'https://www.stats.gov.cn/english/PressRelease/' },
+  { region: 'China', name: 'Property Sales Value YoY', source: 'NBS (cumulative YTD, in monthly \'Investment in Real Estate Development\' release) - switched from Area to Value 2026-08-28, longer history (Cbonds-sourced backfill)', link: 'https://www.stats.gov.cn/english/PressRelease/' },
   { region: 'China', name: 'Industrial Production YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/industrial-production' },
   { region: 'China', name: 'Retail Sales YoY', source: 'NBS', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
   { region: 'China', name: 'Real GDP Growth YoY', source: 'NBS (FRED mirror dead since Jul 2023)', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
@@ -1211,7 +1211,7 @@ const MACRO_INDICATOR_CELLS = [
   { name: 'Caixin PMI Manufacturing', sheet: 'China', code: 'CN_Caixin_PMI', caName: 'Caixin PMI Manufacturing', link: 'https://tradingeconomics.com/china/manufacturing-pmi' },
   { name: 'NBS PMI Services', sheet: 'China', code: 'CN_PMI_Services', caName: 'NBS PMI Services', link: 'https://tradingeconomics.com/china/non-manufacturing-pmi' },
   { name: 'M2 Money Supply YoY', sheet: 'China', code: 'CN_M2', caName: 'M2 Money Supply YoY', link: 'https://tradingeconomics.com/china/money-supply-m2' },
-  { name: 'Property Sales Area YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Area YoY', link: 'https://www.stats.gov.cn/english/PressRelease/', hint: 'Click "Investment in Real Estate Development from January to [month]" (no fixed URL - new page each month)' },
+  { name: 'Property Sales Value YoY', sheet: 'China', code: 'CN_Property_Sales', caName: 'Property Sales Value YoY', link: 'https://www.stats.gov.cn/english/PressRelease/', hint: 'Click "Investment in Real Estate Development from January to [month]" (no fixed URL - new page each month) - find the SALES VALUE (CNY) line, not the sales area/floor-space line - this column switched from Area to Value 2026-08-28' },
   { name: 'Industrial Production YoY (China)', sheet: 'China', code: 'CN_Industrial_Prod', caName: 'Industrial Production YoY', link: 'https://tradingeconomics.com/china/industrial-production' },
   { name: 'Retail Sales YoY (China)', sheet: 'China', code: 'CN_Retail_Sales', caName: 'Retail Sales YoY', link: 'https://tradingeconomics.com/china/retail-sales-annual' },
   { name: 'Real GDP Growth YoY (China)', sheet: 'China', code: 'CN_GDP_Growth', caName: 'Real GDP Growth YoY', link: 'https://tradingeconomics.com/china/gdp-growth-annual' },
@@ -1297,7 +1297,7 @@ const MACRO_RELEASE_RULES = {
   'Caixin PMI Manufacturing':     { type: 'nextMonthNthBizDay', n: 1 },
   'NBS PMI Services':             { type: 'sameMonthLastWeekday', dow: null },
   'M2 Money Supply YoY':          { type: 'daysAfterMonthEnd', n: 13 },
-  'Property Sales Area YoY':      { type: 'fixedDates', dates: {
+  'Property Sales Value YoY':      { type: 'fixedDates', dates: {
     // NBS "National Economic Performance" bundle (Industrial Production,
     // Retail Sales, Fixed Asset Investment, Real Estate/Property Sales,
     // Energy Production all release together, same date every month) -
