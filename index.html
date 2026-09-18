@@ -1940,24 +1940,50 @@ async function macroRunWorkflow(workflowId) {
 }
 
 async function macroWatchRun(token, workflowFile, statusEl) {
-  // Poll for the latest run every 10s for up to 5 minutes
+  // Poll for the latest run every 10s for up to 20 minutes. Was 5 minutes
+  // (30 attempts) until Nikolai reported the status looking permanently
+  // "stuck" on in_progress - checked actual run durations for update.yml
+  // and found real-world runs ranging 1.9 to 7.55 minutes (the retry-on-
+  // push-conflict loop in that workflow, up to 8 attempts with a random
+  // 10-30s sleep each plus re-running the whole fetch pipeline per retry,
+  // can push a run well past 5 minutes in a bad case) - the UI was giving
+  // up silently before the real run actually finished, then never
+  // updating again, so it looked frozen even though the workflow itself
+  // completed successfully a few minutes later. 20 minutes (120 attempts)
+  // gives comfortable margin above the worst case actually observed.
   const logDiv = document.getElementById('macro-run-log');
   const logBody = document.getElementById('macro-run-log-body');
   logDiv.classList.remove('hidden');
 
   let attempts = 0;
+  let consecutiveFailures = 0;
   const poll = setInterval(async () => {
     attempts++;
-    if (attempts > 30) { clearInterval(poll); return; }
+    if (attempts > 120) {
+      clearInterval(poll);
+      // Was: silently give up with no visible change, leaving whatever
+      // stale status happened to be on screen looking exactly like a
+      // stuck in_progress forever. Now: say so plainly, with a link, so
+      // "no update in a while" reads as "polling gave up" rather than
+      // "the workflow itself is stuck" - those are different problems
+      // and the fix for each is different (refresh/re-check vs. actually
+      // investigate a hung job).
+      statusEl.style.color = 'var(--text3)';
+      statusEl.innerHTML = `⏳ Still running after 20 min of polling - this page stopped checking, ` +
+        `but the workflow may still be going. Check <a href="https://github.com/${MACRO_REPO}/actions/workflows/${workflowFile}" target="_blank" rel="noopener">GitHub Actions</a> directly for its current status.`;
+      return;
+    }
 
     try {
       const resp = await fetch(
         `${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/runs?per_page=1`,
         { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
       );
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const run  = data.workflow_runs?.[0];
       if (!run) return;
+      consecutiveFailures = 0;
 
       const started = new Date(run.created_at).toLocaleTimeString();
       const status  = run.status;       // queued | in_progress | completed
@@ -1972,7 +1998,7 @@ async function macroWatchRun(token, workflowFile, statusEl) {
 
       logBody.textContent = `Run #${run.run_number} | Started: ${started}\nStatus: ${status} ${conclusion ? '→ ' + conclusion : ''}\nURL: ${run.html_url}`;
       statusEl.style.color = color;
-      statusEl.textContent = `${icon} ${status}${conclusion ? ' — ' + conclusion : ''}`;
+      statusEl.textContent = `${icon} ${status}${conclusion ? ' — ' + conclusion : ''} (checked ${new Date().toLocaleTimeString()})`;
 
       if (status === 'completed') {
         clearInterval(poll);
@@ -1980,7 +2006,20 @@ async function macroWatchRun(token, workflowFile, statusEl) {
           statusEl.textContent += ' — artifacts ready to download';
         }
       }
-    } catch(e) { /* silently continue polling */ }
+    } catch(e) {
+      // Was: silently continue polling forever with zero visible sign
+      // that anything was wrong - a persistent failure (rate limit,
+      // expired token, network drop) looked identical to a healthy poll
+      // that just hadn't found a status change yet. Now: surface it
+      // after a few consecutive misses, without abandoning the poll (a
+      // transient blip shouldn't stop watching).
+      consecutiveFailures++;
+      if (consecutiveFailures >= 3) {
+        statusEl.style.color = '#c62828';
+        statusEl.textContent = `⚠ Polling failed ${consecutiveFailures}x in a row (${e.message}) - ` +
+          `still retrying, but check your token hasn't expired if this continues.`;
+      }
+    }
   }, 10000);
 }
 
