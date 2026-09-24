@@ -1038,9 +1038,13 @@
   <div class="form-card" style="margin-bottom:16px">
     <h3 style="margin-bottom:4px">🔄 Recalculate Cycle Analysis</h3>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      Re-runs Claude-based Phase/Context classification for every indicator in all 5 regions (plus a 6th pass for 3 US-only manual rows with no FRED series), then recomputes each region's composite score. Use this after entering new manual data - Phase text otherwise stays stale until this is run. Takes 10-20 minutes normally, up to ~45 if a region needs a retry (auto-retries up to 2x if a run gets stuck or cancelled) - keep this tab open.
+      Re-runs Claude-based Phase/Context classification across all 5 regions (plus a 6th pass for 3 US-only manual rows with no FRED series), then recomputes each region's composite score. By default only processes indicators that are new, missing, or failed on a prior attempt - already-completed ones are left alone and cost nothing extra (check "Force full re-analysis" below to redo everything anyway). Use this after entering new manual data - Phase text otherwise stays stale until this is run. Time and cost scale with how much actually needs (re)doing - a few missing rows finishes in a couple minutes; a full forced run can take 20-45 minutes - keep this tab open either way.
     </div>
     <button class="btn-primary" id="macro-recalc-btn" onclick="macroRecalculateCyclePhases()" style="font-size:13px;background:#8b5cf6">🔄 Recalculate All Regions</button>
+    <label style="display:block;font-size:12px;color:var(--text3);margin-top:8px">
+      <input type="checkbox" id="macro-recalc-force" style="vertical-align:middle;margin-right:4px">
+      Force full re-analysis (redo every indicator, including ones already done - normally only new/missing/failed ones are processed)
+    </label>
     <div id="macro-recalc-progress-wrap" class="hidden" style="margin-top:10px">
       <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
         <div id="macro-recalc-progress-bar" style="height:100%;width:0%;background:#8b5cf6;transition:width 0.4s"></div>
@@ -2222,6 +2226,19 @@ async function macroRecalculateCyclePhases() {
   const token = macroToken();
   if (!token) { alert('Enter GitHub token first'); return; }
 
+  // Default OFF (2026-09-24, Nikolai's request): each apply_pattern_
+  // analysis*.py already skips a row whose Phase (column Q) is already
+  // filled, unless FORCE_REGEN is set - previously this button always
+  // passed force_regen:'true', meaning every click redid all 94
+  // indicators from scratch regardless of whether anything actually
+  // needed it, which is both slow and needlessly expensive in Claude API
+  // calls. Unchecked (the default), a click only processes indicators
+  // that are genuinely new, missing, or failed on a prior attempt -
+  // check the box only when a real full refresh is wanted (e.g. after a
+  // methodology change that should re-read every indicator regardless of
+  // its existing Phase).
+  const forceRegen = document.getElementById('macro-recalc-force').checked;
+
   const btn = document.getElementById('macro-recalc-btn');
   const statusEl = document.getElementById('macro-recalc-status');
   const resultEl = document.getElementById('macro-recalc-result');
@@ -2303,7 +2320,7 @@ async function macroRecalculateCyclePhases() {
     const patternResults = [];
     for (const r of MACRO_CYCLE_REGIONS) {
       const result = await macroDispatchAndWaitWithRetry(
-        token, r.patternWf, { force_regen: 'true', only_rows: '' },
+        token, r.patternWf, { force_regen: forceRegen ? 'true' : 'false', only_rows: '' },
         (status, conclusion) => { state[r.key].pattern = { status, conclusion }; renderProgress(); }
       ).catch(e => ({ status: 'rejected', conclusion: null, error: e }));
       patternResults.push(result);
