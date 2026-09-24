@@ -1047,6 +1047,7 @@
       </div>
       <div id="macro-recalc-progress-text" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
       <div id="macro-recalc-region-status" style="font-size:11px;color:var(--text3);margin-top:6px;font-family:monospace;white-space:pre-line"></div>
+      <div id="macro-recalc-live-log" style="font-size:11px;color:var(--text3);margin-top:6px;font-family:monospace;white-space:pre-line;max-height:180px;overflow-y:auto;background:var(--bg2, #f7f7f7);padding:6px 8px;border-radius:4px;display:none"></div>
     </div>
     <div id="macro-recalc-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
     <div id="macro-recalc-result" style="margin-top:10px"></div>
@@ -2167,6 +2168,56 @@ function macroDiffCycleSnapshots(before, after) {
   return diffs;
 }
 
+// Live, per-indicator/per-cycle progress feed - added 2026-09-24,
+// Nikolai's request: the coarse per-region ✓/⏳/· status above tells you
+// WHICH REGION is running, but not whether it's actually making progress
+// on individual indicators, or how far along it is - a run can look
+// identical at minute 2 and minute 20. Since apply_pattern_analysis*.py
+// and the composite-score scripts now commit+push after every single
+// indicator/region (see git_commit_and_push_row() in those files, added
+// the same day for the same reason), this just polls the repo's commit
+// history and prints each new matching commit as a line - real, external
+// evidence of progress, not an estimate.
+const MACRO_PROGRESS_COMMIT_PATTERNS = [
+  { re: /^pattern analysis: (\S+) (\S+) -> (\S+)/, render: (m) => `  ✓ ${m[1]}: ${m[2]} — ${m[3]} (saved)` },
+  { re: /^chore: recompute (\S+) composite score/, render: (m) => `  ✓ ${m[1]} cycle — composite score computed (saved)` },
+  { re: /^chore: recompute global cycle score/, render: () => `  ✓ Global cycle — composite score + strategic views computed (saved)` },
+];
+
+function macroStartLiveCommitLog(token, sinceIso, logEl) {
+  const seen = new Set();
+  logEl.style.display = 'block';
+  logEl.textContent = '(watching for per-indicator saves...)\n';
+  const poll = async () => {
+    try {
+      const resp = await fetch(
+        `https://api.github.com/repos/${MACRO_REPO}/commits?since=${encodeURIComponent(sinceIso)}&per_page=100`,
+        { headers: { Authorization: `token ${token}` } }
+      );
+      if (!resp.ok) return; // best-effort - a transient failure here shouldn't disrupt anything
+      const commits = await resp.json();
+      // Oldest first, so the log reads top-to-bottom in the order things
+      // actually happened.
+      const lines = [];
+      for (const c of commits.slice().reverse()) {
+        if (seen.has(c.sha)) continue;
+        const msg = c.commit.message.split('\n')[0];
+        for (const p of MACRO_PROGRESS_COMMIT_PATTERNS) {
+          const m = msg.match(p.re);
+          if (m) { lines.push(p.render(m)); seen.add(c.sha); break; }
+        }
+      }
+      if (lines.length) {
+        logEl.textContent += lines.join('\n') + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    } catch (e) { /* best-effort, ignore */ }
+  };
+  poll();
+  const intervalId = setInterval(poll, 12000);
+  return intervalId;
+}
+
 async function macroRecalculateCyclePhases() {
   const token = macroToken();
   if (!token) { alert('Enter GitHub token first'); return; }
@@ -2183,6 +2234,9 @@ async function macroRecalculateCyclePhases() {
   statusEl.style.color = 'var(--text3)';
   progressWrap.classList.remove('hidden');
   progressBar.style.width = '0%';
+
+  const liveLogEl = document.getElementById('macro-recalc-live-log');
+  const liveLogIntervalId = macroStartLiveCommitLog(token, new Date().toISOString(), liveLogEl);
 
   // Real progress, not a fake animation: 5 regions x 2 steps each
   // (pattern analysis, then composite score) = 10 trackable units. Each
@@ -2327,6 +2381,7 @@ async function macroRecalculateCyclePhases() {
     statusEl.textContent = `✗ ${e.message}`;
   } finally {
     btn.disabled = false;
+    clearInterval(liveLogIntervalId);
   }
 }
 
