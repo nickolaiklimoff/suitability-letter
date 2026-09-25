@@ -1021,6 +1021,14 @@
         <button class="btn-primary" onclick="macroRunWorkflow('generate_pptx')" style="font-size:13px;width:100%;background:#5b6abf">▶ Generate PPTX</button>
         <div id="macro-pptx-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
       </div>
+
+      <!-- Generate IC Pack -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:16px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">📄 Generate IC Analytical Pack</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Full Word document: every indicator's current Phase/Context, cycle scores by region and global, Credit Spreads, every View with its Rationale, Duration, and final weights. Stage 1 output only - no BCA/external research.</div>
+        <button class="btn-primary" onclick="macroRunWorkflow('generate_ic_pack')" style="font-size:13px;width:100%;background:#5b6abf">▶ Generate IC Pack</button>
+        <div id="macro-ic-pack-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+      </div>
     </div>
   </div>
 
@@ -1030,6 +1038,7 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-secondary" onclick="macroDownloadArtifact('xlsx')" style="font-size:13px">⬇ Download xlsx</button>
       <button class="btn-secondary" onclick="macroDownloadArtifact('pptx')" style="font-size:13px">⬇ Download PPTX</button>
+      <button class="btn-secondary" onclick="macroDownloadArtifact('ic_pack')" style="font-size:13px">⬇ Download IC Pack</button>
     </div>
     <div id="macro-download-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
   </div>
@@ -1912,9 +1921,13 @@ async function macroRunWorkflow(workflowId) {
 
   const statusEl = workflowId === 'update'
     ? document.getElementById('macro-update-status')
+    : workflowId === 'generate_ic_pack'
+    ? document.getElementById('macro-ic-pack-status')
     : document.getElementById('macro-pptx-status');
 
-  const workflowFile = workflowId === 'update' ? 'update.yml' : 'generate_pptx.yml';
+  const workflowFile = workflowId === 'update' ? 'update.yml'
+    : workflowId === 'generate_ic_pack' ? 'generate_ic_pack.yml'
+    : 'generate_pptx.yml';
 
   statusEl.style.color = 'var(--text3)';
   statusEl.textContent = '⏳ Triggering workflow...';
@@ -2419,7 +2432,9 @@ async function macroDownloadArtifact(type) {
     // to the same URL - without an explicit override there was nothing
     // stopping a stale response from being served indefinitely instead
     // of a fresh "latest run" lookup.
-    const workflow = type === 'pptx' ? 'generate_pptx.yml' : 'update.yml';
+    const workflow = type === 'pptx' ? 'generate_pptx.yml'
+      : type === 'ic_pack' ? 'generate_ic_pack.yml'
+      : 'update.yml';
     const runsResp = await fetch(
       `${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflow}/runs?status=success&per_page=1&_=${Date.now()}`,
       { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }, cache: 'no-store' }
