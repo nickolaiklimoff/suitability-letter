@@ -2091,6 +2091,18 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const bm = benchmark[clientIR] || {};
   const analytics_ = analytics || { equityPct:0, bondPct:0, cashPct:0, sectors:{}, bondSegments:{}, waar:0, totalValue:0, classified:[] };
   const { equityPct, bondPct, cashPct, sectors, bondSegments, waar, totalValue, classified } = analytics_;
+  // Keep portfolioData.totalValue in sync with the deposit-inclusive grand
+  // total above (securities + brokerage cash + deposit/time-deposit accounts,
+  // computed in calculatePortfolioAnalytics as grandTotal). buildIRRSection,
+  // cashflowTotalPnL and the Section 6 Total-Return IRR override all read
+  // portfolioData.totalValue directly rather than this local variable, so
+  // without this they silently used the smaller parse-time figure (securities
+  // + brokerage cash only) as the terminal value for MWR/IRR — excluding any
+  // deposit/time-deposit balance from the client's "final wealth" and making
+  // the computed return understate the truth whenever such a balance exists.
+  // Confirmed live: a ~£307k deposit balance missing from the IRR terminal
+  // value alone turned a true +7.7% p.a. money-weighted return into +1.0%.
+  if (totalValue > 0) portfolioData.totalValue = totalValue;
   // WAAR corridor assessment
   const waarAssessment = (typeof assessWAAR === 'function')
     ? assessWAAR(waar, clientIR)
