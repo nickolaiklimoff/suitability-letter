@@ -2203,6 +2203,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const bondTotPnL = bondTotUnreal + bondTotIncome;
   const bondTotCost = (portfolioData.bonds||[]).reduce((s,h)=>s+getCostBasis(h),0);
   const bondTotPct = bondTotCost>0?(bondTotPnL/bondTotCost*100).toFixed(1)+'%':'—';
+  const bondTotHoldUSD = (portfolioData.bonds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
   const bc = bondTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Funds performance
@@ -2232,6 +2233,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const fundTotPnL = fundTotUnreal + fundTotIncome;
   const fundTotCost = (portfolioData.funds||[]).reduce((s,h)=>s+getCostBasis(h),0);
   const fundTotPct = fundTotCost>0?(fundTotPnL/fundTotCost*100).toFixed(1)+'%':'—';
+  const fundTotHoldUSD = (portfolioData.funds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
   const fc = fundTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Stocks performance
@@ -2527,19 +2529,19 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           </tr></thead>
           <tbody>
             <tr>
-              <td>Bonds</td><td>—</td><td>${fmtUSD(bondTotCost)}</td><td>${fmtUSD(bondTotIncome)}</td>
+              <td>Bonds</td><td>${fmtUSD(bondTotHoldUSD)}</td><td>${fmtUSD(bondTotCost)}</td><td>${fmtUSD(bondTotIncome)}</td>
               <td style="color:${bondTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(bondTotUnreal)}</td>
               <td style="color:${bc}">${fmtUSDSigned(bondTotPnL)}</td>
               <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPct}</td>
             </tr>
             <tr>
-              <td>Funds / ETFs</td><td>—</td><td>${fmtUSD(fundTotCost)}</td><td>${fmtUSD(fundTotIncome)}</td>
+              <td>Funds / ETFs</td><td>${fmtUSD(fundTotHoldUSD)}</td><td>${fmtUSD(fundTotCost)}</td><td>${fmtUSD(fundTotIncome)}</td>
               <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(fundTotUnreal)}</td>
               <td style="color:${fc}">${fmtUSDSigned(fundTotPnL)}</td>
               <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPct}</td>
             </tr>
             ${(portfolioData.stocks||[]).length > 0 ? `<tr>
-              <td>Stocks</td><td>—</td><td>${fmtUSD(stockTotCostUSD)}</td><td>${fmtUSD(stockTotIncome)}</td>
+              <td>Stocks</td><td>${fmtUSD(stockTotHoldUSD)}</td><td>${fmtUSD(stockTotCostUSD)}</td><td>${fmtUSD(stockTotIncome)}</td>
               <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(stockTotUnreal)}</td>
               <td style="color:${sc}">${fmtUSDSigned(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
