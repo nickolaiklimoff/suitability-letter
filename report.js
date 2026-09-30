@@ -653,25 +653,36 @@ function normName(s) {
 
 function buildIncomeMap(portfolioData) {
   const map = {};
-  const allHoldings = [...(portfolioData.bonds||[]), ...(portfolioData.funds||[]), ...(portfolioData.stocks||[])];
-  const holdingByNorm = {};
-  allHoldings.forEach(h => { holdingByNorm[normName(h.name)] = h.name; });
 
-  const findHolding = (rawName) => {
-    const norm = normName(rawName);
-    if (holdingByNorm[norm]) return holdingByNorm[norm];
-    for (const [hn, hname] of Object.entries(holdingByNorm)) {
-      // Use longer prefix (20 chars) to avoid false matches between similar fund names
-      if (norm.length > 20 && hn.length > 20 && (norm.startsWith(hn.substring(0,20)) || hn.startsWith(norm.substring(0,20)))) return hname;
-    }
-    return null;
+  // Two SEPARATE name pools, not one combined pool. A coupon (bond-only concept)
+  // must never fuzzy-match onto a stock/fund, and a dividend (stock/fund concept)
+  // must never fuzzy-match onto a bond. Without this split, a matured/sold bond
+  // that shares a long name prefix with a same-issuer stock (e.g. "British American
+  // Tobacco, 4% 4sep2026, GBP (43)" vs "British American Tobacco, ord.") gets its
+  // historical coupons silently misattributed to the stock's dividend total —
+  // confirmed live on a real client report, inflating Stocks "Total P&L" from a
+  // loss into a gain. See conversation history for the worked example.
+  const makePool = (holdings) => {
+    const byNorm = {};
+    (holdings||[]).forEach(h => { byNorm[normName(h.name)] = h.name; });
+    return (rawName) => {
+      const norm = normName(rawName);
+      if (byNorm[norm]) return byNorm[norm];
+      for (const [hn, hname] of Object.entries(byNorm)) {
+        // Use longer prefix (20 chars) to avoid false matches between similar names
+        if (norm.length > 20 && hn.length > 20 && (norm.startsWith(hn.substring(0,20)) || hn.startsWith(norm.substring(0,20)))) return hname;
+      }
+      return null;
+    };
   };
+  const findBond   = makePool(portfolioData.bonds);
+  const findEquity = makePool([...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]);
 
   (portfolioData.divRows||[]).forEach(r => {
     const rawName = String(r[3]||'').trim();
     const amount = parseFloat(r[7]) || parseFloat(r[5]) || 0;
     if (!rawName || !amount) return;
-    const hname = findHolding(rawName);
+    const hname = findEquity(rawName);
     if (hname) map[hname] = (map[hname]||0) + amount;
   });
 
@@ -679,7 +690,7 @@ function buildIncomeMap(portfolioData) {
     const rawName = String(r[1]||'').trim();
     const amount = parseFloat(r[5]) || parseFloat(r[3]) || 0;
     if (!rawName || !amount) return;
-    const hname = findHolding(rawName);
+    const hname = findBond(rawName);
     if (hname) map[hname] = (map[hname]||0) + amount;
   });
 
@@ -2264,7 +2275,12 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
   // All monetary totals in USD (convertedHoldingValue already USD from cbonds)
   const stockTotUnreal = (portfolioData.stocks||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
-  const stockTotIncome = (portfolioData.stocks||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
+  // Use each holding's own interestIncome field (already FX-converted at parse time,
+  // same convention as unrealizedPnL above), not the name-keyed incomeMap: two lots
+  // of the same stock (e.g. two separate "Unilever, ord." purchases) share one
+  // name, so summing incomeMap[h.name] once per lot double-counts that stock's
+  // dividends. h.interestIncome has no such collision since it's per-object.
+  const stockTotIncome = (portfolioData.stocks||[]).reduce((s,h)=>s+(h.interestIncome||0),0);
   const stockTotReal   = (portfolioData.stocks||[]).reduce((s,h)=>s+(h.realizedPnL||0),0);
   const stockTotPnL    = stockTotUnreal + stockTotReal + stockTotIncome;
   const stockTotHoldUSD = (portfolioData.stocks||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
