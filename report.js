@@ -1191,14 +1191,36 @@ function buildTradeCashflows(tradeRows, redemptionRows) {
   return Object.entries(cfByDate).map(([d, amount]) => ({ date: new Date(d), amount }));
 }
 
-// Total capital actually deployed via trades (sum of buy outflows), net of
-// redemption proceeds received on or before the report date — see
-// buildTradeCashflows for why redemptions must be included. This is the
-// denominator for the cashflow-consistent Total Return used in the
+// Total capital actually contributed by the client, net of withdrawals. This
+// is the denominator for the cashflow-consistent Total Return used in the
 // Summary table and Section 6 — same capital base as the IRR (MWR) box, so
 // all three figures agree instead of drifting apart under different
 // methodologies (cost-basis accounting vs money-weighted cashflow).
-function computeTotalInvested(tradeRows, redemptionRows) {
+//
+// Prefers the deposit/withdrawal ledger (genuine external capital) when
+// present. Falls back to trade-deployed capital (sum of buy outflows, net of
+// redemption proceeds — see buildTradeCashflows) only when no deposit ledger
+// exists. The trade-based fallback UNDERSTATES total capital whenever any
+// deposited cash sits un-deployed (in currency/cash holdings) rather than
+// invested in a security — that idle cash still counts in the current
+// portfolio value (the numerator) but was excluded from this denominator,
+// which inflates the reported % return. Confirmed live: trade-deployed
+// capital of $2.98M vs $3.595M actually deposited (the difference sitting in
+// currency holdings) turned a true +4.4% total return into a reported +25.7%
+// under the old trade-only calculation.
+function computeTotalInvested(tradeRows, redemptionRows, depositWithdrawalRows) {
+  if (depositWithdrawalRows && depositWithdrawalRows.length > 0) {
+    const FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+    let net = 0;
+    depositWithdrawalRows.forEach(r => {
+      const dir = String(r[0] || '').trim().toLowerCase();
+      const ccy = String(r[3] || 'USD').trim().toUpperCase();
+      const raw = parseFloat(r[4]) || 0;
+      const amt = raw * (FX_TO_USD[ccy] || 1);
+      net += dir === 'deposit' ? amt : -amt;
+    });
+    return net;
+  }
   return buildTradeCashflows(tradeRows, redemptionRows).filter(cf => cf.amount < 0).reduce((s, cf) => s - cf.amount, 0);
 }
 
@@ -1216,21 +1238,20 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
   let cashflows = [];
   let basisLabel = '';
 
-  if (tradeRows && tradeRows.length > 0) {
-    // Methodology: cashflow timing = purchase/sale date of each security, not
-    // the date capital was deposited. This deliberately treats each tranche
-    // as if it "arrived" only when actually invested, ignoring any period the
-    // cash sat waiting to be deployed (e.g. earning deposit interest) — a
-    // conscious choice to measure the return purely on the securities
-    // selections and their timing, not the client's broader money-weighted
-    // experience. Note: this can overstate IRR if a trade is really an
-    // internal rotation (e.g. reinvesting matured-bond proceeds) rather than
-    // fresh external capital, since both look identical here.
-    cashflows = buildTradeCashflows(tradeRows, portfolioData.redemptionRows);
-    basisLabel = `<strong>${cashflows.length}</strong> trade dates`;
-  } else if (dwRows.length > 0) {
-    // Fallback for exports without a trade ledger — uses deposit/withdrawal
-    // dates instead, FX-converted to the reporting currency.
+  if (dwRows.length > 0) {
+    // Primary methodology: cashflow timing = actual deposit/withdrawal dates.
+    // These are the ONLY genuine external capital movements for a true
+    // money-weighted return — buy/sell trades are internal reallocation of
+    // cash already inside the account (e.g. deploying a lump-sum deposit into
+    // securities over several weeks, or rotating a matured bond's proceeds
+    // into stocks) and must not be treated as fresh client capital arriving.
+    // Confirmed live: an account funded by a single lump-sum deposit, then
+    // gradually invested across 26 trade dates over ~18 months, showed a
+    // fabricated +37% "money-weighted return" under the old trade-date
+    // methodology (below) — each buy looked like new money arriving right
+    // before the current elevated market value, which is a pure IRR-timing
+    // artefact, not real performance. The deposit-based calculation below
+    // gave the correct answer: +4.4% total / ~2.7% p.a.
     let FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
     try {
       const resp = await fetch('https://open.er-api.com/v6/latest/USD');
@@ -1249,7 +1270,19 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
       if (!date || !amount) return null;
       return { date, amount: dir === 'deposit' ? -Math.abs(amount) : Math.abs(amount) };
     }).filter(Boolean);
-    basisLabel = `<strong>${dwRows.length}</strong> deposit/withdrawal event${dwRows.length===1?'':'s'} (approximate — no trade ledger found)`;
+    basisLabel = `<strong>${dwRows.length}</strong> deposit/withdrawal event${dwRows.length===1?'':'s'}`;
+  } else if (tradeRows && tradeRows.length > 0) {
+    // Fallback for exports with no deposit/withdrawal ledger at all — uses
+    // trade (purchase/sale) dates as a proxy for capital timing instead.
+    // This deliberately treats each tranche as if it "arrived" only when
+    // actually invested, ignoring any period the cash sat waiting to be
+    // deployed — a much weaker proxy than real deposit dates, and one that
+    // OVERSTATES IRR whenever a trade is really an internal rotation (a
+    // fresh deployment of already-deposited cash, or reinvested redemption
+    // proceeds) rather than genuinely new external capital, since both look
+    // identical from the trade ledger alone. Only used when dwRows is empty.
+    cashflows = buildTradeCashflows(tradeRows, portfolioData.redemptionRows);
+    basisLabel = `<strong>${cashflows.length}</strong> trade dates (approximate — no deposit/withdrawal ledger found)`;
   } else {
     return '';
   }
@@ -2420,7 +2453,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   // with the IRR figure instead of drifting from it under cost-basis
   // accounting (which excludes idle/un-deployed cash and can diverge
   // meaningfully — see conversation history for a worked example).
-  const totalInvested = computeTotalInvested(portfolioData.tradeRows, portfolioData.redemptionRows);
+  const totalInvested = computeTotalInvested(portfolioData.tradeRows, portfolioData.redemptionRows, portfolioData.depositWithdrawalRows);
   const cashflowTotalPnL = totalInvested > 0 ? (portfolioData.totalValue || 0) - totalInvested : totalPnL;
   const cashflowReturn = totalInvested > 0 ? cashflowTotalPnL / totalInvested : (totalCostBasis>0 ? totalPnL/totalCostBasis : 0);
   const totalPnLPct = totalInvested>0 ? (cashflowReturn*100).toFixed(1)+'%' : (totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—');
@@ -2450,13 +2483,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     if ((portfolioData.depositWithdrawalRows?.length > 0) || (portfolioData.tradeRows?.length > 0)) {
       const _today = new Date();
       let _cfs = [];
-      if (portfolioData.tradeRows?.length > 0) {
-        // Methodology: cashflow timing = trade date, not deposit date — see
-        // buildIRRSection for the full rationale. Deliberately ignores any
-        // period cash sat waiting to be deployed.
-        _cfs = buildTradeCashflows(portfolioData.tradeRows, portfolioData.redemptionRows);
-      } else if (portfolioData.depositWithdrawalRows?.length > 0) {
-        // Fallback for exports without a trade ledger — deposit dates, FX-converted.
+      if (portfolioData.depositWithdrawalRows?.length > 0) {
+        // Primary: cashflow timing = actual deposit/withdrawal date — the
+        // only genuine external capital movement. See buildIRRSection for
+        // the full rationale (this block must stay in sync with it — both
+        // feed the same headline Total Return figure and Sharpe ratio).
         let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
         try {
           const _resp = await fetch('https://open.er-api.com/v6/latest/USD');
@@ -2475,6 +2506,12 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           if (!_date || !_amt) return null;
           return { date: _date, amount: _dir === 'deposit' ? -Math.abs(_amt) : Math.abs(_amt) };
         }).filter(Boolean);
+      } else if (portfolioData.tradeRows?.length > 0) {
+        // Fallback for exports with no deposit/withdrawal ledger at all —
+        // trade dates as a proxy. OVERSTATES IRR whenever a trade is really
+        // an internal rotation of already-deposited cash rather than fresh
+        // external capital — see buildIRRSection for the full rationale.
+        _cfs = buildTradeCashflows(portfolioData.tradeRows, portfolioData.redemptionRows);
       }
       _cfs.sort((a,b) => a.date - b.date);
       // Terminal cashflow = full current portfolio value (securities + cash).
