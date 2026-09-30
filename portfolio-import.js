@@ -281,8 +281,8 @@ function renderModelPortfolioRows(rows) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function irBand(waar) {
   if (!waar) return '';
-  if (waar < 2) return 'IR1'; if (waar < 3) return 'IR2'; if (waar < 4) return 'IR3';
-  if (waar < 5) return 'IR4'; if (waar < 6) return 'IR5'; return 'IR6';
+  if (waar <= 1.49) return 'IR1'; if (waar <= 2.49) return 'IR2'; if (waar <= 3.49) return 'IR3';
+  if (waar <= 4.49) return 'IR4'; if (waar <= 5.49) return 'IR5'; return 'IR6';
 }
 function ratingColor(r) {
   if (r <= 2) return '#185fa5'; if (r <= 3) return '#3b6d11'; if (r <= 4) return '#854f0b'; return '#a32d2d';
