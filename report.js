@@ -2552,11 +2552,12 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fmtUSD(totalCostBasis)}</td>
               <td>${fmtUSD(totalIncome)}</td>
               <td style="color:${totalUnrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(totalUnrealizedPnL)}</td>
-              <td style="color:${pc}">${fmtUSDSigned(cashflowTotalPnL)}</td>
-              <td style="color:${pc}">${cashflowTotalPnL>=0?'+':''}${totalPnLPct}</td>
+              <td style="color:${totalPnL>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(totalPnL)}</td>
+              <td style="color:${totalPnL>=0?'#3b6d11':'#a32d2d'}">${totalPnL>=0?'+':''}${totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—'}</td>
             </tr>
           </tbody>
         </table>
+        <p style="font-size:11px;color:#888;margin:0.35rem 0 0">Total PnL here is cost-basis (sums the rows above); see the Total Return / MWR figures in Section 6 for the money-weighted return used for suitability assessment.</p>
         ${buildIRRSection.removed || ''}
       </div>
 
