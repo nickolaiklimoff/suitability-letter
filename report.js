@@ -1225,22 +1225,32 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
   const totalInvested = cashflows.filter(c=>c.amount<0).reduce((s,c)=>s-c.amount,0);
   const totalIncome = (portfolioData.coupons || 0) + (portfolioData.dividends || 0);
   const firstDate = cashflows[0].date;
-  const fmtIRR = v => `${v>=0?'+':''}${(v*100).toFixed(1)}%`;
-  const irrColor = v => v >= 0 ? '#3b6d11' : '#a32d2d';
 
+  // No headline % is shown here deliberately: a money-weighted return
+  // computed this way is only as reliable as the underlying export (full
+  // trade ledger, bond redemptions, deposit/withdrawal records) is complete
+  // and correctly classified, which this app cannot independently verify.
+  // Rather than present a precise-looking annualised figure that may be
+  // wrong if the source data is incomplete, this section states the
+  // methodology and inputs and points to the client's official bank/broker
+  // statement as the authoritative source for exact performance figures.
   return `
     <div class="report-section" style="margin-top:1rem;margin-bottom:0.5rem">
-      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
-        <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;min-width:160px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Portfolio IRR (MWR)</div>
-          <div style="font-size:24px;font-weight:700;color:${irrColor(portfolioIRR)}">${fmtIRR(portfolioIRR)} p.a.</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Since ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
-        </div>
-        <div style="font-size:11px;color:var(--text3);max-width:320px;padding-top:4px;line-height:1.6">
-          Money-Weighted Return — accounts for the timing of each capital injection.
-          Based on ${basisLabel},
-          total invested <strong>${fmtUSD(Math.round(totalInvested))}</strong>,
-          income received (coupons/dividends, already reflected in current value) <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
+      <div style="background:#f5f0eb;border-radius:8px;padding:14px 20px;max-width:640px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Money-Weighted Return — Indicative Only</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.7">
+          This report can estimate a money-weighted (IRR-style) return from the account data available to ORCAP —
+          it accounts for the size and timing of each capital movement, not just the start and end value.
+          The estimate shown elsewhere on this page is based on ${basisLabel} since
+          ${firstDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})},
+          total capital invested of <strong>${fmtUSD(Math.round(totalInvested))}</strong>,
+          bond redemptions recorded in the account export, and income received
+          (coupons/dividends, already reflected in current value) of <strong>${fmtUSD(Math.round(totalIncome))}</strong>.
+          It is <strong>indicative only</strong>: it depends entirely on the completeness and accuracy of the trade,
+          redemption and deposit/withdrawal records in the custodian export ORCAP received, cannot always distinguish
+          fresh external capital from an internal rotation (e.g. reinvesting matured-bond proceeds), and does not
+          reflect fees, taxes or corporate actions outside that record. For the client's official, audited performance
+          figures, please refer to the bank/broker statement issued directly by the custodian.
         </div>
       </div>
     </div>`;
@@ -1775,7 +1785,7 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem">
 
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
-          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Total Return</div>
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Total Return (indicative)</div>
           <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.totalReturn>=0?'#3b6d11':'#a32d2d'}">${pct(a.totalReturn)}</div>
           <div style="font-size:11px;color:#8B7A68">${a.period}</div>
         </div>
@@ -1818,8 +1828,8 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
-          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted (same capital base as IRR below). Sharpe: (Return − rf) / σ.`
-          : `Analytics from portfolio value chart (AI image recognition, ±2–3%) — vol., Sharpe, drawdown and monthly stats only. Total Return: money-weighted (same capital base as IRR below), not from the chart.`}
+          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted, indicative only — see the note below for basis and limitations. Sharpe: (Return − rf) / σ.`
+          : `Analytics from portfolio value chart (AI image recognition, ±2–3%) — vol., Sharpe, drawdown and monthly stats only. Total Return: money-weighted, indicative only — see the note below for basis and limitations, not from the chart.`}
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
@@ -2606,7 +2616,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             </tr>
           </tbody>
         </table>
-        <p style="font-size:11px;color:#888;margin:0.35rem 0 0">Total PnL here is cost-basis (sums the rows above); see the Total Return / MWR figures in Section 6 for the money-weighted return used for suitability assessment.</p>
+        <p style="font-size:11px;color:#888;margin:0.35rem 0 0">Total PnL here is cost-basis (sums the rows above); see the indicative Total Return figure and methodology note in Section 6 for the money-weighted view — for exact performance figures, refer to the bank/broker statement.</p>
         ${buildIRRSection.removed || ''}
       </div>
 
