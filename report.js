@@ -1105,30 +1105,61 @@ function computeIRR(cashflows) {
 // non-USD trades (GBP/EUR UCITS ETFs etc.) is a different, smaller number and
 // must not be used as-is. Shared by the IRR box, the Sharpe-annualization
 // path, and the cashflow-based Total Return used in Summary/Section 6.
-function buildTradeCashflows(tradeRows) {
+//
+// Also merges bond REDEMPTIONS (maturity payouts) as positive inflows. A
+// redemption is a return of capital, not a "Sell" trade, so it never appears
+// in the trades sheet — but its proceeds routinely fund a later purchase
+// (e.g. a matured bond's £250,000 payout reinvested into new stock buys a
+// few weeks later). Without this, the reinvestment purchase looks like 100%
+// fresh external capital with no offsetting inflow, inflating total invested
+// and making MWR/IRR deeply and artificially negative even when the client's
+// actual net new capital and the portfolio's actual performance are both
+// fine. Confirmed live: £500,000 across 3 redemptions had no matching
+// cashflow entry, flipping IRR from a real gain into a reported -1.3% p.a.
+function buildTradeCashflows(tradeRows, redemptionRows) {
   const cfByDate = {};
   (tradeRows || []).forEach(r => {
     const date = r[0] ? new Date(r[0]) : null;
     const dir  = String(r[2]||'').trim().toLowerCase();
+    const ccy  = String(r[8]||'').trim().toUpperCase();
     const v15 = parseFloat(r[15]);
     const v12 = parseFloat(r[12]);
     const vCalc = (parseFloat(r[6])||0) * (parseFloat(r[7])||0);
-    const value = (!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc;
+    // GBX (pence-quoted LSE stocks) is a special case, same as the holdings-side
+    // fixGbxConversion: cbonds' "Converted trade value" column divides GBX by
+    // ~100 for trades, understating stock buys ~100x (e.g. a real £63,320
+    // purchase shows as £633). Use the native "Trade value" (col 12, already
+    // in the report's pence-as-unit convention) directly for GBX, bypassing
+    // the buggy converted column entirely. Non-GBX currencies keep preferring
+    // v15 as before — that priority was a deliberate fix for GBP/EUR funds
+    // where v12 is a genuinely different (non-USD) currency, not a units bug.
+    const value = ccy === 'GBX'
+      ? ((!isNaN(v12) && v12 > 0) ? v12 : vCalc)
+      : ((!isNaN(v15) && v15 > 0) ? v15 : (!isNaN(v12) && v12 > 0) ? v12 : vCalc);
     if (!date || !value || isNaN(value)) return;
     const key = date.toISOString().slice(0,10);
     const cf  = dir === 'buy' ? -Math.abs(value) : Math.abs(value);
     cfByDate[key] = (cfByDate[key] || 0) + cf;
   });
+  (redemptionRows || []).forEach(r => {
+    const date = r[0] ? new Date(r[0]) : null;
+    const amount = parseFloat(r[5]) || parseFloat(r[3]) || 0;
+    if (!date || !amount) return;
+    const key = date.toISOString().slice(0,10);
+    cfByDate[key] = (cfByDate[key] || 0) + Math.abs(amount);
+  });
   return Object.entries(cfByDate).map(([d, amount]) => ({ date: new Date(d), amount }));
 }
 
-// Total capital actually deployed via trades (sum of buy outflows). This is
-// the denominator for the cashflow-consistent Total Return used in the
+// Total capital actually deployed via trades (sum of buy outflows), net of
+// redemption proceeds received on or before the report date — see
+// buildTradeCashflows for why redemptions must be included. This is the
+// denominator for the cashflow-consistent Total Return used in the
 // Summary table and Section 6 — same capital base as the IRR (MWR) box, so
 // all three figures agree instead of drifting apart under different
 // methodologies (cost-basis accounting vs money-weighted cashflow).
-function computeTotalInvested(tradeRows) {
-  return buildTradeCashflows(tradeRows).filter(cf => cf.amount < 0).reduce((s, cf) => s - cf.amount, 0);
+function computeTotalInvested(tradeRows, redemptionRows) {
+  return buildTradeCashflows(tradeRows, redemptionRows).filter(cf => cf.amount < 0).reduce((s, cf) => s - cf.amount, 0);
 }
 
 async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) {
@@ -1155,7 +1186,7 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
     // experience. Note: this can overstate IRR if a trade is really an
     // internal rotation (e.g. reinvesting matured-bond proceeds) rather than
     // fresh external capital, since both look identical here.
-    cashflows = buildTradeCashflows(tradeRows);
+    cashflows = buildTradeCashflows(tradeRows, portfolioData.redemptionRows);
     basisLabel = `<strong>${cashflows.length}</strong> trade dates`;
   } else if (dwRows.length > 0) {
     // Fallback for exports without a trade ledger — uses deposit/withdrawal
@@ -2300,7 +2331,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   // with the IRR figure instead of drifting from it under cost-basis
   // accounting (which excludes idle/un-deployed cash and can diverge
   // meaningfully — see conversation history for a worked example).
-  const totalInvested = computeTotalInvested(portfolioData.tradeRows);
+  const totalInvested = computeTotalInvested(portfolioData.tradeRows, portfolioData.redemptionRows);
   const cashflowTotalPnL = totalInvested > 0 ? (portfolioData.totalValue || 0) - totalInvested : totalPnL;
   const cashflowReturn = totalInvested > 0 ? cashflowTotalPnL / totalInvested : (totalCostBasis>0 ? totalPnL/totalCostBasis : 0);
   const totalPnLPct = totalInvested>0 ? (cashflowReturn*100).toFixed(1)+'%' : (totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—');
@@ -2334,7 +2365,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         // Methodology: cashflow timing = trade date, not deposit date — see
         // buildIRRSection for the full rationale. Deliberately ignores any
         // period cash sat waiting to be deployed.
-        _cfs = buildTradeCashflows(portfolioData.tradeRows);
+        _cfs = buildTradeCashflows(portfolioData.tradeRows, portfolioData.redemptionRows);
       } else if (portfolioData.depositWithdrawalRows?.length > 0) {
         // Fallback for exports without a trade ledger — deposit dates, FX-converted.
         let _FX_TO_USD = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
@@ -2368,7 +2399,13 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       }
     }
     const realSharpe = a.vol > 0 ? (annRealReturn - rf2) / a.vol : a.sharpe;
-    const aFinal = { ...a, totalReturn: realReturn, sharpe: realSharpe };
+    // Use annRealReturn (properly annualized, and overridden with the exact
+    // bisection IRR above when trade/cashflow data is available), not the
+    // un-annualized realReturn — otherwise the "Total Return" tile silently
+    // ignores its own IRR correction and shows the cruder two-point ratio,
+    // which can disagree with (and even have the opposite sign from) the
+    // "Portfolio IRR (MWR)" box directly below it on the same page.
+    const aFinal = { ...a, totalReturn: annRealReturn, sharpe: realSharpe };
     analyticsHtml = await buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData, depositData);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
