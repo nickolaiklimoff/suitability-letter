@@ -286,6 +286,7 @@ window.parseCbondsExport = function(file) {
           currency: findCol(sHdr, 'Trading Currency', 'Currency'),
           ticker:   findCol(sHdr, 'Ticker'),
           pctPort:  findCol(sHdr, '% of Total Portfolio'),
+          country:  findCol(sHdr, 'Country'),
         };
         const stockRows = stockSheetRows.slice(1).filter(r => r[sCol.name]);
         const stocks = stockRows.map(r => {
@@ -300,10 +301,29 @@ window.parseCbondsExport = function(file) {
                 exch.includes('munich') || exch.includes('stuttgart') || exch.includes('hamburg')) return 'EUR';
             return 'USD';
           })();
+          const country = (() => {
+            const c = strAt(r, sCol.country);
+            if (c) return c;
+            // Infer from exchange when Country cell is blank — single-name stocks
+            // are attributed 100% to their own listing country, no AI guess needed.
+            const exch = strAt(r, sCol.exchange).toLowerCase();
+            if (exch.includes('london')) return 'United Kingdom';
+            if (exch.includes('frankfurt') || exch.includes('xetra') || exch.includes('berlin') ||
+                exch.includes('munich') || exch.includes('stuttgart') || exch.includes('hamburg')) return 'Germany';
+            if (exch.includes('nyse') || exch.includes('nasdaq')) return 'United States';
+            if (exch.includes('euronext paris') || exch.includes('paris')) return 'France';
+            if (exch.includes('euronext amsterdam') || exch.includes('amsterdam')) return 'Netherlands';
+            if (exch.includes('swiss') || exch.includes('six')) return 'Switzerland';
+            if (exch.includes('milan') || exch.includes('borsa italiana')) return 'Italy';
+            if (exch.includes('tokyo')) return 'Japan';
+            if (exch.includes('hong kong')) return 'Hong Kong';
+            return '';
+          })();
           return {
             name:                  strAt(r, sCol.name),
             type:                  'equity',
             exchange:              strAt(r, sCol.exchange),
+            country,
             quantity:              numAt(r, sCol.qty),
             price:                 numAt(r, sCol.price),
             holdingValueOrig,  // in original ccy (EUR/USD/GBX)
@@ -2173,22 +2193,49 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     + `<tr style="font-weight:600;background:#f5f0eb"><td>Total (= Bonds, Section 2)</td><td>${fmtPct(bm.bonds||0)}</td><td>${fmtPct(bondPct)}</td><td>—</td></tr>`;
 
   // ── Country Exposure (equity funds + stocks) ──────────────────────────────
+  // Individual single-name stocks are attributed 100% to their own listing
+  // country directly (from the export's Country column / exchange) — no AI
+  // estimation needed or wanted for those. Only genuine funds/ETFs, which
+  // hold a diversified basket, go through the AI-based composition estimate.
   const apiKey = (document.getElementById('apiKey')?.value || localStorage.getItem('suitability-api-key') || '').trim();
-  const equityHoldings = [...(portfolioData.funds||[]), ...(portfolioData.stocks||[])]
-    .filter(h => (h.convertedHoldingValue||0) > 0);
+  const fundHoldings  = (portfolioData.funds||[]).filter(h => (h.convertedHoldingValue||0) > 0);
+  const stockHoldings = (portfolioData.stocks||[]).filter(h => (h.convertedHoldingValue||0) > 0);
+  const equityHoldings = [...fundHoldings, ...stockHoldings];
   let countryHtml = '';
   let countryFailReason = null;
   if (equityHoldings.length === 0) {
     countryFailReason = 'no equity holdings found in this portfolio';
-  } else if (!apiKey) {
-    countryFailReason = 'no Anthropic API key is configured (Settings → API key)';
+  } else if (fundHoldings.length > 0 && !apiKey) {
+    countryFailReason = 'no Anthropic API key is configured (Settings → API key) — needed to estimate the geographic composition of the fund/ETF holdings';
   } else {
     try {
-      const perEtf = await window.fetchCountryExposure(equityHoldings, apiKey);
-      if (!perEtf) countryFailReason = window._lastCountryExposureError || 'the API call returned no usable data — check the browser console for the exact error';
-      if (perEtf) {
-        window._lastCountryExposure = perEtf;
-        const weighted = window.buildWeightedCountryExposure(equityHoldings, perEtf);
+      let fundWeighted = null;
+      if (fundHoldings.length > 0) {
+        const perEtf = await window.fetchCountryExposure(fundHoldings, apiKey);
+        if (!perEtf) countryFailReason = window._lastCountryExposureError || 'the API call returned no usable data — check the browser console for the exact error';
+        else { window._lastCountryExposure = perEtf; fundWeighted = window.buildWeightedCountryExposure(fundHoldings, perEtf); }
+      }
+      if (fundHoldings.length === 0 || fundWeighted) {
+        const totalVal = equityHoldings.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
+        const combined = {};
+        if (totalVal > 0) {
+          // Direct stocks: 100% weight to own country
+          stockHoldings.forEach(h => {
+            const c = h.country || 'Other';
+            combined[c] = (combined[c]||0) + (h.convertedHoldingValue||0) / totalVal * 100;
+          });
+          // Funds: AI-estimated per-fund breakdown, scaled from fund-only weight to overall weight
+          if (fundWeighted && fundWeighted.length) {
+            const fundVal = fundHoldings.reduce((s,h) => s + (h.convertedHoldingValue||0), 0);
+            fundWeighted.forEach(({country, pct}) => {
+              combined[country] = (combined[country]||0) + pct * (fundVal/totalVal);
+            });
+          }
+        }
+        const weighted = Object.entries(combined)
+          .sort((a,b) => b[1]-a[1])
+          .map(([country, pct]) => ({ country, pct: parseFloat(pct.toFixed(1)) }));
+        window._lastCountryWeighted = weighted;
         if (weighted && weighted.length) {
           // Pie chart via SVG
           const colors = ['#2c5f2e','#4a90d9','#e8a838','#c0392b','#8e44ad','#16a085','#d35400','#2980b9','#27ae60','#7f8c8d','#bdc3c7'];
@@ -2930,11 +2977,8 @@ window.exportReportToWord = async function() {
 
       // Special handling for 3b Geographic Exposure — SVG pie not exportable, build tables from data
       if (titleEl && titleEl.innerText.includes('Geographic Exposure')) {
-        const perEtf = window._lastCountryExposure;
-        const equityHoldings = [...((window._lastPortfolioData?.funds)||[]), ...((window._lastPortfolioData?.stocks)||[])]
-          .filter(h => (h.convertedHoldingValue||0) > 0);
-        if (perEtf && equityHoldings.length) {
-          const weighted = window.buildWeightedCountryExposure(equityHoldings, perEtf);
+        const weighted = window._lastCountryWeighted;
+        if (weighted && weighted.length) {
           const regions  = window.mapToBCARegions(weighted);
           if (weighted?.length) {
             // Table 1: by country
