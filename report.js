@@ -937,25 +937,45 @@ function buildDividendsSection(divRows) {
     const d = v instanceof Date ? v : new Date(v);
     return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
   };
-  const fmtAmt = v => {
+  // Amount is in the dividend's OWN currency (GBX/GBP/EUR/USD, per the CCY
+  // column) — it must never be shown with a "$" prefix regardless of that
+  // currency, which misrepresented GBX-pence and GBP amounts as if they were
+  // dollar figures.
+  const fmtNative = (v, ccy) => {
     const n = parseFloat(v) || 0;
-    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const sym = ccy==='EUR'?'€':ccy==='GBP'?'£':ccy==='CHF'?'Fr ':ccy==='USD'?'$':(ccy?ccy+' ':'$');
+    return sym + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+  const fmtUSDLocal = v => {
+    const n = parseFloat(v) || 0;
+    return _reportCcySym + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+  // GBX (pence-quoted LSE stocks) is used at face value throughout this report
+  // (same convention as fixGbxConversion for holdings/trades) — the raw
+  // "Value" column IS the reporting-currency figure for GBX, not "Value in
+  // portfolio currency" (r[7]), which divides it by ~100 and understated
+  // this section's total roughly 7x versus the Stocks section's own
+  // (already-corrected) dividend total for the same underlying payments.
+  const amountFor = r => {
+    const ccy = String(r[6]||'').trim().toUpperCase();
+    return ccy === 'GBX' ? (parseFloat(r[5]) || 0) : (parseFloat(r[7]) || parseFloat(r[5]) || 0);
   };
 
   // cols: Ex-div date[0] / Payment date[1] / Asset class[2] / Asset[3] / Pricing source[4] / Value[5] / Currency[6] / Value in portfolio currency[7]
   const sorted = [...divRows].sort((a, b) => new Date(b[1] || b[0]) - new Date(a[1] || a[0]));
-  const total  = sorted.reduce((s, r) => s + (parseFloat(r[7]) || parseFloat(r[5]) || 0), 0);
+  const total  = sorted.reduce((s, r) => s + amountFor(r), 0);
 
   const rows = sorted.map(r => {
-    const converted = parseFloat(r[7]) || parseFloat(r[5]) || 0;
+    const ccy = String(r[6]||'USD').trim();
+    const converted = amountFor(r);
     return `<tr>
       <td>${fmtDate(r[0])}</td>
       <td>${fmtDate(r[1])}</td>
       <td>${String(r[2]||'').trim()}</td>
       <td style="min-width:200px">${String(r[3]||'').trim()}</td>
-      <td>${fmtAmt(r[5])}</td>
-      <td>${String(r[6]||'USD').trim()}</td>
-      <td>${fmtAmt(converted)}</td>
+      <td>${fmtNative(r[5], ccy)}</td>
+      <td>${ccy}</td>
+      <td>${fmtUSDLocal(converted)}</td>
     </tr>`;
   }).join('');
 
@@ -966,13 +986,13 @@ function buildDividendsSection(divRows) {
         <table class="report-table">
           <thead><tr>
             <th>Ex-Div Date</th><th>Payment Date</th><th>Asset Class</th>
-            <th>Asset</th><th>Amount</th><th>CCY</th><th>Converted (USD)</th>
+            <th>Asset</th><th>Amount</th><th>CCY</th><th>Converted (<span class="ccy-label">USD</span>)</th>
           </tr></thead>
           <tbody>
             ${rows}
             <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="6">Total</td>
-              <td>${fmtAmt(total)}</td>
+              <td>${fmtUSDLocal(total)}</td>
             </tr>
           </tbody>
         </table>
