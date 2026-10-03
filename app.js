@@ -2420,16 +2420,6 @@ const BP_BCA_ITEMS = [
   {key:'sec_mat', label:'Materials',            prev:'neutral',     curr:'overweight'},
   {key:'sec_re',  label:'Real Estate',          prev:'neutral',     curr:'neutral'},
   {key:'sec_ut',  label:'Utilities',            prev:'neutral',     curr:'neutral'},
-  {section:'Currencies'},
-  {key:'fx_usd',  label:'USD',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_eur',  label:'EUR',                  prev:'underweight', curr:'underweight'},
-  {key:'fx_jpy',  label:'JPY',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_gbp',  label:'GBP',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_aud',  label:'AUD',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_cad',  label:'CAD',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_chf',  label:'CHF',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_cny',  label:'CNY',                  prev:'neutral',     curr:'neutral'},
-  {key:'fx_em',   label:'EM Currencies',        prev:'neutral',     curr:'overweight'},
 ];
 
 // State
@@ -3177,7 +3167,7 @@ window.bpDownloadXlsx = async function() {
     const v=views[item.key]||{prev:item.prev,curr:item.curr};
     const changed=v.prev!==v.curr;
     const lc=wv.getCell(rv,1);
-    lc.value=(changed?'↑ ':'   ')+item.label;
+    lc.value=item.label;
     lc.font={name:'Arial',bold:changed,color:{argb:'FF'+(changed?BLUE_TXT:'222222')},size:10};
     lc.fill=bf(changed?BLUE_BG:'FFFFFF');lc.alignment={horizontal:'left',vertical:'middle'};
     lc.border={right:thin(),bottom:thin()};
@@ -3405,16 +3395,7 @@ window.bpLoadBcaPdf = async function(input) {
     "sec_en":  "...",
     "sec_mat": "...",
     "sec_re":  "...",
-    "sec_ut":  "...",
-    "fx_usd":  "...",
-    "fx_eur":  "...",
-    "fx_jpy":  "...",
-    "fx_gbp":  "...",
-    "fx_aud":  "...",
-    "fx_cad":  "...",
-    "fx_chf":  "...",
-    "fx_cny":  "...",
-    "fx_em":   "..."
+    "sec_ut":  "..."
   }
 }
 For each key return ONLY one of: overweight, neutral, underweight (for the CURRENT dark square only). Ignore the lighter/previous squares completely. If not visible, use neutral.`
@@ -3625,16 +3606,6 @@ window.bpParseAllocText = function() {
     {label:'Materials',         key:'sec_mat'},
     {label:'Utilities',         key:'sec_ut'},
     {label:'Real Estate',       key:'sec_re'},
-    // FX
-    {label:'USD',               key:'fx_usd'},
-    {label:'EUR',               key:'fx_eur'},
-    {label:'JPY',               key:'fx_jpy'},
-    {label:'GBP',               key:'fx_gbp'},
-    {label:'AUD',               key:'fx_aud'},
-    {label:'CAD',               key:'fx_cad'},
-    {label:'CHF',               key:'fx_chf'},
-    {label:'CNY',               key:'fx_cny'},
-    {label:'EM Currencies',     key:'fx_em'},
   ];
 
   let viewsFound = 0;
