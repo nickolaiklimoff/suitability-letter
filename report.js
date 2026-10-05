@@ -2359,8 +2359,10 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const bondTotHoldUSD = (portfolioData.bonds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
   const bc = bondTotPnL>=0?'#3b6d11':'#a32d2d';
 
-  // Funds performance
-  const fundPerfRows = (portfolioData.funds||[]).map(h => {
+  // Funds performance — split equity funds/ETFs from bond funds/ETFs (name-based
+  // classification, same classifier used for sector/segment analytics) so each
+  // group's performance can be shown and totalled separately.
+  const buildFundRow = h => {
     const cost = getCostBasis(h);
     const divs = incomeMap[h.name]||0;
     const totalPnL = h.unrealizedPnL + divs;
@@ -2379,14 +2381,32 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
     </tr>`;
-  }).join('');
+  };
+  const mkFundTotals = arr => {
+    const unreal = arr.reduce((s,h)=>s+h.unrealizedPnL,0);
+    const income = arr.reduce((s,h)=>s+(incomeMap[h.name]||0),0);
+    const pnl    = unreal + income;
+    const cost   = arr.reduce((s,h)=>s+getCostBasis(h),0);
+    const pct    = cost>0?(pnl/cost*100).toFixed(1)+'%':'—';
+    const hold   = arr.reduce((s,h)=>s+h.convertedHoldingValue,0);
+    return { unreal, income, pnl, cost, pct, hold, color: pnl>=0?'#3b6d11':'#a32d2d' };
+  };
 
-  const fundTotUnreal = (portfolioData.funds||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
-  const fundTotIncome = (portfolioData.funds||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
+  const equityFunds       = (portfolioData.funds||[]).filter(h => classifyHolding(h).assetClass !== 'bond');
+  const fixedIncomeFunds  = (portfolioData.funds||[]).filter(h => classifyHolding(h).assetClass === 'bond');
+  const equityFundRows = equityFunds.map(buildFundRow).join('');
+  const fiFundRows      = fixedIncomeFunds.map(buildFundRow).join('');
+  const eqFundTot = mkFundTotals(equityFunds);
+  const fiFundTot = mkFundTotals(fixedIncomeFunds);
+
+  // Combined totals (used by the PORTFOLIO TOTAL row / overall cost basis below —
+  // unchanged from before the split, just derived from the same two groups)
+  const fundTotUnreal = eqFundTot.unreal + fiFundTot.unreal;
+  const fundTotIncome = eqFundTot.income + fiFundTot.income;
   const fundTotPnL = fundTotUnreal + fundTotIncome;
-  const fundTotCost = (portfolioData.funds||[]).reduce((s,h)=>s+getCostBasis(h),0);
+  const fundTotCost = eqFundTot.cost + fiFundTot.cost;
   const fundTotPct = fundTotCost>0?(fundTotPnL/fundTotCost*100).toFixed(1)+'%':'—';
-  const fundTotHoldUSD = (portfolioData.funds||[]).reduce((s,h)=>s+h.convertedHoldingValue,0);
+  const fundTotHoldUSD = eqFundTot.hold + fiFundTot.hold;
   const fc = fundTotPnL>=0?'#3b6d11':'#a32d2d';
 
   // Stocks performance
@@ -2665,7 +2685,8 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         </table>
         </div>` : ''}
 
-        <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Funds / ETFs</div>
+        ${equityFunds.length > 0 ? `
+        <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Equity Funds / ETFs</div>
         <div style="overflow-x:auto">
         <table class="report-table">
           <thead><tr>
@@ -2673,17 +2694,38 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
             <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
-          <tbody>${fundPerfRows}
+          <tbody>${equityFundRows}
             <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
-              <td colspan="7">Funds total</td>
-              <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(fundTotUnreal)}</td>
-              <td>${fmtUSD(fundTotIncome)}</td>
-              <td style="color:${fc}">${fmtUSDSigned(fundTotPnL)}</td>
-              <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPct}</td>
+              <td colspan="7">Equity funds total</td>
+              <td style="color:${eqFundTot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(eqFundTot.unreal)}</td>
+              <td>${fmtUSD(eqFundTot.income)}</td>
+              <td style="color:${eqFundTot.color}">${fmtUSDSigned(eqFundTot.pnl)}</td>
+              <td style="color:${eqFundTot.color}">${eqFundTot.pnl>=0?'+':''}${eqFundTot.pct}</td>
             </tr>
           </tbody>
         </table>
-        </div>
+        </div>` : ''}
+
+        ${fixedIncomeFunds.length > 0 ? `
+        <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Bond Funds / ETFs</div>
+        <div style="overflow-x:auto">
+        <table class="report-table">
+          <thead><tr>
+            <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
+            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
+          </tr></thead>
+          <tbody>${fiFundRows}
+            <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
+              <td colspan="7">Bond funds total</td>
+              <td style="color:${fiFundTot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(fiFundTot.unreal)}</td>
+              <td>${fmtUSD(fiFundTot.income)}</td>
+              <td style="color:${fiFundTot.color}">${fmtUSDSigned(fiFundTot.pnl)}</td>
+              <td style="color:${fiFundTot.color}">${fiFundTot.pnl>=0?'+':''}${fiFundTot.pct}</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>` : ''}
 
         <table class="report-table" style="margin-top:0.5rem">
           <thead><tr>
@@ -2697,12 +2739,18 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td style="color:${bc}">${fmtUSDSigned(bondTotPnL)}</td>
               <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPct}</td>
             </tr>
-            <tr>
-              <td>Funds / ETFs</td><td>${fmtUSD(fundTotHoldUSD)}</td><td>${fmtUSD(fundTotCost)}</td><td>${fmtUSD(fundTotIncome)}</td>
-              <td style="color:${fundTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(fundTotUnreal)}</td>
-              <td style="color:${fc}">${fmtUSDSigned(fundTotPnL)}</td>
-              <td style="color:${fc}">${fundTotPnL>=0?'+':''}${fundTotPct}</td>
-            </tr>
+            ${equityFunds.length > 0 ? `<tr>
+              <td>Equity Funds / ETFs</td><td>${fmtUSD(eqFundTot.hold)}</td><td>${fmtUSD(eqFundTot.cost)}</td><td>${fmtUSD(eqFundTot.income)}</td>
+              <td style="color:${eqFundTot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(eqFundTot.unreal)}</td>
+              <td style="color:${eqFundTot.color}">${fmtUSDSigned(eqFundTot.pnl)}</td>
+              <td style="color:${eqFundTot.color}">${eqFundTot.pnl>=0?'+':''}${eqFundTot.pct}</td>
+            </tr>` : ''}
+            ${fixedIncomeFunds.length > 0 ? `<tr>
+              <td>Bond Funds / ETFs</td><td>${fmtUSD(fiFundTot.hold)}</td><td>${fmtUSD(fiFundTot.cost)}</td><td>${fmtUSD(fiFundTot.income)}</td>
+              <td style="color:${fiFundTot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(fiFundTot.unreal)}</td>
+              <td style="color:${fiFundTot.color}">${fmtUSDSigned(fiFundTot.pnl)}</td>
+              <td style="color:${fiFundTot.color}">${fiFundTot.pnl>=0?'+':''}${fiFundTot.pct}</td>
+            </tr>` : ''}
             ${(portfolioData.stocks||[]).length > 0 ? `<tr>
               <td>Stocks</td><td>${fmtUSD(stockTotHoldUSD)}</td><td>${fmtUSD(stockTotCostUSD)}</td><td>${fmtUSD(stockTotIncome)}</td>
               <td style="color:${stockTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(stockTotUnreal)}</td>
