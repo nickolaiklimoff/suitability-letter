@@ -2400,17 +2400,15 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
   // Further split equity funds by name into sub-groups — purely name-based, so
   // this naturally only produces separate sections for whichever client actually
-  // holds these fund families (e.g. ACWI / Xtrackers); a client without them just
-  // falls through to "Other Equity Funds / ETFs" as one table, same as before.
+  // holds these fund families. Anything that isn't an ACWI (global, broad) fund
+  // is grouped under "Xtrackers MSCI World" alongside the sector funds — a
+  // client with no such funds at all just gets nothing rendered here.
   const acwiFunds       = equityFunds.filter(h => /ACWI/i.test(h.name));
-  const xtrackersFunds  = equityFunds.filter(h => /Xtrackers/i.test(h.name) && !acwiFunds.includes(h));
-  const otherEquityFunds = equityFunds.filter(h => !acwiFunds.includes(h) && !xtrackersFunds.includes(h));
+  const xtrackersFunds  = equityFunds.filter(h => !acwiFunds.includes(h));
   const acwiFundRows      = acwiFunds.map(buildFundRow).join('');
   const xtrackersFundRows = xtrackersFunds.map(buildFundRow).join('');
-  const otherEquityFundRows = otherEquityFunds.map(buildFundRow).join('');
   const acwiFundTot      = mkFundTotals(acwiFunds);
   const xtrackersFundTot = mkFundTotals(xtrackersFunds);
-  const otherEquityFundTot = mkFundTotals(otherEquityFunds);
 
   // Combined totals (used by the PORTFOLIO TOTAL row / overall cost basis below —
   // unchanged from before the split, just derived from the same two groups)
@@ -2720,8 +2718,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           </table>
           </div>`;
           return mkGroup('Equity Funds / ETFs — Global (ACWI)', acwiFundRows, acwiFundTot, acwiFunds.length)
-               + mkGroup('Equity Funds / ETFs — Xtrackers MSCI World', xtrackersFundRows, xtrackersFundTot, xtrackersFunds.length)
-               + mkGroup('Equity Funds / ETFs — Other', otherEquityFundRows, otherEquityFundTot, otherEquityFunds.length);
+               + mkGroup('Equity Funds / ETFs — Xtrackers MSCI World', xtrackersFundRows, xtrackersFundTot, xtrackersFunds.length);
         })() : ''}
 
         ${fixedIncomeFunds.length > 0 ? `
