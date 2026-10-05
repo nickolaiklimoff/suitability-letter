@@ -1860,7 +1860,7 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
           <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Total Return (indicative)</div>
           <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.totalReturn>=0?'#3b6d11':'#a32d2d'}">${pct(a.totalReturn)}</div>
-          <div style="font-size:11px;color:#8B7A68">${a.period}</div>
+          <div style="font-size:11px;color:#8B7A68">${a.totalReturnPeriod || a.period}</div>
         </div>
 
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
@@ -1901,8 +1901,9 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
-          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted, indicative only — see the note below for basis and limitations. Sharpe: (Return − rf) / σ.`
-          : `Analytics from portfolio value chart (AI image recognition, ±2–3%) — vol., Sharpe, drawdown and monthly stats only. Total Return: money-weighted, indicative only — see the note below for basis and limitations, not from the chart.`}
+          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted, indicative only, over its own period shown above — see the note below for basis and limitations.`
+          : `Analytics from portfolio value chart (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}. Total Return: money-weighted, indicative only, over its own period shown above (often longer than the chart) — see the note below for basis and limitations.`}
+        Sharpe = (Return − rf) / σ, both measured over the ${a.period} chart/price window — it can differ from the Total Return figure above, which covers its own (often longer) money-weighted period.
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
@@ -2511,6 +2512,13 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     const periodYears = a.n && a.freq ? a.n / a.freq : 1;
     // Use IRR as the return for Sharpe if trade history available — it's the most accurate annualized return
     let annRealReturn = periodYears > 0.1 ? (Math.pow(1 + realReturn, 1/periodYears) - 1) : realReturn;
+    // Caption shown under the "Total Return" tile — defaults to the chart/price
+    // period (a.period), but is replaced below with the actual money-weighted
+    // window whenever the IRR override fires, since that window is usually
+    // longer (it runs from the earliest recorded deposit/trade, not from the
+    // chart's start date) and showing the chart's dates next to a number that
+    // wasn't measured over them is misleading.
+    let returnPeriodLabel = a.period;
     if ((portfolioData.depositWithdrawalRows?.length > 0) || (portfolioData.tradeRows?.length > 0)) {
       const _today = new Date();
       let _cfs = [];
@@ -2552,17 +2560,24 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       if (_totalCV > 0 && _cfs.length > 0) {
         _cfs.push({date:_today, amount:_totalCV});
         const _irr = computeIRR(_cfs);
-        if (_irr !== null && Math.abs(_irr) < 5) annRealReturn = _irr;
+        if (_irr !== null && Math.abs(_irr) < 5) {
+          annRealReturn = _irr;
+          const _fmtYM = d => String(d.getFullYear()).slice(2) + "'" + String(d.getMonth()+1).padStart(2,'0');
+          returnPeriodLabel = _fmtYM(_cfs[0].date) + ' – ' + _fmtYM(_today);
+        }
       }
     }
-    const realSharpe = a.vol > 0 ? (annRealReturn - rf2) / a.vol : a.sharpe;
-    // Use annRealReturn (properly annualized, and overridden with the exact
-    // bisection IRR above when trade/cashflow data is available), not the
-    // un-annualized realReturn — otherwise the "Total Return" tile silently
-    // ignores its own IRR correction and shows the cruder two-point ratio,
-    // which can disagree with (and even have the opposite sign from) the
-    // "Portfolio IRR (MWR)" box directly below it on the same page.
-    const aFinal = { ...a, totalReturn: annRealReturn, sharpe: realSharpe };
+    // Sharpe is deliberately left as a.sharpe (already computed from a return
+    // measured over the SAME window as a.vol), not re-derived from the
+    // money-weighted annRealReturn above. The two can span very different
+    // periods — annRealReturn runs since the earliest recorded deposit, which
+    // may predate the chart/price window a.vol was estimated over by years —
+    // and dividing a multi-year money-weighted return by a much shorter
+    // window's volatility produces a nonsensical ratio (seen live: 2.8% vol
+    // against a long-horizon return gave a "Sharpe" of 21.5). Total Return
+    // and Sharpe are shown with their own periods below instead of being
+    // forced to agree.
+    const aFinal = { ...a, totalReturn: annRealReturn, totalReturnPeriod: returnPeriodLabel };
     analyticsHtml = await buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData, depositData);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
