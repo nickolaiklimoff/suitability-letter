@@ -2394,10 +2394,23 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
 
   const equityFunds       = (portfolioData.funds||[]).filter(h => classifyHolding(h).assetClass !== 'bond');
   const fixedIncomeFunds  = (portfolioData.funds||[]).filter(h => classifyHolding(h).assetClass === 'bond');
-  const equityFundRows = equityFunds.map(buildFundRow).join('');
   const fiFundRows      = fixedIncomeFunds.map(buildFundRow).join('');
   const eqFundTot = mkFundTotals(equityFunds);
   const fiFundTot = mkFundTotals(fixedIncomeFunds);
+
+  // Further split equity funds by name into sub-groups — purely name-based, so
+  // this naturally only produces separate sections for whichever client actually
+  // holds these fund families (e.g. ACWI / Xtrackers); a client without them just
+  // falls through to "Other Equity Funds / ETFs" as one table, same as before.
+  const acwiFunds       = equityFunds.filter(h => /ACWI/i.test(h.name));
+  const xtrackersFunds  = equityFunds.filter(h => /Xtrackers/i.test(h.name) && !acwiFunds.includes(h));
+  const otherEquityFunds = equityFunds.filter(h => !acwiFunds.includes(h) && !xtrackersFunds.includes(h));
+  const acwiFundRows      = acwiFunds.map(buildFundRow).join('');
+  const xtrackersFundRows = xtrackersFunds.map(buildFundRow).join('');
+  const otherEquityFundRows = otherEquityFunds.map(buildFundRow).join('');
+  const acwiFundTot      = mkFundTotals(acwiFunds);
+  const xtrackersFundTot = mkFundTotals(xtrackersFunds);
+  const otherEquityFundTot = mkFundTotals(otherEquityFunds);
 
   // Combined totals (used by the PORTFOLIO TOTAL row / overall cost basis below —
   // unchanged from before the split, just derived from the same two groups)
@@ -2685,26 +2698,31 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         </table>
         </div>` : ''}
 
-        ${equityFunds.length > 0 ? `
-        <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Equity Funds / ETFs</div>
-        <div style="overflow-x:auto">
-        <table class="report-table">
-          <thead><tr>
-            <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
-            <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
-          </tr></thead>
-          <tbody>${equityFundRows}
-            <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
-              <td colspan="7">Equity funds total</td>
-              <td style="color:${eqFundTot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(eqFundTot.unreal)}</td>
-              <td>${fmtUSD(eqFundTot.income)}</td>
-              <td style="color:${eqFundTot.color}">${fmtUSDSigned(eqFundTot.pnl)}</td>
-              <td style="color:${eqFundTot.color}">${eqFundTot.pnl>=0?'+':''}${eqFundTot.pct}</td>
-            </tr>
-          </tbody>
-        </table>
-        </div>` : ''}
+        ${equityFunds.length > 0 ? (() => {
+          const mkGroup = (label, rows, tot, n) => n === 0 ? '' : `
+          <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">${label}</div>
+          <div style="overflow-x:auto">
+          <table class="report-table">
+            <thead><tr>
+              <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
+              <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
+              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
+            </tr></thead>
+            <tbody>${rows}
+              <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
+                <td colspan="7">${label} total</td>
+                <td style="color:${tot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(tot.unreal)}</td>
+                <td>${fmtUSD(tot.income)}</td>
+                <td style="color:${tot.color}">${fmtUSDSigned(tot.pnl)}</td>
+                <td style="color:${tot.color}">${tot.pnl>=0?'+':''}${tot.pct}</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>`;
+          return mkGroup('Equity Funds / ETFs — Global (ACWI)', acwiFundRows, acwiFundTot, acwiFunds.length)
+               + mkGroup('Equity Funds / ETFs — Xtrackers MSCI World', xtrackersFundRows, xtrackersFundTot, xtrackersFunds.length)
+               + mkGroup('Equity Funds / ETFs — Other', otherEquityFundRows, otherEquityFundTot, otherEquityFunds.length);
+        })() : ''}
 
         ${fixedIncomeFunds.length > 0 ? `
         <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Bond Funds / ETFs</div>
