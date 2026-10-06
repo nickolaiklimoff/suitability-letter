@@ -2322,6 +2322,18 @@ window.printReport = function() {
     .report-table th, .report-table td { white-space: nowrap; }
     .report-table td:first-child { white-space: normal; max-width: 220px; }
 
+    /* Print fit: wide tables (Bonds has 12 columns) must fit the page width.
+       - Wrappers with overflow-x:auto are scroll containers: in print they clip
+         columns that don't fit (last columns "eaten") and clip rows at page
+         breaks (half-cut rows), so force them to overflow:visible.
+       - Tighter padding/font and wrappable headers so the table fits instead
+         of needing to scroll. */
+    [style*="overflow-x"] { overflow: visible !important; }
+    .report-table { font-size: 10px; }
+    .report-table th, .report-table td { padding-left: 5px; padding-right: 5px; font-size: 10px; }
+    .report-table th { white-space: normal; vertical-align: bottom; }
+    .report-table td:first-child { max-width: 190px; }
+
     /* ── Profile table ── */
     .profile-table { width: 100%; border-collapse: collapse; }
     .profile-table td { padding: 5px 10px; font-size: 12px; border-bottom: 0.5px solid #E8E0D8; }
