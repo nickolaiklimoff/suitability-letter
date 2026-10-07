@@ -2712,11 +2712,23 @@ function bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca) {
     let eq,bd,ca;
     if (ir==='IR6') { eq=1;bd=0;ca=0; }
     else if (ir==='IR3') { eq=ir3eq;bd=ir3bd;ca=ir3ca; }
-    else if (ir==='IR1'||ir==='IR2') {
+    else {
+      // IR1, IR2, IR4, IR5: scale the IC's IR3 tilt (vs. IR3's own
+      // benchmark) proportionally to this profile's benchmark weight
+      // relative to IR3's, then clamp onto the simplex (Eq in [0,100%],
+      // Bd in [0, 100%-Eq], Cash absorbs whatever's left). Same formula
+      // on both sides of IR3 - extended 2026-10-07 to IR4/IR5, which had
+      // previously just copied their benchmark untouched (an
+      // inconsistency with IR1/IR2 flagged by Nikolai and reconciled per
+      // ORCAP_Cycle_Views_Weights_Framework.docx's risk-profile-cascade
+      // subsection - that's the place to look for the full rationale and
+      // worked examples, not just this comment).
       const sEq=BP_BM_WEIGHTS.eq.IR3>0?bmEq/BP_BM_WEIGHTS.eq.IR3:0;
       const sBd=BP_BM_WEIGHTS.bd.IR3>0?bmBd/BP_BM_WEIGHTS.bd.IR3:0;
-      eq=Math.max(0,bmEq+dEq*sEq); bd=Math.max(0,bmBd+dBd*sBd); ca=Math.max(0,1-eq-bd);
-    } else { eq=bmEq; bd=bmBd; ca=BP_BM_WEIGHTS.ca[ir]; }
+      eq=Math.min(1,Math.max(0,bmEq+dEq*sEq));
+      bd=Math.min(1-eq,Math.max(0,bmBd+dBd*sBd));
+      ca=Math.max(0,1-eq-bd);
+    }
     W[ir] = {eq,bd,ca};
   });
   return W;
