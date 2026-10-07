@@ -1074,6 +1074,7 @@
       <div id="macro-recalc-progress-text" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
       <div id="macro-recalc-region-status" style="font-size:11px;color:var(--text3);margin-top:6px;font-family:monospace;white-space:pre-line"></div>
       <div id="macro-recalc-live-log" style="font-size:11px;color:var(--text3);margin-top:6px;font-family:monospace;white-space:pre-line;max-height:180px;overflow-y:auto;background:var(--bg2, #f7f7f7);padding:6px 8px;border-radius:4px;display:none"></div>
+      <div id="macro-recalc-heartbeat" style="font-size:10px;color:var(--text3);margin-top:4px;opacity:0.75"></div>
     </div>
     <div id="macro-recalc-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
     <div id="macro-recalc-result" style="margin-top:10px"></div>
@@ -2589,21 +2590,65 @@ async function macroDispatchAndWait(token, workflowFile, inputs, onStatus, timeo
   }
   if (onStatus) onStatus('queued');
 
+  const heartbeatEl = document.getElementById('macro-recalc-heartbeat');
+  const setHeartbeat = (text, isError) => {
+    if (!heartbeatEl) return;
+    const stamp = new Date().toLocaleTimeString();
+    heartbeatEl.textContent = `last checked ${stamp}${text ? ' — ' + text : ''}`;
+    heartbeatEl.style.color = isError ? '#b8860b' : 'var(--text3)';
+  };
+
+  // Races the poll interval against the tab regaining visibility, so
+  // switching back to a backgrounded tab (where the browser throttles
+  // setTimeout, sometimes down to ~once/minute) triggers an immediate
+  // re-check instead of waiting out whatever's left of the throttled
+  // delay - added 2026-10-07 alongside the same fix in
+  // macroStartLiveCommitLog, after this window sat looking frozen for
+  // 20+ minutes while the actual GitHub Actions runs had moved on.
+  const waitOrWake = (ms) => new Promise(resolve => {
+    const t = setTimeout(resolve, ms);
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', onVisible);
+      resolve();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+  });
+
   const start = Date.now();
   let run = null;
   while (Date.now() - start < timeoutMs) {
-    await new Promise(r => setTimeout(r, 8000));
-    const runsResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/runs?per_page=5`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
-    });
+    await waitOrWake(8000);
+    let runsResp;
+    try {
+      runsResp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/${workflowFile}/runs?per_page=5`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+      });
+    } catch (e) {
+      setHeartbeat(`fetch failed - ${e.message}`, true);
+      continue;
+    }
+    if (!runsResp.ok) {
+      // Previously silently fell through to "no candidate found" every
+      // time this happened, which looked identical to "nothing new has
+      // happened yet" - a 403 here (almost always GitHub's secondary rate
+      // limiting after a long run of frequent polling) now shows up
+      // explicitly instead of making the whole window look stuck.
+      setHeartbeat(`GitHub API error ${runsResp.status} - will keep retrying`, true);
+      continue;
+    }
     const runsData = await runsResp.json();
     const candidate = (runsData.workflow_runs || []).find(
       r => new Date(r.created_at).getTime() >= dispatchedAt - 10000
     );
     if (candidate) {
       run = candidate;
+      setHeartbeat(`${workflowFile}: ${run.status}`, false);
       if (onStatus) onStatus(run.status, run.conclusion); // status: 'queued'|'in_progress'|'completed'; conclusion only set once completed
       if (run.status === 'completed') return run;
+    } else {
+      setHeartbeat(`${workflowFile}: waiting for run to appear`, false);
     }
   }
   throw new Error(`${workflowFile}: timed out waiting for completion`);
@@ -2695,17 +2740,47 @@ const MACRO_PROGRESS_COMMIT_PATTERNS = [
   { re: /^chore: recompute global cycle score/, render: () => `  ✓ Global cycle — composite score + strategic views computed (saved)` },
 ];
 
+// Separate from macroRecalculateCyclePhases' own progress tracking - this
+// polls GitHub commit history directly so the log reflects what *actually*
+// landed in the repo, not just what the main dispatch loop believes. Also
+// writes a "last checked" heartbeat on every tick (success OR failure) -
+// added 2026-10-07 after the window sat visibly unchanged for 20+ minutes
+// while the backend had in fact moved on through 2 more regions. Before
+// this, a silent fetch failure (rate limit, network blip, or the browser
+// throttling timers in a backgrounded tab) looked IDENTICAL to "nothing
+// new happened yet" - there was no way to tell "frozen" from "genuinely
+// idle" from the display alone, which defeats the whole point of having a
+// live progress window. Now every tick - even one that finds no new
+// commits, even one that errors - updates the heartbeat line, so a stuck
+// heartbeat (not just a stuck log) is the real signal something's wrong
+// with the display itself (most likely the tab was backgrounded and the
+// browser throttled its timers - switching back to the tab fires an
+// immediate catch-up poll via the visibilitychange listener below).
 function macroStartLiveCommitLog(token, sinceIso, logEl) {
   const seen = new Set();
   logEl.style.display = 'block';
   logEl.textContent = '(watching for per-indicator saves...)\n';
+  const heartbeatEl = document.getElementById('macro-recalc-heartbeat');
+  const setHeartbeat = (text, isError) => {
+    if (!heartbeatEl) return;
+    const stamp = new Date().toLocaleTimeString();
+    heartbeatEl.textContent = `last checked ${stamp}${text ? ' — ' + text : ''}`;
+    heartbeatEl.style.color = isError ? '#b8860b' : 'var(--text3)';
+  };
   const poll = async () => {
     try {
       const resp = await fetch(
         `https://api.github.com/repos/${MACRO_REPO}/commits?since=${encodeURIComponent(sinceIso)}&per_page=100`,
         { headers: { Authorization: `token ${token}` } }
       );
-      if (!resp.ok) return; // best-effort - a transient failure here shouldn't disrupt anything
+      if (!resp.ok) {
+        // Surfaced instead of swallowed - a 403 here is almost always
+        // GitHub's secondary rate limiting from polling this often over a
+        // long run; it clears on its own, but the user should be able to
+        // see that's what's happening instead of a dead-looking window.
+        setHeartbeat(`GitHub API error ${resp.status} - will keep retrying`, true);
+        return;
+      }
       const commits = await resp.json();
       // Oldest first, so the log reads top-to-bottom in the order things
       // actually happened.
@@ -2722,11 +2797,23 @@ function macroStartLiveCommitLog(token, sinceIso, logEl) {
         logEl.textContent += lines.join('\n') + '\n';
         logEl.scrollTop = logEl.scrollHeight;
       }
-    } catch (e) { /* best-effort, ignore */ }
+      setHeartbeat(lines.length ? `+${lines.length} new` : 'no new commits yet', false);
+    } catch (e) {
+      setHeartbeat(`fetch failed - ${e.message}`, true);
+    }
   };
   poll();
   const intervalId = setInterval(poll, 12000);
-  return intervalId;
+  // Background tabs get their timers throttled by the browser (sometimes
+  // to as slow as once/minute), which is the single most common reason
+  // this window looks frozen even though the actual GitHub Actions run is
+  // progressing fine. Firing an immediate poll the moment the tab becomes
+  // visible again means switching back always shows current state within
+  // ~1 second, rather than waiting for the next (possibly very delayed)
+  // interval tick.
+  const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
+  document.addEventListener('visibilitychange', onVisible);
+  return { intervalId, cleanup: () => document.removeEventListener('visibilitychange', onVisible) };
 }
 
 async function macroRecalculateCyclePhases() {
@@ -2760,7 +2847,7 @@ async function macroRecalculateCyclePhases() {
   progressBar.style.width = '0%';
 
   const liveLogEl = document.getElementById('macro-recalc-live-log');
-  const liveLogIntervalId = macroStartLiveCommitLog(token, new Date().toISOString(), liveLogEl);
+  const liveLog = macroStartLiveCommitLog(token, new Date().toISOString(), liveLogEl);
 
   // Real progress, not a fake animation: 5 regions x 2 steps each
   // (pattern analysis, then composite score) = 10 trackable units. Each
@@ -2905,7 +2992,8 @@ async function macroRecalculateCyclePhases() {
     statusEl.textContent = `✗ ${e.message}`;
   } finally {
     btn.disabled = false;
-    clearInterval(liveLogIntervalId);
+    clearInterval(liveLog.intervalId);
+    liveLog.cleanup();
   }
 }
 
