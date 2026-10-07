@@ -739,6 +739,19 @@
         <span id="bp-views-source" style="font-size:11px;color:var(--text3)"></span>
       </div>
       <div id="bp-bca-table-wrap"></div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:11px;color:var(--text3)">Quarter
+          <input id="bp-bca-lock-quarter" type="text" placeholder="Q4 2026" style="width:90px;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-left:4px">
+        </label>
+        <label style="font-size:11px;color:var(--text3)">Report date
+          <input id="bp-bca-lock-date" type="date" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-left:4px">
+        </label>
+        <button class="btn-secondary" onclick="bpSaveBcaViewsToMacroDashboard()" style="font-size:12px;padding:5px 10px">🔒 Lock &amp; save to macro-dashboard (this quarter)</button>
+        <span id="bp-bca-lock-status" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4">
+        Per ORCAP policy (Document 2 §5): the BCA report used for the quarter's Stage 2 comparison is fixed at the first month of the quarter and not refreshed intra-quarter — lock it once here after parsing it above, then it's used as-is by every "Generate IC Pack" run until the next quarter's report is locked. Needs a GitHub token (enter it in Macro View first — same token, same repo).
+      </div>
     </div>
 
     <!-- Full BCA report text for AI commentary -->
@@ -2191,6 +2204,97 @@ async function committeeLoadHistory(token) {
     box.innerHTML = html;
   } catch (e) {
     box.innerHTML = `<div style="font-size:11px;color:#c62828">✗ ${macroEscapeHtml(e.message)}</div>`;
+  }
+}
+
+// ── Lock BCA views for the quarter (Base Portfolios tab) ────────────────
+// Nikolai, 2026-10-07: the Stage 2 "Framework vs BCA" comparison itself is
+// NOT a UI feature - it's generated as a new section of the IC Pack
+// (generate_ic_pack.py, macro-dashboard repo), not rendered here. What
+// this page needs to do is get the already-parsed BCA views (from the
+// screenshot/paste flow above, _bpBcaViews/BP_BCA_ITEMS in app.js) into
+// macro-dashboard as data/bca_views.json, so that Python script has
+// something to compare Stage 1's own output against. Per the same
+// decision, the report used is locked for the whole quarter rather than
+// refreshed - this button is the one-time "lock it in" action, not
+// something run every time the page loads.
+//
+// Maps each BP_BCA_ITEMS key to the (category, label) Stage 1 actually
+// uses in usa_macro_indicators.xlsx / generate_ic_pack.py, so
+// data/bca_views.json lines up for a direct lookup on the Python side
+// with no further renaming there. Items with no Stage 1 counterpart
+// (Canada, Australia, EM Ex China, Inflation-linked) are simply not
+// mapped - generate_ic_pack.py's comparison only covers lines that exist
+// on both sides.
+const BCA_TO_STAGE1 = {
+  gaa_eq: ['global_allocation', 'Equities'],
+  gaa_fi: ['global_allocation', 'Fixed Income'],
+  gaa_ca: ['global_allocation', 'Cash'],
+  eq_us: ['regional_equities', 'US'],
+  eq_eu: ['regional_equities', 'Euro Area'],
+  eq_jp: ['regional_equities', 'Japan'],
+  eq_uk: ['regional_equities', 'UK'],
+  eq_cn: ['regional_equities', 'China'],
+  fi_gov: ['fixed_income', 'Government'],
+  fi_ig: ['fixed_income', 'Investment Grade'],
+  fi_hy: ['fixed_income', 'High Yield'],
+  fi_em: ['fixed_income', 'EM Debt'],
+  fi_dur: ['duration', null],
+  sec_fin: ['equity_sectors', 'Financials'],
+  sec_it: ['equity_sectors', 'Info Tech'],
+  sec_hc: ['equity_sectors', 'Health Care'],
+  sec_cs2: ['equity_sectors', 'Communication Services'],
+  sec_ind: ['equity_sectors', 'Industrials'],
+  sec_cd: ['equity_sectors', 'Consumer Discretionary'],
+  sec_cst: ['equity_sectors', 'Consumer Staples'],
+  sec_en: ['equity_sectors', 'Energy'],
+  sec_mat: ['equity_sectors', 'Materials'],
+  sec_re: ['equity_sectors', 'Real Estate'],
+  sec_ut: ['equity_sectors', 'Utilities'],
+};
+
+function bpViewLabel(v) {
+  const m = { overweight: 'Overweight', neutral: 'Neutral', underweight: 'Underweight' };
+  return m[String(v || '').toLowerCase()] || 'Neutral';
+}
+
+async function bpSaveBcaViewsToMacroDashboard() {
+  const token = macroToken();
+  if (!token) { alert('Enter a GitHub token first (Macro View panel - same token, same repo)'); return; }
+  const statusEl = document.getElementById('bp-bca-lock-status');
+
+  const quarter = document.getElementById('bp-bca-lock-quarter').value.trim() || committeeCurrentQuarter();
+  const asOf = document.getElementById('bp-bca-lock-date').value || null;
+  const source = (document.getElementById('bp-bca-source').value || 'BCA Research GAA').trim();
+
+  const views = { global_allocation: {}, regional_equities: {}, fixed_income: {}, equity_sectors: {}, duration: null };
+  Object.entries(BCA_TO_STAGE1).forEach(([key, [cat, label]]) => {
+    const item = (typeof _bpBcaViews !== 'undefined') ? _bpBcaViews[key] : null;
+    const view = bpViewLabel(item ? item.curr : null);
+    if (cat === 'duration') views.duration = view;
+    else views[cat][label] = view;
+  });
+
+  const payload = {
+    quarter, source, as_of: asOf, frozen_for_quarter: true,
+    saved_at: new Date().toISOString(), views,
+  };
+
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Saving…';
+  try {
+    const current = await committeeFetchFile(token, 'data/bca_views.json');
+    await committeePutFile(
+      token, 'data/bca_views.json',
+      JSON.stringify(payload, null, 2) + '\n',
+      current.sha,
+      `BCA views locked: ${quarter} via Base Portfolios (${new Date().toISOString().slice(0, 10)})`
+    );
+    statusEl.style.color = '#2e7d52';
+    statusEl.textContent = `✓ Locked for ${quarter} — the next "Generate IC Pack" run will use this.`;
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
   }
 }
 
