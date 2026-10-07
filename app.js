@@ -4121,6 +4121,12 @@ window.macroOpen = function() {
     if (el) el.value = saved;
     const st = document.getElementById('macro-token-status');
     if (st) st.textContent = '✓ Token loaded';
+    // committeeLoadDecision is defined in index.html's own Macro View
+    // <script> block, which runs after this one (app.js) in document
+    // order, so by the time macroOpen() is actually called (a button
+    // click, always after full page load) it's guaranteed to exist -
+    // the typeof guard here is just defensive, not load-order-critical.
+    if (typeof committeeLoadDecision === 'function') committeeLoadDecision();
   }
 };
 

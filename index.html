@@ -1066,6 +1066,77 @@
     <div id="macro-recalc-result" style="margin-top:10px"></div>
   </div>
 
+  <!-- Investment Committee Decision -->
+  <div class="form-card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:4px">🗳 Investment Committee Decision</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">
+      Record this quarter's IC decision once agreed — Views (Equities/Fixed Income/Cash) and the IR3 Equity/Bond/Cash split. Base Portfolio weights for IR1–IR6 are derived automatically using the same risk-profile cascade as Base Portfolios (Document 1 §13). Saved directly to the macro-dashboard repo and dated — it stays as-is until the next quarter's decision is saved here, and every quarter saved is kept in the history below.
+    </div>
+    <div id="committee-status" style="font-size:12px;margin-bottom:12px;color:var(--text3)">Enter a GitHub token above, then this loads automatically.</div>
+    <div id="committee-form" class="hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <label style="font-size:11px;color:var(--text3)">Quarter
+          <input id="committee-quarter" type="text" placeholder="Q4 2026"
+            style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+        </label>
+        <label style="font-size:11px;color:var(--text3)">Decision Date
+          <input id="committee-date" type="date"
+            style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <label style="font-size:11px;color:var(--text3)">Equities View
+          <select id="committee-view-eq" style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+            <option>Overweight</option><option selected>Neutral</option><option>Underweight</option>
+          </select>
+        </label>
+        <label style="font-size:11px;color:var(--text3)">Fixed Income View
+          <select id="committee-view-fi" style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+            <option>Overweight</option><option selected>Neutral</option><option>Underweight</option>
+          </select>
+        </label>
+        <label style="font-size:11px;color:var(--text3)">Cash View
+          <select id="committee-view-ca" style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+            <option>Overweight</option><option selected>Neutral</option><option>Underweight</option>
+          </select>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:6px">
+        <label style="font-size:11px;color:var(--text3)">IR3 Equity %
+          <input id="committee-ir3-eq" type="number" step="0.01" oninput="committeePreview()"
+            style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+        </label>
+        <label style="font-size:11px;color:var(--text3)">IR3 Bond %
+          <input id="committee-ir3-bd" type="number" step="0.01" oninput="committeePreview()"
+            style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+        </label>
+        <label style="font-size:11px;color:var(--text3)">IR3 Cash %
+          <input id="committee-ir3-ca" type="number" step="0.01" oninput="committeePreview()"
+            style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box">
+        </label>
+      </div>
+      <div id="committee-sum-warning" style="font-size:11px;color:#b8860b;margin-bottom:10px;display:none"></div>
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:10px">Notes
+        <textarea id="committee-notes" rows="2"
+          style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1);margin-top:2px;box-sizing:border-box"></textarea>
+      </label>
+      <div id="committee-preview" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="committeeSaveDecision()" style="font-size:13px">💾 Save Decision (Final)</button>
+        <button class="btn-secondary" onclick="committeeRenderWorkbook()" style="font-size:13px">📘 Render into Workbook</button>
+      </div>
+      <div id="committee-save-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+      <div id="committee-render-status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+    </div>
+    <div style="margin-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="committeeToggleHistory()">
+        <h4 style="margin:0;font-size:13px">History</h4>
+        <span id="committee-history-toggle" style="font-size:12px;color:var(--text3)">show ▾</span>
+      </div>
+      <div id="committee-history" class="hidden" style="margin-top:10px;overflow-x:auto"></div>
+    </div>
+  </div>
+
   <!-- Manual Updates Needed -->
   <div class="form-card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="macroToggleManualList()">
@@ -1805,6 +1876,324 @@ async function macroSaveFills() {
   }
 }
 
+// ── Investment Committee Decision ──────────────────────────────────────
+// "раздел macroviews" (Nikolai, 2026-10-07): after each quarterly IC
+// meeting, record Views + the IR3 Equity/Bond/Cash split here; Base
+// Portfolio weights for IR1-IR6 reuse bpCalcPortfolioWeights/BP_IRS from
+// app.js (NOT a reimplementation - same formula as Base Portfolios, see
+// Document 1 Section 13). Saving writes straight to the macro-dashboard
+// repo via the Contents API (same PUT pattern as macroSaveFills above,
+// just for plain JSON/JSONL text instead of a patched xlsx):
+//   - data/committee_decisions.json      - the current quarter's decision
+//     (overwritten each save; this is what "lives for the quarter" -
+//     nothing else writes this file between IC meetings)
+//   - data/committee_decisions_history.jsonl - one entry per quarter,
+//     deduped by quarter label on save (same append_history() pattern as
+//     fetch_msci_acwi_weights.py / build_committee_decision_tab.py on the
+//     Python side - editing a quarter's entry and resaving replaces it
+//     rather than duplicating)
+// Rendering the decision into the actual xlsx sheet (rows 60+ of "Global
+// Cycle & Strategic Views") is a separate step ("Render into Workbook"
+// button) - it dispatches render_committee_decision.yml, which just runs
+// build_committee_decision_tab.py against whatever committee_decisions.json
+// was just saved. Kept as two steps rather than one so saving the
+// decision never depends on GitHub Actions being up, and so the data file
+// (the source of truth) and the workbook rendering (a view of it) can't
+// silently drift if a workflow run fails - the whole point of this card
+// is that the quarter's committee weights the decision's own JSON file and
+// not whatever the xlsx happens to show at a glance.
+
+function committeeCurrentQuarter(d) {
+  d = d || new Date();
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  return `Q${q} ${d.getFullYear()}`;
+}
+
+async function committeeFetchFile(token, path) {
+  const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+  });
+  if (resp.status === 404) return { text: null, sha: null };
+  if (!resp.ok) throw new Error(`Fetch ${path} failed: ${resp.status}`);
+  const data = await resp.json();
+  const binary = atob(data.content.replace(/\n/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  // TextDecoder, not a plain char-by-char string concat, so multi-byte
+  // UTF-8 (Cyrillic notes) round-trips correctly rather than mangling.
+  const text = new TextDecoder('utf-8').decode(bytes);
+  return { text, sha: data.sha };
+}
+
+function committeeTextToBase64(text) {
+  const bytes = new TextEncoder().encode(text);
+  return arrayBufferToBase64(bytes.buffer);
+}
+
+async function committeePutFile(token, path, text, sha, message) {
+  const body = { message, content: committeeTextToBase64(text), branch: 'main' };
+  if (sha) body.sha = sha;
+  const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.message || `Save ${path} failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+async function committeeLoadDecision() {
+  const statusEl = document.getElementById('committee-status');
+  const formEl = document.getElementById('committee-form');
+  const token = macroToken();
+  if (!token) {
+    statusEl.textContent = 'Enter GitHub token above to load the committee decision.';
+    statusEl.style.color = 'var(--text3)';
+    return;
+  }
+  statusEl.textContent = '⏳ Loading…';
+  statusEl.style.color = 'var(--text3)';
+  try {
+    const { text } = await committeeFetchFile(token, 'data/committee_decisions.json');
+    const decision = text ? JSON.parse(text) : {
+      quarter: committeeCurrentQuarter(), decision_date: null, status: 'pending',
+      views: { equities: null, fixed_income: null, cash: null },
+      ir3_weights: { eq: null, bd: null, ca: null }, notes: null,
+    };
+
+    document.getElementById('committee-quarter').value = decision.quarter || committeeCurrentQuarter();
+    document.getElementById('committee-date').value = decision.decision_date || new Date().toISOString().slice(0, 10);
+    document.getElementById('committee-view-eq').value = (decision.views && decision.views.equities) || 'Neutral';
+    document.getElementById('committee-view-fi').value = (decision.views && decision.views.fixed_income) || 'Neutral';
+    document.getElementById('committee-view-ca').value = (decision.views && decision.views.cash) || 'Neutral';
+    const iw = decision.ir3_weights || {};
+    document.getElementById('committee-ir3-eq').value = iw.eq != null ? (iw.eq * 100).toFixed(2) : '';
+    document.getElementById('committee-ir3-bd').value = iw.bd != null ? (iw.bd * 100).toFixed(2) : '';
+    document.getElementById('committee-ir3-ca').value = iw.ca != null ? (iw.ca * 100).toFixed(2) : '';
+    document.getElementById('committee-notes').value = decision.notes || '';
+
+    if (decision.status === 'final') {
+      statusEl.textContent = `✓ ${decision.quarter} — decided ${decision.decision_date || '?'} (final)`;
+      statusEl.style.color = '#2e7d52';
+    } else {
+      statusEl.textContent = `⚠ ${decision.quarter} — pending (not yet decided)`;
+      statusEl.style.color = '#b8860b';
+    }
+
+    formEl.classList.remove('hidden');
+    committeePreview();
+    committeeLoadHistory(token);
+  } catch (e) {
+    statusEl.textContent = `✗ ${e.message}`;
+    statusEl.style.color = '#c62828';
+  }
+}
+
+function committeePreview() {
+  const previewEl = document.getElementById('committee-preview');
+  const warnEl = document.getElementById('committee-sum-warning');
+  const eq = parseFloat(document.getElementById('committee-ir3-eq').value);
+  const bd = parseFloat(document.getElementById('committee-ir3-bd').value);
+  const ca = parseFloat(document.getElementById('committee-ir3-ca').value);
+  if (isNaN(eq) || isNaN(bd) || isNaN(ca)) {
+    previewEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">Enter IR3 Equity/Bond/Cash % to preview derived Base Portfolio weights.</div>';
+    warnEl.style.display = 'none';
+    return;
+  }
+  const total = eq + bd + ca;
+  if (Math.abs(total - 100) > 1) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠ IR3 weights sum to ${total.toFixed(2)}%, expected 100% — fix before saving.`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+  // bpCalcPortfolioWeights/BP_IRS are defined in app.js (Base Portfolios) -
+  // reused as-is here rather than reimplemented, see this section's header
+  // comment.
+  const W = bpCalcPortfolioWeights(eq / 100, bd / 100, ca / 100);
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:var(--text3)">'
+    + '<th style="padding:4px 8px">Risk Profile</th><th style="padding:4px 8px">Equity %</th><th style="padding:4px 8px">Bond %</th><th style="padding:4px 8px">Cash %</th></tr></thead><tbody>';
+  BP_IRS.forEach(ir => {
+    const w = W[ir];
+    const rowStyle = ir === 'IR3' ? 'font-weight:600;background:var(--bg2)' : '';
+    html += `<tr style="${rowStyle}"><td style="padding:4px 8px">${ir}</td><td style="padding:4px 8px">${(w.eq * 100).toFixed(2)}%</td><td style="padding:4px 8px">${(w.bd * 100).toFixed(2)}%</td><td style="padding:4px 8px">${(w.ca * 100).toFixed(2)}%</td></tr>`;
+  });
+  html += '</tbody></table>';
+  previewEl.innerHTML = html;
+}
+
+async function committeeSaveDecision() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+  const statusEl = document.getElementById('committee-save-status');
+
+  const quarter = document.getElementById('committee-quarter').value.trim();
+  const decisionDate = document.getElementById('committee-date').value || null;
+  const eq = parseFloat(document.getElementById('committee-ir3-eq').value);
+  const bd = parseFloat(document.getElementById('committee-ir3-bd').value);
+  const ca = parseFloat(document.getElementById('committee-ir3-ca').value);
+
+  if (!quarter) { alert('Enter a quarter label (e.g. "Q4 2026")'); return; }
+  if (isNaN(eq) || isNaN(bd) || isNaN(ca)) { alert('Enter IR3 Equity/Bond/Cash %'); return; }
+  const total = eq + bd + ca;
+  if (Math.abs(total - 100) > 1) {
+    if (!confirm(`IR3 weights sum to ${total.toFixed(2)}%, not 100%. Save anyway?`)) return;
+  }
+
+  const views = {
+    equities: document.getElementById('committee-view-eq').value,
+    fixed_income: document.getElementById('committee-view-fi').value,
+    cash: document.getElementById('committee-view-ca').value,
+  };
+  const ir3_weights = { eq: eq / 100, bd: bd / 100, ca: ca / 100 };
+  const notes = document.getElementById('committee-notes').value.trim() || null;
+  const W = bpCalcPortfolioWeights(ir3_weights.eq, ir3_weights.bd, ir3_weights.ca);
+  const decision = { quarter, decision_date: decisionDate, status: 'final', views, ir3_weights, notes };
+
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Saving decision…';
+
+  try {
+    // Fetch a fresh sha right before writing, same freshness fix as
+    // macroSaveFills - patching a stale sha causes an avoidable rejection.
+    const current = await committeeFetchFile(token, 'data/committee_decisions.json');
+    await committeePutFile(
+      token, 'data/committee_decisions.json',
+      JSON.stringify(decision, null, 2) + '\n',
+      current.sha,
+      `IC decision: ${quarter} via Macro View (${new Date().toISOString().slice(0, 10)})`
+    );
+
+    const hist = await committeeFetchFile(token, 'data/committee_decisions_history.jsonl');
+    const records = [];
+    if (hist.text) {
+      hist.text.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line) return;
+        try {
+          const rec = JSON.parse(line);
+          if (rec.quarter !== quarter) records.push(rec);
+        } catch (e) { /* skip a malformed line rather than failing the whole save */ }
+      });
+    }
+    records.push({
+      quarter, decision_date: decisionDate,
+      logged_at: new Date().toISOString(),
+      views, ir3_weights, portfolio_weights: W, notes,
+    });
+    const historyText = records.map(r => JSON.stringify(r)).join('\n') + '\n';
+    await committeePutFile(
+      token, 'data/committee_decisions_history.jsonl',
+      historyText, hist.sha,
+      `IC decision history: ${quarter} via Macro View (${new Date().toISOString().slice(0, 10)})`
+    );
+
+    statusEl.style.color = '#2e7d52';
+    statusEl.textContent = `✓ Saved — ${quarter} is now final. Click "Render into Workbook" to reflect it in the xlsx.`;
+    const topStatusEl = document.getElementById('committee-status');
+    topStatusEl.textContent = `✓ ${quarter} — decided ${decisionDate || '?'} (final)`;
+    topStatusEl.style.color = '#2e7d52';
+    committeeLoadHistory(token);
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+
+async function committeeRenderWorkbook() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+  const statusEl = document.getElementById('committee-render-status');
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Triggering workflow...';
+  try {
+    const resp = await fetch(`${GH_API}/repos/${MACRO_REPO}/actions/workflows/render_committee_decision.yml/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ref: 'main' })
+    });
+    if (resp.status === 204) {
+      statusEl.style.color = '#2e7d52';
+      statusEl.textContent = '✓ Workflow triggered — check GitHub Actions for progress';
+      macroWatchRun(token, 'render_committee_decision.yml', statusEl);
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      statusEl.style.color = '#c62828';
+      statusEl.textContent = `✗ Error ${resp.status}: ${err.message || 'Unknown error'}`;
+    }
+  } catch (e) {
+    statusEl.style.color = '#c62828';
+    statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+
+function committeeToggleHistory() {
+  const box = document.getElementById('committee-history');
+  const toggle = document.getElementById('committee-history-toggle');
+  box.classList.toggle('hidden');
+  toggle.textContent = box.classList.contains('hidden') ? 'show ▾' : 'hide ▴';
+  if (!box.classList.contains('hidden') && !box.dataset.loaded) {
+    const token = macroToken();
+    if (token) committeeLoadHistory(token);
+  }
+}
+
+async function committeeLoadHistory(token) {
+  const box = document.getElementById('committee-history');
+  try {
+    const hist = await committeeFetchFile(token, 'data/committee_decisions_history.jsonl');
+    const records = [];
+    if (hist.text) {
+      hist.text.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line) return;
+        try { records.push(JSON.parse(line)); } catch (e) { /* skip malformed line */ }
+      });
+    }
+    box.dataset.loaded = '1';
+    if (records.length === 0) {
+      box.innerHTML = '<div style="font-size:11px;color:var(--text3)">No quarters logged yet.</div>';
+      return;
+    }
+    // Most recent quarter first - sort by decision_date/logged_at, not by
+    // file order (dedup-by-quarter on save already keeps file order
+    // roughly chronological, but don't rely on it for display).
+    records.sort((a, b) => new Date(b.logged_at || 0) - new Date(a.logged_at || 0));
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="text-align:left;color:var(--text3)">'
+      + '<th style="padding:4px 8px">Quarter</th><th style="padding:4px 8px">Decided</th>'
+      + '<th style="padding:4px 8px">Eq View</th><th style="padding:4px 8px">FI View</th><th style="padding:4px 8px">Ca View</th>'
+      + '<th style="padding:4px 8px">IR3 Eq/Bd/Ca</th></tr></thead><tbody>';
+    records.forEach(r => {
+      const iw = r.ir3_weights || {};
+      const fmtP = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+      const v = r.views || {};
+      html += `<tr style="border-top:1px solid var(--border)">`
+        + `<td style="padding:4px 8px;font-weight:600">${macroEscapeHtml(r.quarter || '')}</td>`
+        + `<td style="padding:4px 8px">${macroEscapeHtml(r.decision_date || '—')}</td>`
+        + `<td style="padding:4px 8px">${macroEscapeHtml(v.equities || '—')}</td>`
+        + `<td style="padding:4px 8px">${macroEscapeHtml(v.fixed_income || '—')}</td>`
+        + `<td style="padding:4px 8px">${macroEscapeHtml(v.cash || '—')}</td>`
+        + `<td style="padding:4px 8px">${fmtP(iw.eq)} / ${fmtP(iw.bd)} / ${fmtP(iw.ca)}</td>`
+        + `</tr>`;
+    });
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = `<div style="font-size:11px;color:#c62828">✗ ${macroEscapeHtml(e.message)}</div>`;
+  }
+}
+
 function macroToggleManualList() {
   const box = document.getElementById('macro-manual-list');
   const toggle = document.getElementById('macro-manual-toggle');
@@ -1908,6 +2297,7 @@ function macroSaveToken() {
   if (t) {
     localStorage.setItem('macro_gh_token', t);
     document.getElementById('macro-token-status').textContent = '✓ Saved';
+    if (typeof committeeLoadDecision === 'function') committeeLoadDecision();
   }
 }
 
