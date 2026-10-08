@@ -1232,7 +1232,7 @@ async function buildIRRSection(tradeRows, holdings, portfolioData, depositData) 
   // terminal cashflow for MWR. Trades, coupons and redemptions are all
   // already reflected in this figure, so none of them should be added again
   // as separate cashflows.
-  const totalFinalInflow = portfolioData.totalValue || 0;
+  const totalFinalInflow = (portfolioData._returnValue ?? portfolioData.totalValue) || 0;
   if (totalFinalInflow <= 0) return '';
 
   let cashflows = [];
@@ -2216,6 +2216,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   // the computed return understate the truth whenever such a balance exists.
   // Confirmed live: a ~£307k deposit balance missing from the IRR terminal
   // value alone turned a true +7.7% p.a. money-weighted return into +1.0%.
+  // Return calculations (IRR/MWR, Total Return) deliberately use the cbonds figure
+  // (securities + brokerage cash) and EXCLUDE manually entered deposit/current
+  // accounts: those balances are not in the cbonds trade/deposit ledger, so including
+  // them in the terminal value without matching inflows inflates the return.
+  if (portfolioData._returnValue == null) portfolioData._returnValue = portfolioData.totalValue || 0;
   if (totalValue > 0) portfolioData.totalValue = totalValue;
   // WAAR corridor assessment
   const waarAssessment = (typeof assessWAAR === 'function')
@@ -2519,7 +2524,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   // accounting (which excludes idle/un-deployed cash and can diverge
   // meaningfully — see conversation history for a worked example).
   const totalInvested = computeTotalInvested(portfolioData.tradeRows, portfolioData.redemptionRows, portfolioData.depositWithdrawalRows);
-  const cashflowTotalPnL = totalInvested > 0 ? (portfolioData.totalValue || 0) - totalInvested : totalPnL;
+  const cashflowTotalPnL = totalInvested > 0 ? ((portfolioData._returnValue ?? portfolioData.totalValue) || 0) - totalInvested : totalPnL;
   const cashflowReturn = totalInvested > 0 ? cashflowTotalPnL / totalInvested : (totalCostBasis>0 ? totalPnL/totalCostBasis : 0);
   const totalPnLPct = totalInvested>0 ? (cashflowReturn*100).toFixed(1)+'%' : (totalCostBasis>0?(totalPnL/totalCostBasis*100).toFixed(1)+'%':'—');
   // Expose for full analytics computation
@@ -2589,7 +2594,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       // Terminal cashflow = full current portfolio value (securities + cash).
       // Trades, coupons and redemptions are already reflected in this figure —
       // adding them again would double-count internal cash movements.
-      const _totalCV = portfolioData.totalValue || 0;
+      const _totalCV = (portfolioData._returnValue ?? portfolioData.totalValue) || 0;
       if (_totalCV > 0 && _cfs.length > 0) {
         _cfs.push({date:_today, amount:_totalCV});
         const _irr = computeIRR(_cfs);
