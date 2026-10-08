@@ -2275,6 +2275,18 @@ async function bpSaveBcaViewsToMacroDashboard() {
     if (cat === 'duration') views.duration = view;
     else views[cat][label] = view;
   });
+  // BCA lines with no Stage 1 counterpart (Canada, Australia, EM Ex China,
+  // Inflation-linked): kept under views.bca_only so the deck's final BCA slide
+  // can show BCA's full table. generate_ic_pack.py ignores this key, so its
+  // line-by-line comparison is unchanged.
+  views.bca_only = {};
+  if (typeof BP_BCA_ITEMS !== 'undefined') {
+    BP_BCA_ITEMS.forEach(it => {
+      if (!it.key || BCA_TO_STAGE1[it.key]) return;
+      const item = (typeof _bpBcaViews !== 'undefined') ? _bpBcaViews[it.key] : null;
+      views.bca_only[it.label] = bpViewLabel(item ? item.curr : null);
+    });
+  }
 
   const payload = {
     quarter, source, as_of: asOf, frozen_for_quarter: true,
