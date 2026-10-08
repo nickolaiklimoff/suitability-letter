@@ -1902,7 +1902,7 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
           ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted, indicative only, over its own period shown above — see the note below for basis and limitations.`
-          : `Analytics from portfolio value chart (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}. Total Return: money-weighted, indicative only, over its own period shown above (often longer than the chart) — see the note below for basis and limitations.`}
+          : `Analytics from portfolio value ${a.chartSegments>1?'charts ('+a.chartSegments+' periods, chain-linked so the capital flow between them is excluded)':'chart'} (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}. Total Return: money-weighted, indicative only, over its own period shown above (often longer than the chart) — see the note below for basis and limitations.`}
         Sharpe = (Return − rf) / σ, both measured over the ${a.period} chart/price window — it can differ from the Total Return figure above, which covers its own (often longer) money-weighted period.
       </div>
 
@@ -1913,63 +1913,92 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
 }
 
 // ─── Chart analytics extractor (calls Claude API with chart image) ────────────
-window.extractChartAnalytics = async function(chartSrc, apiKey, portCcy) {
-  if (!chartSrc || !apiKey) return null;
-  const rfRates = { USD: 0.043, EUR: 0.026, GBP: 0.044, CHF: 0.008 };
-  const rf = rfRates[portCcy] || 0.043;
+// Reads one chart image into a [{date:'YYYY-MM', value}] series via the Claude API.
+async function readChartSeries(chartSrc, apiKey) {
+  // Convert src to base64 if it's a data URL, else fetch
+  let b64, mime = 'image/png';
+  if (chartSrc.startsWith('data:')) {
+    const parts = chartSrc.split(',');
+    mime = parts[0].split(':')[1].split(';')[0];
+    b64 = parts[1];
+  } else {
+    const blob = await fetch(chartSrc).then(r => r.blob());
+    const ab = await blob.arrayBuffer();
+    b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
+    mime = blob.type || 'image/png';
+  }
 
-  try {
-    // Convert src to base64 if it's a data URL, else fetch
-    let b64, mime = 'image/png';
-    if (chartSrc.startsWith('data:')) {
-      const parts = chartSrc.split(',');
-      mime = parts[0].split(':')[1].split(';')[0];
-      b64 = parts[1];
-    } else {
-      const blob = await fetch(chartSrc).then(r => r.blob());
-      const ab = await blob.arrayBuffer();
-      b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
-      mime = blob.type || 'image/png';
-    }
-
-    console.log('[extractChart] calling Claude API, image size:', b64.length, 'mime:', mime);
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
-            { type: 'text', text: `This is a portfolio value chart. Extract the time series carefully.
+  console.log('[extractChart] calling Claude API, image size:', b64.length, 'mime:', mime);
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+          { type: 'text', text: `This is a portfolio value chart. Extract the time series carefully.
 Read Y-axis values and X-axis dates precisely using the grid lines.
 Return ONLY valid JSON, no markdown, no explanation:
 {"series": [{"date":"YYYY-MM","value":1234567}, ...]}
 Include one data point per month (or more if visible). Be precise about values.` }
-          ]
-        }]
-      })
-    });
+        ]
+      }]
+    })
+  });
 
-    const data = await resp.json();
-    if (!resp.ok) {
-      const apiErr = data?.error?.message || JSON.stringify(data);
-      console.error('[extractChart] API error:', resp.status, apiErr);
-      throw new Error(`Anthropic API error (${resp.status}): ${apiErr}`);
+  const data = await resp.json();
+  if (!resp.ok) {
+    const apiErr = data?.error?.message || JSON.stringify(data);
+    console.error('[extractChart] API error:', resp.status, apiErr);
+    throw new Error(`Anthropic API error (${resp.status}): ${apiErr}`);
+  }
+  const text = extractClaudeText(data);
+  console.log('[extractChart] Claude response:', text.slice(0, 300));
+  // Extract JSON robustly — find first { ... } block
+  let clean = text.replace(/```json|```/g, '').trim();
+  // If response has text before/after JSON, extract just the JSON object
+  const jsonMatch = clean.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('No JSON found in response: ' + text.slice(0,100));
+  clean = jsonMatch[0];
+  const parsed = JSON.parse(clean);
+  const s = parsed.series || parsed.data || parsed.points || Object.values(parsed)[0];
+  if (!s || s.length < 3) return null;
+  return s.map(p => ({ date: String(p.date), value: parseFloat(p.value) }));
+}
+
+// chartSrc: one data-URL/URL, or an array of them (one per period). Several charts are
+// used when capital was added/withdrawn mid-period: a single value chart then contains a
+// jump that is a cash flow, not performance. Each chart is read separately and the
+// segments are chain-linked (time-weighted), so the jump between segments is excluded.
+window.extractChartAnalytics = async function(chartSrc, apiKey, portCcy) {
+  const srcs = (Array.isArray(chartSrc) ? chartSrc : [chartSrc]).filter(Boolean);
+  if (!srcs.length || !apiKey) return null;
+  const rfRates = { USD: 0.043, EUR: 0.026, GBP: 0.044, CHF: 0.008 };
+  const rf = rfRates[portCcy] || 0.043;
+
+  try {
+    const segments = [];
+    for (const src of srcs) {
+      const seg = await readChartSeries(src, apiKey);
+      if (!seg) return null;
+      segments.push(seg);
     }
-    const text = extractClaudeText(data);
-    console.log('[extractChart] Claude response:', text.slice(0, 300));
-    // Extract JSON robustly — find first { ... } block
-    let clean = text.replace(/```json|```/g, '').trim();
-    // If response has text before/after JSON, extract just the JSON object
-    const jsonMatch = clean.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON found in response: ' + text.slice(0,100));
-    clean = jsonMatch[0];
-    const parsed = JSON.parse(clean);
-    const series = parsed.series || parsed.data || parsed.points || Object.values(parsed)[0];
-    if (!series || series.length < 3) return null;
+    segments.sort((a, b) => a[0].date.localeCompare(b[0].date));
+
+    // Chain-link: rescale each later segment so its first point equals the previous
+    // segment's last linked value, then drop that first point. The step across the
+    // boundary (where the capital moved) is never counted as a return observation.
+    const series = segments[0].map(p => ({ ...p }));
+    for (let k = 1; k < segments.length; k++) {
+      const seg = segments[k];
+      const last = series[series.length - 1].value;
+      const factor = seg[0].value > 0 ? last / seg[0].value : 1;
+      for (let i = 1; i < seg.length; i++) series.push({ date: seg[i].date, value: seg[i].value * factor });
+    }
+    if (series.length < 3) return null;
 
     // Compute analytics from series
     const vals = series.map(p => parseFloat(p.value));
@@ -2033,6 +2062,7 @@ Include one data point per month (or more if visible). Be precise about values.`
       worstMonthLabel: monthLabels[worstIdx] || '—',
       posMonths, totalMonths: months,
       pctPositive: months > 0 ? posMonths/months : 0,
+      chartSegments: segments.length,
     };
   } catch(e) {
     console.error('Chart analytics error:', e);
@@ -2162,7 +2192,7 @@ window.mapToBCARegions = function(weighted) {
     .map(([region, pct]) => ({ region, pct: parseFloat(pct.toFixed(1)) }));
 };
 
-window.generatePortfolioReport = async function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null) {
+window.generatePortfolioReport = async function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null, chartSrc2='') {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
   // Persist for Word export
@@ -2635,6 +2665,8 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <div class="report-section" style="page-break-inside:avoid">
         <div class="report-section-title">Portfolio Value Over Time</div>
         <img src="${chartSrc}" style="width:100%;max-height:260px;object-fit:contain;object-position:left center;border-radius:6px;display:block" />
+        ${chartSrc2 ? `<img src="${chartSrc2}" style="width:100%;max-height:260px;object-fit:contain;object-position:left center;border-radius:6px;display:block;margin-top:0.6rem" />
+        <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.4rem">Shown as two charts for two periods because capital was added or withdrawn between them. A single chart would show that cash flow as a jump in value; performance statistics below are chain-linked across the two periods and exclude it.</div>` : ''}
       </div>` : ''}
 
       <div class="report-section report-section-numbered">

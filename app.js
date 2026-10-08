@@ -357,6 +357,8 @@ function saveReportState() {
     portfolioFileName: document.getElementById('r-portfolioFileName')?.textContent || '',
     chartSrc:      document.getElementById('r-chartImg')?.src || '',
     chartFileName: document.getElementById('r-chartFileName')?.textContent || '',
+    chartSrc2:      document.getElementById('r-chartImg2')?.src || '',
+    chartFileName2: document.getElementById('r-chartFileName2')?.textContent || '',
     breakdownSrc:  document.getElementById('r-breakdownImg')?.src || '',
     breakdownFileName: document.getElementById('r-breakdownFileName')?.textContent || '',
     reportHtml:    document.getElementById('r-reportContent')?.innerHTML || '',
@@ -401,6 +403,23 @@ function loadReportState() {
     if (chartImg) chartImg.src = '';
     if (chartPreview) chartPreview.style.display = 'none';
     if (chartName) chartName.textContent = '';
+  }
+
+  // Second chart image (optional, for a second period)
+  const chartImg2 = document.getElementById('r-chartImg2');
+  const chartPreview2 = document.getElementById('r-chartPreview2');
+  const chartName2 = document.getElementById('r-chartFileName2');
+  const clearBtn2 = document.getElementById('r-clearChart2');
+  if (chartImg2 && s.chartSrc2 && s.chartSrc2.startsWith('data:')) {
+    chartImg2.src = s.chartSrc2;
+    if (chartPreview2) chartPreview2.style.display = 'block';
+    if (chartName2) chartName2.textContent = s.chartFileName2 || '';
+    if (clearBtn2) clearBtn2.style.display = '';
+  } else {
+    if (chartImg2) chartImg2.src = '';
+    if (chartPreview2) chartPreview2.style.display = 'none';
+    if (chartName2) chartName2.textContent = '';
+    if (clearBtn2) clearBtn2.style.display = 'none';
   }
 
   // Breakdown image
@@ -469,6 +488,18 @@ function resetReportForm() {
   if (chartFile) chartFile.value = '';
   const chartName = document.getElementById('r-chartFileName');
   if (chartName) chartName.textContent = '';
+
+  // Clear second chart image
+  const chartImg2 = document.getElementById('r-chartImg2');
+  if (chartImg2) chartImg2.src = '';
+  const chartFile2 = document.getElementById('r-chartFile2');
+  if (chartFile2) chartFile2.value = '';
+  const chartName2 = document.getElementById('r-chartFileName2');
+  if (chartName2) chartName2.textContent = '';
+  const chartPreview2 = document.getElementById('r-chartPreview2');
+  if (chartPreview2) chartPreview2.style.display = 'none';
+  const clearBtn2 = document.getElementById('r-clearChart2');
+  if (clearBtn2) clearBtn2.style.display = 'none';
 
   // Clear breakdown image
   const brkImg = document.getElementById('r-breakdownImg');
@@ -1420,6 +1451,9 @@ window.runPortfolioReport = async function() {
     const dataDate = reportDate;
 
     const chartSrc = document.getElementById('r-chartImg')?.src || '';
+    // Optional second chart (second period, e.g. after capital was added)
+    const chartSrc2Raw = document.getElementById('r-chartImg2')?.src || '';
+    const chartSrc2 = chartSrc && chartSrc2Raw.startsWith('data:') ? chartSrc2Raw : '';
     const breakdownSrc = document.getElementById('r-breakdownImg')?.src || '';
 
     // Analytics — full mode (quotes) or quick mode (chart)
@@ -1439,7 +1473,7 @@ window.runPortfolioReport = async function() {
       const btn2 = document.querySelector('.btn-generate');
       if (btn2) btn2.textContent = 'Reading chart…';
       try {
-        portfolioData._analytics = await extractChartAnalytics(chartSrc, apiKey, portCcy);
+        portfolioData._analytics = await extractChartAnalytics(chartSrc2 ? [chartSrc, chartSrc2] : chartSrc, apiKey, portCcy);
         console.log('[analytics] chart result:', portfolioData._analytics ? 'OK' : 'null');
         if (!portfolioData._analytics) _chartAnalyticsFailReason = 'the chart image could not be read into a usable time series (fewer than 3 data points recognized, or the response was not valid JSON) — check console for [extractChart] logs';
       } catch(e) {
@@ -1450,11 +1484,11 @@ window.runPortfolioReport = async function() {
     }
 
     window._lastPortfolioData = portfolioData;
-    window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, breakdownSrc };
+    window._lastReportConfig  = { clientIR, client, benchmark: _benchmark, reportDate, dataDate, chartSrc, chartSrc2, breakdownSrc };
     const showClientName = document.getElementById('r-showClientName')?.checked !== false;
     const inceptionDate  = document.getElementById('r-inceptionDate')?.value || null;
     window._inceptionDate = inceptionDate;
-    const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData);
+    const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData, chartSrc2);
     document.getElementById('r-reportContent').innerHTML = html;
     if (useChart && !portfolioData._analytics) {
       const banner = document.createElement('div');
@@ -1482,7 +1516,7 @@ window.runPortfolioReport = async function() {
           portfolioData._analytics = fullA;
           // Regenerate report with full analytics
           const showClientName2 = document.getElementById('r-showClientName')?.checked !== false;
-          const html2 = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2, depositData);
+          const html2 = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName2, depositData, chartSrc2);
           document.getElementById('r-reportContent').innerHTML = html2;
         } else {
           // Previously this only logged to console — Section 6/7/8/10 (Total
@@ -2118,6 +2152,29 @@ window.clearChart = function() {
   saveReportState();
   document.getElementById('r-chartPreview').style.display = 'none';
   document.getElementById('r-clearChart').style.display = 'none';
+};
+
+window.previewChart2 = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('r-chartImg2').src = e.target.result;
+    document.getElementById('r-chartFileName2').textContent = file.name;
+    saveReportState();
+    document.getElementById('r-chartPreview2').style.display = 'block';
+    document.getElementById('r-clearChart2').style.display = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.clearChart2 = function() {
+  document.getElementById('r-chartFile2').value = '';
+  document.getElementById('r-chartImg2').src = '';
+  document.getElementById('r-chartFileName2').textContent = '';
+  saveReportState();
+  document.getElementById('r-chartPreview2').style.display = 'none';
+  document.getElementById('r-clearChart2').style.display = 'none';
 };
 
 window.previewBreakdown = function(input) {

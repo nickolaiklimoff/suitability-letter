@@ -448,6 +448,22 @@
               <img id="r-chartImg" style="max-width:100%;max-height:300px;border-radius:var(--radius);border:0.5px solid var(--border)" />
             </div>
           </div>
+
+          <div class="field" style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)">
+            <div class="field-hint"><strong>Second chart (optional)</strong> — if capital was added or withdrawn, one chart shows that cash flow as a jump and breaks the statistics. Upload the chart for the earlier period above and the chart for the later period here: they are read separately and chain-linked, so the jump between them is excluded.</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label class="btn-import" for="r-chartFile2">
+                ↑ Upload 2nd period chart
+                <input type="file" id="r-chartFile2" accept="image/*" style="display:none"
+                  onchange="previewChart2(this)"/>
+              </label>
+              <span id="r-chartFileName2" class="file-name"></span>
+              <button class="btn-secondary" id="r-clearChart2" onclick="clearChart2()" style="display:none;font-size:13px">✕ Remove</button>
+            </div>
+            <div id="r-chartPreview2" style="margin-top:10px;display:none">
+              <img id="r-chartImg2" style="max-width:100%;max-height:300px;border-radius:var(--radius);border:0.5px solid var(--border)" />
+            </div>
+          </div>
         </div>
 
         <div class="form-card">
@@ -1201,8 +1217,8 @@
 <script src="data.js"></script>
 <script src="waar.js?v=1790000001"></script>
 <script src="portfolio-import.js?v=1790000001"></script>
-<script src="report.js?v=1790000014"></script>
-<script src="app.js?v=1790000015"></script>
+<script src="report.js?v=1790000016"></script>
+<script src="app.js?v=1790000016"></script>
 <script>
 // Force cover page to fill exactly one landscape page before printing
 window.addEventListener('beforeprint', function() {
