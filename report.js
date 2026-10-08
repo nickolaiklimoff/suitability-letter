@@ -2822,6 +2822,15 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td style="color:${sc}">${fmtUSDSigned(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
             </tr>` : ''}
+            ${(() => {
+              // Cash and deposits sit in PORTFOLIO TOTAL (value) but have no cost-basis/PnL,
+              // so show them as their own rows (value only) — otherwise the Portfolio Value
+              // column doesn't add up and looks inconsistent with the cbonds total.
+              const brokerCash = analytics_.cashValue || 0;
+              const depositsVal = Math.max(0, (totalValue || 0) - (analytics_.securitiesTotalValue || 0) - brokerCash);
+              const row = (label, v) => v > 1 ? `<tr><td>${label}</td><td>${fmtUSD(v)}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>` : '';
+              return row('Cash (brokerage)', brokerCash) + row('Deposits / Current accounts', depositsVal);
+            })()}
             <tr style="font-weight:600;background:#f5f0eb">
               <td>PORTFOLIO TOTAL</td>
               <td>${fmtUSD(totalValue)}</td>
