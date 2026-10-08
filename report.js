@@ -2429,12 +2429,15 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   const eqFundTot = mkFundTotals(equityFunds);
   const fiFundTot = mkFundTotals(fixedIncomeFunds);
 
-  // Further split equity funds by name into sub-groups — purely name-based, so
-  // this naturally only produces separate sections for whichever client actually
-  // holds these fund families. Anything that isn't an ACWI (global, broad) fund
-  // is grouped under "Xtrackers MSCI World" alongside the sector funds — a
-  // client with no such funds at all just gets nothing rendered here.
-  const acwiFunds       = equityFunds.filter(h => /ACWI/i.test(h.name));
+  // Further split equity funds by name into two groups: broad global funds (ACWI,
+  // MSCI World, All-World, ...) and everything else (sector / regional / thematic
+  // funds). A fund counts as global only if its name has no sector keyword, so
+  // "Xtrackers MSCI World UCITS ETF" is global but "Xtrackers MSCI World Energy"
+  // and "Global Real Estate" are not. Purely name-based, so a client without such
+  // funds just gets the one group that applies.
+  const SECTOR_WORDS = /Communication|Consumer|Energy|Financ|Health|Industrial|Information Technology|Technology|Materials|Utilit|Real Estate|Select Sector|Sector/i;
+  const isGlobalFund = h => /ACWI|All[- ]Country|All[- ]World|MSCI World|Global/i.test(h.name) && !SECTOR_WORDS.test(h.name);
+  const acwiFunds       = equityFunds.filter(isGlobalFund);
   const xtrackersFunds  = equityFunds.filter(h => !acwiFunds.includes(h));
   const acwiFundRows      = acwiFunds.map(buildFundRow).join('');
   const xtrackersFundRows = xtrackersFunds.map(buildFundRow).join('');
@@ -2764,8 +2767,8 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             </tbody>
           </table>
           </div>`;
-          return mkGroup('Equity Funds / ETFs — Global (ACWI)', acwiFundRows, acwiFundTot, acwiFunds.length)
-               + mkGroup('Equity Funds / ETFs — Xtrackers MSCI World', xtrackersFundRows, xtrackersFundTot, xtrackersFunds.length);
+          return mkGroup('Equity Funds / ETFs — Global', acwiFundRows, acwiFundTot, acwiFunds.length)
+               + mkGroup('Equity Funds / ETFs — Sector & Other', xtrackersFundRows, xtrackersFundTot, xtrackersFunds.length);
         })() : ''}
 
         ${fixedIncomeFunds.length > 0 ? `
