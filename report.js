@@ -2371,6 +2371,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     const totalPnL = h.unrealizedPnL + coupons;
     const pct = cost > 0 ? (totalPnL/cost*100).toFixed(1)+'%' : '—';
     const c = totalPnL>=0?'#3b6d11':'#a32d2d';
+    const cpnPct = cost > 0 ? '+' + (coupons/cost*100).toFixed(1) + '%' : '—';
     return `<tr>
       <td style="min-width:160px">${h.name}</td>
       <td>${h.isin||'—'}</td>
@@ -2382,6 +2383,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${fmtUSD(h.convertedHoldingValue)}</td>
       <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(h.unrealizedPnL)}</td>
       <td>${fmtUSD(coupons)}</td>
+      <td>${cpnPct}</td>
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
     </tr>`;
@@ -2715,13 +2717,14 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
             <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Coupons Paid</th><th>Total PnL</th><th>Total PnL %</th>
+            <th>Unrealized PnL</th><th>Coupons Paid</th><th>Coupons % (of cost)</th><th>Total PnL</th><th>Total PnL %</th>
           </tr></thead>
           <tbody>${bondPerfRows}
             <tr style="font-weight:600;background:#f5f0eb">
               <td colspan="8">Bonds total</td>
               <td style="color:${bondTotUnreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(bondTotUnreal)}</td>
               <td>${fmtUSD(bondTotIncome)}</td>
+              <td>${bondTotCost>0?'+'+(bondTotIncome/bondTotCost*100).toFixed(1)+'%':'—'}</td>
               <td style="color:${bc}">${fmtUSDSigned(bondTotPnL)}</td>
               <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPct}</td>
             </tr>
