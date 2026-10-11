@@ -2416,6 +2416,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${fmtUSD(h.convertedHoldingValue)}</td>
       <td style="color:${h.unrealizedPnL>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(h.unrealizedPnL)}</td>
       <td>${fmtUSD(divs)}</td>
+      <td>${cost>0?'+'+(divs/cost*100).toFixed(1)+'%':'—'}</td>
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
     </tr>`;
@@ -2762,13 +2763,14 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <thead><tr>
               <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
               <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
+              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
             </tr></thead>
             <tbody>${rows}
               <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
                 <td colspan="7">${label} total</td>
                 <td style="color:${tot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(tot.unreal)}</td>
                 <td>${fmtUSD(tot.income)}</td>
+                <td>${tot.cost>0?'+'+(tot.income/tot.cost*100).toFixed(1)+'%':'—'}</td>
                 <td style="color:${tot.color}">${fmtUSDSigned(tot.pnl)}</td>
                 <td style="color:${tot.color}">${tot.pnl>=0?'+':''}${tot.pct}</td>
               </tr>
@@ -2786,13 +2788,14 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
           <tbody>${fiFundRows}
             <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
               <td colspan="7">Bond funds total</td>
               <td style="color:${fiFundTot.unreal>=0?'#3b6d11':'#a32d2d'}">${fmtUSDSigned(fiFundTot.unreal)}</td>
               <td>${fmtUSD(fiFundTot.income)}</td>
+              <td>${fiFundTot.cost>0?'+'+(fiFundTot.income/fiFundTot.cost*100).toFixed(1)+'%':'—'}</td>
               <td style="color:${fiFundTot.color}">${fmtUSDSigned(fiFundTot.pnl)}</td>
               <td style="color:${fiFundTot.color}">${fiFundTot.pnl>=0?'+':''}${fiFundTot.pct}</td>
             </tr>
