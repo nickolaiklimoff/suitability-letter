@@ -1828,7 +1828,7 @@ Style: professional investment advisory. Do not mention the client's name. Third
   let metrics = '';
   if (analytics) {
     metrics = [
-      analytics.totalReturn != null ? `Total Return: ${(analytics.totalReturn*100).toFixed(1)}%` : '',
+      analytics.totalReturn != null ? `Annualised return (money-weighted): ${(analytics.totalReturn*100).toFixed(1)}% p.a.` : '',
       analytics.vol         != null ? `Volatility (ann.): ${(analytics.vol*100).toFixed(1)}%` : '',
       analytics.maxDD       != null ? `Max Drawdown: ${(analytics.maxDD*100).toFixed(1)}%` : '',
       analytics.sharpe      != null ? `Sharpe: ${analytics.sharpe.toFixed(2)}` : '',

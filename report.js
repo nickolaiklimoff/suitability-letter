@@ -1665,7 +1665,7 @@ window.computeFullAnalytics = function(portfolioData, benchmarkData, irProfile) 
     return {
       period: weightedRets[0].date.slice(0,7) + ' – ' + weightedRets[weightedRets.length-1].date.slice(0,7),
       n: n, matchedHoldings: matchedCount,
-      totalReturn: realReturn, vol, sharpe, rf,
+      totalReturn: realReturn, vol, sharpe, rf, sharpeReturn: annReturnFA,
       maxDD, ddStart: ddStart.slice(0,7), ddTrough: ddTrough.slice(0,7), ddRecovery: recovery,
       bestMonth: bestM[1], bestMonthLabel: bestM[0].slice(2).replace('-',"'"),
       worstMonth: worstM[1], worstMonthLabel: worstM[0].slice(2).replace('-',"'"),
@@ -1858,9 +1858,9 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem">
 
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
-          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Total Return (indicative)</div>
+          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Annualised return, p.a. (indicative)</div>
           <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.totalReturn>=0?'#3b6d11':'#a32d2d'}">${pct(a.totalReturn)}</div>
-          <div style="font-size:11px;color:#8B7A68">${a.totalReturnPeriod || a.period}</div>
+          <div style="font-size:11px;color:#8B7A68">${a.totalReturnCumulative != null ? 'Cumulative ' + pct(a.totalReturnCumulative) + ' · ' : ''}${a.totalReturnPeriod || a.period}</div>
         </div>
 
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
@@ -1872,7 +1872,7 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
           <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Sharpe Ratio</div>
           <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.sharpe>=1?'#3b6d11':a.sharpe>=0?'#5C5148':'#a32d2d'}">${a.sharpe.toFixed(2)}</div>
-          <div style="font-size:11px;color:#8B7A68">rf = ${(a.rf*100).toFixed(1)}%</div>
+          <div style="font-size:11px;color:#8B7A68">rf = ${(a.rf*100).toFixed(1)}%${a.sharpeReturn != null ? ' · return used ' + pct(a.sharpeReturn) + ' p.a., ' + a.period : ''}</div>
         </div>
 
         <div style="background:#FAF7F4;border:1px solid #E8E0D8;border-radius:6px;padding:0.75rem 1rem">
@@ -1901,9 +1901,9 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
-          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Total Return: money-weighted, indicative only, over its own period shown above — see the note below for basis and limitations.`
-          : `Analytics from portfolio value ${a.chartSegments>1?'charts ('+a.chartSegments+' periods, chain-linked so the capital flow between them is excluded)':'chart'} (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}. Total Return: money-weighted, indicative only, over its own period shown above (often longer than the chart) — see the note below for basis and limitations.`}
-        Sharpe = (Return − rf) / σ, both measured over the ${a.period} chart/price window — it can differ from the Total Return figure above, which covers its own (often longer) money-weighted period.
+          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Annualised return: money-weighted, indicative only, over its own period shown above — see the note below for basis and limitations.`
+          : `Analytics from portfolio value ${a.chartSegments>1?'charts ('+a.chartSegments+' periods, chain-linked so the capital flow between them is excluded)':'chart'} (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}. Annualised return: money-weighted, indicative only, over its own period shown above (often longer than the chart) — see the note below for basis and limitations.`}
+        Sharpe = (Return − rf) / σ, where the return and σ are both measured over the ${a.period} chart/price window. That return can differ from the annualised money-weighted return above, which is measured over its own (often longer) period from the dates of the capital movements.
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
@@ -2054,7 +2054,7 @@ window.extractChartAnalytics = async function(chartSrc, apiKey, portCcy) {
 
     return {
       period: startMonth + ' – ' + endMonth,
-      totalReturn, vol, sharpe, rf, maxDD,
+      totalReturn, vol, sharpe, rf, maxDD, sharpeReturn: annReturn,
       ddStart, ddTrough, ddRecovery,
       bestMonth: Math.max(...monthlyRets),
       worstMonth: Math.min(...monthlyRets),
@@ -2560,6 +2560,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     // chart's start date) and showing the chart's dates next to a number that
     // wasn't measured over them is misleading.
     let returnPeriodLabel = a.period;
+    let returnYears = periodYears;   // years the annualised figure refers to
     if ((portfolioData.depositWithdrawalRows?.length > 0) || (portfolioData.tradeRows?.length > 0)) {
       const _today = new Date();
       let _cfs = [];
@@ -2603,6 +2604,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
         const _irr = computeIRR(_cfs);
         if (_irr !== null && Math.abs(_irr) < 5) {
           annRealReturn = _irr;
+          returnYears = (_today - _cfs[0].date) / (365.25 * 24 * 3600 * 1000);
           const _fmtYM = d => String(d.getFullYear()).slice(2) + "'" + String(d.getMonth()+1).padStart(2,'0');
           returnPeriodLabel = _fmtYM(_cfs[0].date) + ' – ' + _fmtYM(_today);
         }
@@ -2618,7 +2620,11 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     // against a long-horizon return gave a "Sharpe" of 21.5). Total Return
     // and Sharpe are shown with their own periods below instead of being
     // forced to agree.
-    const aFinal = { ...a, totalReturn: annRealReturn, totalReturnPeriod: returnPeriodLabel };
+    // Cumulative return over the same period, derived from the annualised
+    // figure. Only shown when the period is long enough for annualising to
+    // have been applied (annualisation is skipped for periods <= 0.1 years).
+    const returnCumulative = returnYears > 0.1 ? Math.pow(1 + annRealReturn, returnYears) - 1 : null;
+    const aFinal = { ...a, totalReturn: annRealReturn, totalReturnPeriod: returnPeriodLabel, totalReturnCumulative: returnCumulative };
     analyticsHtml = await buildAnalyticsSection(aFinal, portfolioData.reportCcy || 'USD', waarAssessment, clientIR, portfolioData.tradeRows || [], portfolioData, depositData);
     if (a.mode === 'full' && a.riskContrib) {
       riskAnalysisHtml = buildRiskAnalysisSection(a, portfolioData);
