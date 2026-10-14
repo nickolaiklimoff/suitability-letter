@@ -2364,6 +2364,34 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     ? (h.purchasePrice/100) * h.faceValueNum
     : h.convertedHoldingValue - h.unrealizedPnL;
 
+  // Holding period and annualised return per position, from the trade ledger.
+  // Holding period = value-weighted average buy date (buys matched to the holding
+  // by name or ISIN). Annualised = (1 + total return)^(1/years) - 1, shown only
+  // from 90 days of holding: annualising a shorter period magnifies noise.
+  // Total return includes income (coupons/dividends) and, for stocks, realised P&L.
+  const _normName = x => String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const heldCell = (h, fraction) => {
+    const rows = portfolioData.tradeRows || [];
+    const hn = _normName(h.name);
+    let wSum = 0, tSum = 0;
+    rows.forEach(r => {
+      if (String(r[2]||'').trim().toLowerCase() !== 'buy') return;
+      const rn = _normName(r[4]);
+      const match = rn && hn && (rn === hn || rn.includes(hn) || hn.includes(rn)) || (h.isin && String(r[4]||'').includes(h.isin));
+      const d = new Date(r[0]);
+      const w = Math.abs(parseFloat(r[15] || r[12]) || 0);
+      if (!match || isNaN(d) || !w) return;
+      wSum += w; tSum += w * d.getTime();
+    });
+    if (!wSum) return '—';
+    const days = (Date.now() - tSum / wSum) / 86400000;
+    if (!(days > 0)) return '—';
+    const held = days < 45 ? Math.round(days) + ' d' : (days / 30.44).toFixed(1) + ' mo';
+    if (days < 90 || fraction == null || !(fraction > -1)) return held + ' · n/a';
+    const pa = (Math.pow(1 + fraction, 365.25 / days) - 1) * 100;
+    return held + ' · ' + (pa >= 0 ? '+' : '') + pa.toFixed(1) + '% p.a.';
+  };
+
   // Bonds performance
   const bondPerfRows = (portfolioData.bonds||[]).map(h => {
     const cost = getCostBasis(h);
@@ -2386,6 +2414,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${cpnPct}</td>
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
+      <td style="white-space:nowrap">${heldCell(h, cost>0?totalPnL/cost:null)}</td>
     </tr>`;
   }).join('');
 
@@ -2419,6 +2448,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${cost>0?'+'+(divs/cost*100).toFixed(1)+'%':'—'}</td>
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
+      <td style="white-space:nowrap">${heldCell(h, cost>0?totalPnL/cost:null)}</td>
     </tr>`;
   };
   const mkFundTotals = arr => {
@@ -2498,6 +2528,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${divsOrig!==0?fmtOrig(divsOrig, ccy):'—'}</td>
       <td style="color:${c}">${fmtOrig(totalOrig, ccy, true)}</td>
       <td style="color:${c}">${totalOrig>=0?'+':''}${pct}</td>
+      <td style="white-space:nowrap">${heldCell(h, costOrig>0?totalOrig/costOrig:null)}</td>
     </tr>`;
   }).join('');
 
@@ -2724,7 +2755,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
             <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Coupons Paid</th><th>Coupons % (of cost)</th><th>Total PnL</th><th>Total PnL %</th>
+            <th>Unrealized PnL</th><th>Coupons Paid</th><th>Coupons % (of cost)</th><th>Total PnL</th><th>Total PnL %</th><th>Held · p.a.</th>
           </tr></thead>
           <tbody>${bondPerfRows}
             <tr style="font-weight:600;background:#f5f0eb">
@@ -2734,6 +2765,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${bondTotCost>0?'+'+(bondTotIncome/bondTotCost*100).toFixed(1)+'%':'—'}</td>
               <td style="color:${bc}">${fmtUSDSigned(bondTotPnL)}</td>
               <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPct}</td>
+              <td></td>
             </tr>
           </tbody>
         </table>
@@ -2746,7 +2778,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price</th>
             <th>Value</th><th>Purch. Price</th>
-            <th>Unrealized PnL</th><th>Realized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th>
+            <th>Unrealized PnL</th><th>Realized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th><th>Held · p.a.</th>
           </tr></thead>
           <tbody>${stockPerfRows}
             <tr style="font-weight:600;background:#f5f0eb">
@@ -2756,6 +2788,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fmtUSD(stockTotIncome)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':'−'}${fmtUSD(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
+              <td></td>
             </tr>
           </tbody>
         </table>
@@ -2769,7 +2802,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <thead><tr>
               <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
               <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
+              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th><th>Held · p.a.</th>
             </tr></thead>
             <tbody>${rows}
               <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
@@ -2779,6 +2812,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
                 <td>${tot.cost>0?'+'+(tot.income/tot.cost*100).toFixed(1)+'%':'—'}</td>
                 <td style="color:${tot.color}">${fmtUSDSigned(tot.pnl)}</td>
                 <td style="color:${tot.color}">${tot.pnl>=0?'+':''}${tot.pct}</td>
+                <td></td>
               </tr>
             </tbody>
           </table>
@@ -2794,7 +2828,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th><th>Held · p.a.</th>
           </tr></thead>
           <tbody>${fiFundRows}
             <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
@@ -2804,6 +2838,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fiFundTot.cost>0?'+'+(fiFundTot.income/fiFundTot.cost*100).toFixed(1)+'%':'—'}</td>
               <td style="color:${fiFundTot.color}">${fmtUSDSigned(fiFundTot.pnl)}</td>
               <td style="color:${fiFundTot.color}">${fiFundTot.pnl>=0?'+':''}${fiFundTot.pct}</td>
+              <td></td>
             </tr>
           </tbody>
         </table>
