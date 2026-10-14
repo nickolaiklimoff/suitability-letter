@@ -1621,9 +1621,50 @@ async function macroShowStaleSeries(token) {
         <span style="color:var(--text1)">${esc(series)} <span style="color:var(--text3);font-size:11px">(${esc(sheet)})</span></span>
         <span style="color:var(--text3);text-align:right">last ${esc(last)} · ${esc(behind)} mo behind · ${esc(src)}</span></div>`;
     });
+    html += `<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:6px">
+      <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:4px">China exports / imports (manual)</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">YoY % in USD terms from China customs (GACC), not the yuan headline. Same month again overwrites.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="month" id="macro-cntrade-month" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+        <input type="number" step="any" id="macro-cntrade-ex" placeholder="exports YoY %" style="width:120px;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+        <input type="number" step="any" id="macro-cntrade-im" placeholder="imports YoY %" style="width:120px;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text1)">
+        <button class="btn-secondary" onclick="macroSaveCnTrade()" style="font-size:12px;padding:5px 9px">💾 Save</button>
+        <span id="macro-cntrade-status" style="font-size:11px;color:var(--text3)"></span>
+      </div></div>`;
     box.innerHTML = html;
     box.classList.remove('hidden');
   } catch (e) { /* informational only */ }
+}
+
+// China trade: manual USD YoY entry. Appends/updates one row in
+// data/CN_Trade_manual.csv (read by fetch_indicators.py on the next Update).
+async function macroSaveCnTrade() {
+  const token = macroToken();
+  if (!token) { alert('Enter GitHub token first'); return; }
+  const st = document.getElementById('macro-cntrade-status');
+  const month = document.getElementById('macro-cntrade-month').value;   // YYYY-MM
+  const ex = document.getElementById('macro-cntrade-ex').value;
+  const im = document.getElementById('macro-cntrade-im').value;
+  if (!/^\d{4}-\d{2}$/.test(month) || ex === '' || im === '') { st.style.color = '#c62828'; st.textContent = 'Enter month, exports and imports'; return; }
+  st.style.color = 'var(--text3)'; st.textContent = '⏳ Saving...';
+  try {
+    const url = `${GH_API}/repos/${MACRO_REPO}/contents/data/CN_Trade_manual.csv`;
+    const h = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' };
+    const r = await fetch(url, { headers: h });
+    if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
+    const d = await r.json();
+    const lines = decodeURIComponent(escape(atob(d.content.replace(/\n/g, '')))).split('\n').map(l => l.trim()).filter(Boolean);
+    const head = lines.shift() || 'date,exports_yoy,imports_yoy';
+    const key = month + '-01';
+    const kept = lines.filter(l => l.split(',')[0] !== key);
+    kept.push(`${key},${parseFloat(ex)},${parseFloat(im)}`);
+    kept.sort();
+    const text = [head, ...kept].join('\n') + '\n';
+    const put = await fetch(url, { method: 'PUT', headers: { ...h, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `Manual entry: China trade ${month}`, content: btoa(unescape(encodeURIComponent(text))), sha: d.sha }) });
+    if (!put.ok) throw new Error(`Save failed: ${put.status}`);
+    st.style.color = '#2e7d52'; st.textContent = `✓ Saved ${month}. Run Update to apply.`;
+  } catch (e) { st.style.color = '#c62828'; st.textContent = `✗ ${e.message}`; }
 }
 
 function macroRenderFillForm(rows) {
