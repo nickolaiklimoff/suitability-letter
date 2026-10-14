@@ -2439,11 +2439,29 @@ window.printReport = function() {
 
 // ─── BASE PORTFOLIOS ──────────────────────────────────────────────────────────
 
-const BP_BM_WEIGHTS = {
+// Strategic benchmarks per risk profile. Changed 2026-10-14 (Nikolai's
+// decision, Vladimir's review): the firm-level benchmark is BCA's Global
+// Asset Allocation benchmark, 50% Equities / 47.5% Fixed Income / 2.5% Cash,
+// and it IS the IR3 benchmark (replacing 60/40/0). Every other profile is the
+// earlier profile benchmark rescaled by the same ratio: Equities x 50/60 and
+// Fixed Income x 47.5/40, with Cash as the remainder. So IR6 is no longer
+// 100% equities (83.3 / 0 / 16.7). The pre-change 60/40 scale is kept below
+// as BP_LEGACY_BM only to derive these numbers.
+const BP_FIRM_BM = { eq: 0.50, bd: 0.475, ca: 0.025 };
+const BP_LEGACY_BM = {
   eq:{IR1:0,    IR2:0.20,IR3:0.60,IR4:0.80,IR5:0.90,IR6:1.00},
-  bd:{IR1:0.10, IR2:0.40,IR3:0.40,IR4:0.20,IR5:0.10,IR6:0.00},
-  ca:{IR1:0.90, IR2:0.40,IR3:0.00,IR4:0.00,IR5:0.00,IR6:0.00}
+  bd:{IR1:0.10, IR2:0.40,IR3:0.40,IR4:0.20,IR5:0.10,IR6:0.00}
 };
+const BP_BM_WEIGHTS = (() => {
+  const out = { eq:{}, bd:{}, ca:{} };
+  Object.keys(BP_LEGACY_BM.eq).forEach(ir => {
+    const eq = BP_LEGACY_BM.eq[ir] * (BP_FIRM_BM.eq / BP_LEGACY_BM.eq.IR3);
+    const bd = BP_LEGACY_BM.bd[ir] * (BP_FIRM_BM.bd / BP_LEGACY_BM.bd.IR3);
+    out.eq[ir] = eq; out.bd[ir] = bd; out.ca[ir] = Math.max(0, 1 - eq - bd);
+  });
+  out.ca.IR3 = BP_FIRM_BM.ca;   // exact (avoids float residue)
+  return out;
+})();
 const BP_IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
 
 const BP_SECTORS = [
@@ -2761,27 +2779,25 @@ async function bpFetchFredGS1(statusEl) {
 }
 
 function bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca) {
-  const dEq = ir3eq - BP_BM_WEIGHTS.eq.IR3;
-  const dBd = ir3bd - BP_BM_WEIGHTS.bd.IR3;
+  // Firm-level tactical weight (ir3eq/ir3bd/ir3ca: the Committee's published
+  // Equities/Fixed Income/Cash, which is also IR3). The tilt is measured from
+  // the FIRM benchmark (50/47.5/2.5), so a Neutral view gives zero tilt and
+  // every profile sits exactly on its own benchmark. Each other profile takes
+  // that tilt scaled by its benchmark weight relative to the firm/IR3 one,
+  // then is clamped onto the simplex (Eq in [0,100%], Bd in [0, 100%-Eq],
+  // Cash absorbs the rest). Before 2026-10-14 the tilt was measured from IR3's
+  // old 60/40 benchmark, which turned a Neutral firm view into a large
+  // underweight of equities in every profile.
+  const dEq = ir3eq - BP_FIRM_BM.eq;
+  const dBd = ir3bd - BP_FIRM_BM.bd;
   const W = {};
   BP_IRS.forEach(ir => {
     const bmEq=BP_BM_WEIGHTS.eq[ir], bmBd=BP_BM_WEIGHTS.bd[ir];
     let eq,bd,ca;
-    if (ir==='IR6') { eq=1;bd=0;ca=0; }
-    else if (ir==='IR3') { eq=ir3eq;bd=ir3bd;ca=ir3ca; }
+    if (ir==='IR3') { eq=ir3eq;bd=ir3bd;ca=ir3ca; }
     else {
-      // IR1, IR2, IR4, IR5: scale the IC's IR3 tilt (vs. IR3's own
-      // benchmark) proportionally to this profile's benchmark weight
-      // relative to IR3's, then clamp onto the simplex (Eq in [0,100%],
-      // Bd in [0, 100%-Eq], Cash absorbs whatever's left). Same formula
-      // on both sides of IR3 - extended 2026-10-07 to IR4/IR5, which had
-      // previously just copied their benchmark untouched (an
-      // inconsistency with IR1/IR2 flagged by Nikolai and reconciled per
-      // ORCAP_Cycle_Views_Weights_Framework.docx's risk-profile-cascade
-      // subsection - that's the place to look for the full rationale and
-      // worked examples, not just this comment).
-      const sEq=BP_BM_WEIGHTS.eq.IR3>0?bmEq/BP_BM_WEIGHTS.eq.IR3:0;
-      const sBd=BP_BM_WEIGHTS.bd.IR3>0?bmBd/BP_BM_WEIGHTS.bd.IR3:0;
+      const sEq=bmEq/BP_FIRM_BM.eq;
+      const sBd=bmBd/BP_FIRM_BM.bd;
       eq=Math.min(1,Math.max(0,bmEq+dEq*sEq));
       bd=Math.min(1-eq,Math.max(0,bmBd+dBd*sBd));
       ca=Math.max(0,1-eq-bd);
