@@ -1621,10 +1621,12 @@ async function macroShowStaleSeries(token) {
     if (!resp.ok) return;
     const md = decodeURIComponent(escape(atob((await resp.json()).content.replace(/\n/g, ''))));
     const stamp = (md.match(/Stale inputs \(([\d-]+)\)/) || [])[1] || '';
-    const rows = md.split('\n').filter(l => l.startsWith('|') && !/^\|\s*(Sheet|-)/.test(l))
+    const [mdMain, mdGdp = ''] = md.split('## Quarterly GDP');
+    const parse = t => t.split('\n').filter(l => l.startsWith('|') && !/^\|\s*(Sheet|-)/.test(l))
       .map(l => l.split('|').slice(1, -1).map(c => c.trim()))
       .filter(c => c.length >= 5);
-    if (!rows.length) return;
+    const rows = parse(mdMain), gdpRows = parse(mdGdp);
+    if (!rows.length && !gdpRows.length) return;
     const esc = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
     let html = `<div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:4px">Series behind schedule (any source)</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">From the last Update run${stamp ? ' (' + esc(stamp) + ')' : ''}. Hard-data series 3+ months behind, fast surveys 2+. Some lag is normal for slow releases.</div>`;
@@ -1633,6 +1635,14 @@ async function macroShowStaleSeries(token) {
         <span style="color:var(--text1)">${esc(series)} <span style="color:var(--text3);font-size:11px">(${esc(sheet)})</span></span>
         <span style="color:var(--text3);text-align:right">last ${esc(last)} · ${esc(behind)} mo behind · ${esc(src)}</span></div>`;
     });
+    if (gdpRows.length) {
+      html += `<div style="font-size:13px;font-weight:600;color:var(--text1);margin:12px 0 4px">Quarterly GDP now due</div>`;
+      gdpRows.forEach(([sheet, series, last, due, note]) => {
+        html += `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span style="color:var(--text1)">${esc(series)} <span style="color:var(--text3);font-size:11px">(${esc(sheet)})</span></span>
+          <span style="color:var(--text3)"> · last ${esc(last)} · ${esc(due)} due · ${esc(note)}</span></div>`;
+      });
+    }
     html += `<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:6px">
       <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:4px">China exports / imports (manual)</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">YoY % in USD terms from China customs (GACC), not the yuan headline. Same month again overwrites.</div>
