@@ -2778,6 +2778,54 @@ async function bpFetchFredGS1(statusEl) {
   }
 }
 
+
+// ─── Committee decision below the top level (IR3 = firm) ────────────────────
+// Entered by hand from the Committee's decision. Shares are within the sleeve
+// (equities / bonds) and are applied to every profile in proportion to that
+// profile's own Equities / Bonds total, which is the cascade of Framework
+// Section 13 for sleeve-internal weights. Empty block = benchmark proportions.
+let _bpBenchSecW = null, _bpBenchSegW = null, _bpDuration = '';
+function bpBuildCommitteeInputs(saved) {
+  const mk = (id, items, key) => items.map(s => {
+    const v = saved && saved[key] && saved[key][s.label] != null ? (saved[key][s.label]*100).toFixed(1) : '';
+    return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-bottom:2px"><span>${s.label}</span><input type="number" step="0.1" min="0" class="${id}" data-label="${s.label}" value="${v}" oninput="bpCommitteeSum()" style="width:64px;font-size:11px;padding:2px 4px;text-align:right"></div>`;
+  }).join('');
+  const a = document.getElementById('bp-cm-sectors'), b = document.getElementById('bp-cm-segs');
+  if (a) a.innerHTML = mk('bp-cm-sec', BP_SECTORS, 'sectors');
+  if (b) b.innerHTML = mk('bp-cm-seg', BP_BOND_SEGS, 'segs');
+  const d = document.getElementById('bp-cm-duration'); if (d && saved && saved.duration) d.value = saved.duration;
+  bpCommitteeSum();
+}
+function bpCommitteeSum() {
+  [['bp-cm-sec','bp-cm-sec-sum'],['bp-cm-seg','bp-cm-seg-sum']].forEach(([cls,out]) => {
+    const vals = [...document.querySelectorAll('.'+cls)].map(i => parseFloat(i.value)).filter(v => !isNaN(v));
+    const el = document.getElementById(out); if (!el) return;
+    const s = vals.reduce((x,y)=>x+y,0);
+    el.textContent = vals.length ? `(sum ${s.toFixed(1)}%${Math.abs(s-100)>0.5?' - will be rescaled to 100%':''})` : '';
+  });
+}
+function bpReadCommittee() {
+  const rd = cls => { const m = {}; let n = 0, tot = 0;
+    document.querySelectorAll('.'+cls).forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) { m[i.dataset.label] = v/100; n++; tot += v/100; } });
+    return {m, n, tot}; };
+  const s = rd('bp-cm-sec'), g = rd('bp-cm-seg');
+  const d = document.getElementById('bp-cm-duration');
+  return {
+    sectors: s.n === BP_SECTORS.length && s.tot > 0 ? s.m : null,
+    segs: g.n === BP_BOND_SEGS.length && g.tot > 0 ? g.m : null,
+    partial: (s.n > 0 && s.n < BP_SECTORS.length) || (g.n > 0 && g.n < BP_BOND_SEGS.length),
+    duration: d ? d.value : ''
+  };
+}
+// Apply the Committee's shares to the arrays every renderer already reads.
+function bpApplyCommittee(c) {
+  if (!_bpBenchSecW) { _bpBenchSecW = BP_SECTORS.map(s => s.w); _bpBenchSegW = BP_BOND_SEGS.map(s => s.w); }
+  else { BP_SECTORS.forEach((s,i)=>{ if (!c || !c.sectors) s.w = _bpBenchSecW[i]; }); BP_BOND_SEGS.forEach((s,i)=>{ if (!c || !c.segs) s.w = _bpBenchSegW[i]; }); }
+  if (c && c.sectors) { const t = Object.values(c.sectors).reduce((x,y)=>x+y,0); BP_SECTORS.forEach(s => { s.w = c.sectors[s.label]/t; }); }
+  if (c && c.segs)    { const t = Object.values(c.segs).reduce((x,y)=>x+y,0);    BP_BOND_SEGS.forEach(s => { s.w = c.segs[s.label]/t; }); }
+  _bpDuration = c ? (c.duration || '') : '';
+}
+
 function bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca) {
   // Firm-level tactical weight (ir3eq/ir3bd/ir3ca: the Committee's published
   // Equities/Fixed Income/Cash, which is also IR3). The tilt is measured from
@@ -2819,9 +2867,12 @@ window.bpSaveAndGenerate = function() {
   const source = document.getElementById('bp-bca-source').value || 'BCA Research GAA';
 
   const W = bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca);
+  const committee = bpReadCommittee();
+  if (committee.partial && !confirm('The sector or bond-segment list is only partly filled. Incomplete blocks are ignored and benchmark proportions are used. Continue?')) return;
+  bpApplyCommittee(committee);
 
   // Save to localStorage so report tab can use it
-  const bpData = {ir3eq, ir3bd, ir3ca, rets, W, source, etf: _bpEtfData, bcaViews: _bpBcaViews, updatedAt: new Date().toISOString()};
+  const bpData = {ir3eq, ir3bd, ir3ca, rets, W, source, etf: _bpEtfData, bcaViews: _bpBcaViews, committee: {sectors: committee.sectors, segs: committee.segs, duration: committee.duration}, updatedAt: new Date().toISOString()};
   lsSet('suitability-bp-data', JSON.stringify(bpData));
 
   // Also build _benchmark object for report tab compatibility
@@ -2967,6 +3018,11 @@ function bpRenderOutputTable(W, rets, source) {
     h += `<td style="text-align:right;padding:5px 8px;font-weight:600;font-size:11px;color:${BRAND_DARK};border-bottom:1px solid #c8dac8;${ir==='IR3'?'background:#deeede;':''}">${fmtW(W[ir].bd)}</td>`;
   });
   h += '</tr>';
+  if (_bpDuration) {
+    h += `<tr style="background:white"><td style="padding:4px 10px 4px 18px;font-size:11px;color:#444;border-bottom:0.5px solid #ece9e3">Duration stance</td>`;
+    BP_IRS.forEach(ir => { h += `<td style="${ir==='IR3'?TD_R3:TD_R}">${W[ir].bd > 0.0005 ? _bpDuration : '-'}</td>`; });
+    h += '</tr>';
+  }
 
   // ── CASH ──
   h += `<tr style="background:white"><td style="padding:5px 10px;font-weight:600;color:${BRAND_DARK};border-bottom:0.5px solid #e8e5e0" colspan="1">Cash</td>`;
@@ -3324,6 +3380,7 @@ function bpUpdateSidebarStatus() {
     const bpStored = localStorage.getItem('suitability-bp-data');
     if (bpStored) {
       const bp = JSON.parse(bpStored);
+      if (bp.committee) { bpBuildCommitteeInputs(bp.committee); bpApplyCommittee(bp.committee); }
       const W = bp.W;
       _benchmark = {};
       BP_IRS.forEach(ir => {
@@ -3346,6 +3403,7 @@ window.bpOpen = function() {
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('appContent').classList.add('hidden');
   document.getElementById('basePortfoliosPanel').classList.remove('hidden');
+  if (!document.querySelector('.bp-cm-sec')) bpBuildCommitteeInputs(null);
   bpRestoreState();
 
   // ETF status
@@ -3776,6 +3834,7 @@ window.bpParseAllocText = function() {
   if (secSum > 0.5) BP_SECTORS.forEach(s => { s.w = parseFloat((s.w/secSum).toFixed(4)); });
   const bondSum = BP_BOND_SEGS.reduce((s,x) => s+x.w, 0);
   if (bondSum > 0.5) BP_BOND_SEGS.forEach(s => { s.w = parseFloat((s.w/bondSum).toFixed(4)); });
+  _bpBenchSecW = BP_SECTORS.map(s => s.w); _bpBenchSegW = BP_BOND_SEGS.map(s => s.w);  // new benchmark proportions
 
   const parts = [];
   if (eq !== null) parts.push(`Eq ${eq}%`);

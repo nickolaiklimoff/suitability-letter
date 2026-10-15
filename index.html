@@ -783,6 +783,18 @@
       <div id="bp-parsed-summary" style="font-size:12px;color:var(--text3)"></div>
     </div>
 
+    <!-- Committee decision below the top level (IR3 = firm level) -->
+    <div style="margin:0 0 16px;border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg2)">
+      <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:4px">Committee decision for IR3 (sectors, bond segments, duration)</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">Enter the Committee's final weights as % of the equity sleeve and of the bond sleeve. They are applied to every risk profile in proportion to its own Equities and Bonds total. Leave a block empty to use the benchmark proportions.</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><div style="font-size:12px;font-weight:600;margin-bottom:4px">Equity sectors (% of equities) <span id="bp-cm-sec-sum" style="font-weight:400;color:var(--text3)"></span></div><div id="bp-cm-sectors"></div></div>
+        <div><div style="font-size:12px;font-weight:600;margin-bottom:4px">Bond segments (% of bonds) <span id="bp-cm-seg-sum" style="font-weight:400;color:var(--text3)"></span></div><div id="bp-cm-segs"></div>
+          <div style="font-size:12px;font-weight:600;margin:10px 0 4px">Duration stance</div>
+          <select id="bp-cm-duration" style="font-size:12px;padding:4px 6px"><option value="">Not set</option><option>Neutral</option><option>Short</option><option>Long</option></select></div>
+      </div>
+    </div>
+
     <!-- Hidden inputs for bpSaveAndGenerate compatibility -->
     <input type="hidden" id="bp-ir3-eq" value="50">
     <input type="hidden" id="bp-ir3-bd" value="47.5">
