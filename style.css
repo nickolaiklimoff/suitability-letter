@@ -3,12 +3,12 @@
 :root {
   --bg: #ffffff;
   --bg2: #f7f6f3;
-  --bg3: #f0efe9;
+  --bg3: #e6e4dc;
   --text: #1a1a1a;
-  --text2: #555;
-  --text3: #999;
-  --border: rgba(0,0,0,0.1);
-  --border2: rgba(0,0,0,0.18);
+  --text2: #3a3a3a;
+  --text3: #6a6a6a;
+  --border: rgba(0,0,0,0.22);
+  --border2: rgba(0,0,0,0.38);
   --blue: #185fa5;
   --blue-bg: #e6f1fb;
   --blue-border: #b5d4f4;
@@ -424,3 +424,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   .report-section-title { font-size: 13px; }
   .report-meta { font-size: 10px; }
 }
+
+/* ── Contrast boost (inputs and controls stand out from the page) ── */
+input:not([type=checkbox]):not([type=radio]), select, textarea { border: 1px solid var(--border2) !important; background: #fff !important; color: var(--text) !important; }
+input:disabled, select:disabled, textarea:disabled { background: var(--bg3) !important; }
+input:focus, select:focus, textarea:focus { border-color: var(--blue) !important; }
+.btn-secondary { border-width: 1px; color: var(--text); }
