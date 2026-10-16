@@ -2379,7 +2379,8 @@ async function bpSaveBcaViewsToMacroDashboard() {
 
   const quarter = document.getElementById('bp-bca-lock-quarter').value.trim() || committeeCurrentQuarter();
   const asOf = document.getElementById('bp-bca-lock-date').value || null;
-  const source = (document.getElementById('bp-bca-source').value || 'BCA Research GAA').trim();
+  if (!asOf) { alert('Enter the BCA report date before locking, so the IC Pack can cite the exact publication.'); return; }
+  const source = (document.getElementById('bp-bca-source').value || 'BCA Research GAA').replace(/,?\s*N\/A\s*$/i, '').trim() || 'BCA Research GAA';
 
   const views = { global_allocation: {}, regional_equities: {}, fixed_income: {}, equity_sectors: {}, duration: null };
   Object.entries(BCA_TO_STAGE1).forEach(([key, [cat, label]]) => {
