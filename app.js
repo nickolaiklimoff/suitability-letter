@@ -2447,6 +2447,8 @@ window.printReport = function() {
 // Fixed Income x 47.5/40, with Cash as the remainder. So IR6 is no longer
 // 100% equities (83.3 / 0 / 16.7). The pre-change 60/40 scale is kept below
 // as BP_LEGACY_BM only to derive these numbers.
+// Changed 2026-10-17 (Nikolai): IR6 is again fixed at 100% Equities, both as
+// benchmark and as weight; IR1 to IR5 keep the rescaled benchmarks.
 const BP_FIRM_BM = { eq: 0.50, bd: 0.475, ca: 0.025 };
 const BP_LEGACY_BM = {
   eq:{IR1:0,    IR2:0.20,IR3:0.60,IR4:0.80,IR5:0.90,IR6:1.00},
@@ -2460,6 +2462,7 @@ const BP_BM_WEIGHTS = (() => {
     out.eq[ir] = eq; out.bd[ir] = bd; out.ca[ir] = Math.max(0, 1 - eq - bd);
   });
   out.ca.IR3 = BP_FIRM_BM.ca;   // exact (avoids float residue)
+  out.eq.IR6 = 1; out.bd.IR6 = 0; out.ca.IR6 = 0;   // IR6 = 100% equities
   return out;
 })();
 const BP_IRS = ['IR1','IR2','IR3','IR4','IR5','IR6'];
@@ -2843,6 +2846,7 @@ function bpCalcPortfolioWeights(ir3eq, ir3bd, ir3ca) {
     const bmEq=BP_BM_WEIGHTS.eq[ir], bmBd=BP_BM_WEIGHTS.bd[ir];
     let eq,bd,ca;
     if (ir==='IR3') { eq=ir3eq;bd=ir3bd;ca=ir3ca; }
+    else if (ir==='IR6') { eq=1;bd=0;ca=0; }   // fixed 100% equities
     else {
       const sEq=bmEq/BP_FIRM_BM.eq;
       const sBd=bmBd/BP_FIRM_BM.bd;
