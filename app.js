@@ -2088,6 +2088,7 @@ async function fetchFxToUSD(fromCcy) {
 async function assignPortfolioRatings(holdings, apiKey) {
   const list = holdings.map((h,i) => `${i+1}. ${h.name} (${h.type})`).join('\n');
   const prompt = `Assign IR risk ratings (1-6) to each holding per Orion Ridge Capital methodology:
+- Bond maturity buckets use the REMAINING time from today to maturity, not the original tenor
 - Govt bonds developed <5yr=1, 5-10yr=2, >10yr=3
 - IG corp bonds ≤10yr=2, >10yr=3, HY bonds=4
 - Broad/sector equity ETFs developed=3, HY/EM bond ETFs=4

@@ -37,6 +37,7 @@ RISK RATING SCALE (1-6):
 - Rating 5: Very high (mid/small-cap developed equities, EM equities, HY EM bonds)
 - Rating 6: Extremely high (private equity, aggressive hedge funds)
 
+BOND MATURITY RULE: every "yr" bucket below means the REMAINING time from today's date to maturity (not the original issue tenor). A bond issued as a 20-year bond that now matures in 2 years counts as ≤10yr.
 GOVERNMENT BONDS (developed markets): 1-5yr=1, 5-10yr=2, >10yr=3. EM govt bonds=3.
 CORPORATE BONDS IG (developed): senior/secured ≤10yr=2, subordinated/convertible ≤10yr=3, any >10yr=3. IG EM=3. HY developed=4. HY EM=5.
 ETFs: Govt bond ETF developed=2, IG corp bond ETF developed=3, HY/EM fixed income ETF=4, broad equity ETF developed markets=3, broad global equity ETF (e.g. MSCI World, MSCI ACWI, S&P500, FTSE All-World) where developed markets represent >70% of holdings=3, sector equity ETF developed=3, pure EM equity ETF=4, leveraged/inverse=4.
