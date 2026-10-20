@@ -835,7 +835,11 @@ window.exportProfilingCalculator = function() {
   const pct = (amt) => grandTotal>0 ? amt/grandTotal : 0;
   const waarContrib = (rating, amt) => rating * pct(amt);
 
-  const ir = irAfter || 'IR3';
+  // Investor Rating and corridor come from the CLIENT's profile (e.g. "IR3-..."), not from
+  // the band the resulting WAAR happens to fall in — otherwise a WAAR of 2.39 labelled the
+  // client IR2 with a 2.49 maximum instead of IR3 / 3.49.
+  const profIR = (client.profile?.riskTolerance || '').replace(/IR(\d+)-.*/, 'IR$1');
+  const ir = (/^IR[1-6]$/.test(profIR) ? profIR : null) || irAfter || 'IR3';
   const maxWaar = (window.IR_CORRIDORS && window.IR_CORRIDORS[ir]) ? window.IR_CORRIDORS[ir].max : null;
   const dateStr = document.getElementById('l-date')?.value ?
     new Date(document.getElementById('l-date').value).toLocaleDateString('en-GB') :
