@@ -178,7 +178,15 @@ window.parseCbondsExport = function(file) {
 
         // Parse currencies (cash)
         const currRows = getSheet('currencies').slice(1);
-        const cash = currRows.reduce((s, r) => s + (parseFloat(r[2]) || 0), 0);
+        // GBX cash row (negative balance from buying LSE stocks): same cbonds quirk as the
+        // GBX holdings (see fixGbxConversion) — the converted column is divided by 100 twice,
+        // while the Quantity is the real GBP amount. Using the converted figure left GBX
+        // stock positions at full value but their funding cash ~100x too small, overstating
+        // total value by the GBX balance (~£284k on a live client).
+        const cash = currRows.reduce((s, r) => {
+          const ccy = String(r[0] == null ? '' : r[0]).trim().toUpperCase();
+          return s + (ccy === 'GBX' ? (parseFloat(r[1]) || 0) : (parseFloat(r[2]) || 0));
+        }, 0);
 
         // Parse bonds — columns resolved by header name (see findCol above)
         const bondSheetRows = getSheet('bonds');
@@ -226,16 +234,8 @@ window.parseCbondsExport = function(file) {
         // "Holding Value" column is the correct GBP figure for these. Confirmed against real
         // client positions (2026-07-14). Non-GBX currencies keep using the converted column
         // as before since that path hasn't shown the same issue.
-        // GBX = pence. cbonds now converts pence correctly (converted ≈ holdingValue/100),
-        // so trust it when it differs from the raw pence figure. Only when the "converted"
-        // value just echoes the unconverted pence amount do we divide by 100 ourselves
-        // (assumes GBP base). The old rule returned holdingValueOrig for any GBX row, which
-        // inflated UK stocks 100x (e.g. £2.9k of stocks shown as £290.7k).
-        const fixGbxConversion = (ccy, holdingValueOrig, convertedRaw) => {
-          if (ccy !== 'GBX') return convertedRaw || holdingValueOrig || 0;
-          if (convertedRaw && Math.abs(convertedRaw - holdingValueOrig) > 0.01 * Math.abs(holdingValueOrig)) return convertedRaw;
-          return (holdingValueOrig || 0) / 100;
-        };
+        const fixGbxConversion = (ccy, holdingValueOrig, convertedRaw) =>
+          ccy === 'GBX' ? holdingValueOrig : (convertedRaw || holdingValueOrig || 0);
 
         // Parse funds/ETFs — columns resolved by header name (see findCol above)
         const fundSheetRows = getSheet('funds');
