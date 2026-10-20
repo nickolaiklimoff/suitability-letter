@@ -802,9 +802,10 @@ function addInvestRow(name='', isin='', amount='', fee='0') {
   tr.innerHTML = `
     <td><input type="text" placeholder="Product name" value="${escVal(name)}" /></td>
     <td><input type="text" placeholder="e.g. IE00B6R52259" value="${escVal(isin)}" style="width:130px" /></td>
-    <td><input type="number" placeholder="Amount USD" value="${escVal(amount)}" /></td>
+    <td><input type="number" placeholder="Amount" value="${escVal(amount)}" oninput="updateWAAR()" /></td>
+    <td><select class="inv-ccy" onchange="updateWAAR()" style="font-size:13px;padding:3px 4px"><option>USD</option><option>GBP</option><option>EUR</option><option>CHF</option></select></td>
     <td><input type="text" placeholder="0" value="${escVal(fee)}" style="width:80px" /></td>
-    <td><button class="btn-remove" onclick="this.closest('tr').remove()">×</button></td>`;
+    <td><button class="btn-remove" onclick="this.closest('tr').remove();updateWAAR()">×</button></td>`;
   tbody.appendChild(tr);
 }
 
@@ -816,13 +817,8 @@ window.exportProfilingCalculator = function() {
   if (!client) { alert('Select a client first.'); return; }
 
   const existing = getExistingRows(); // {isin, name, amount, rating}
-  const newInvInputs = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
-    const i = tr.querySelectorAll('input');
-    return { name: i[0]?.value||'', isin: i[1]?.value||'', amount: parseFloat(i[2]?.value)||0 };
-  }).filter(r => r.name || r.amount);
-  const txRatings = window._transactionRatings || [];
-  const newInv = newInvInputs.map((r, idx) => ({ ...r, rating: txRatings[idx]?.rating || 0 }))
-    .filter(r => r.amount > 0 && r.rating > 0);
+  const newInv = window.getWaarNewInvestments().filter(r => r.amount > 0 && r.rating > 0);
+  const baseCcy = window.getWaarCcy();
   const existingValid = existing.filter(r => r.amount > 0 && r.rating > 0);
 
   if (!existingValid.length && !newInv.length) {
@@ -859,7 +855,7 @@ window.exportProfilingCalculator = function() {
   set(9, 4, 'Portfolio Allocation %'); set(9, 5, 'WAAR');
   let r = 10;
   newInv.forEach(x => {
-    set(r, 0, x.name); set(r, 1, 'USD'); set(r, 2, x.rating);
+    set(r, 0, x.name); set(r, 1, x.ccy); set(r, 2, x.rating);
     set(r, 3, x.amount); set(r, 4, pct(x.amount)); set(r, 5, waarContrib(x.rating, x.amount));
     r++;
   });
@@ -871,7 +867,7 @@ window.exportProfilingCalculator = function() {
   set(r, 4, 'Portfolio Allocation %'); set(r, 5, 'WAAR');
   r++;
   existingValid.forEach(x => {
-    set(r, 0, x.name); set(r, 1, 'USD'); set(r, 2, x.rating);
+    set(r, 0, x.name); set(r, 1, baseCcy); set(r, 2, x.rating);
     set(r, 3, x.amount); set(r, 4, pct(x.amount)); set(r, 5, waarContrib(x.rating, x.amount));
     r++;
   });
@@ -963,10 +959,11 @@ function collectLetterData() {
   const investRows = Array.from(document.querySelectorAll('#l-investRows tr')).map(tr => {
     const i = tr.querySelectorAll('input');
     const amt = parseFloat(i[2]?.value) || 0;
+    const rowCcy = tr.querySelector('select.inv-ccy')?.value || 'USD';
     return {
       product: i[0]?.value,
       isin: i[1]?.value,
-      amount: amt ? `USD ${amt.toLocaleString('en-US', {minimumFractionDigits:2})}` : '',
+      amount: amt ? `${rowCcy} ${amt.toLocaleString('en-US', {minimumFractionDigits:2})}` : '',
       fee: i[3]?.value || '0'
     };
   }).filter(r => r.product);
@@ -6562,6 +6559,15 @@ function importFromPortfolioReport() {
   const tbody = document.getElementById('l-existingRows');
   if (!tbody) return;
   tbody.innerHTML = '';
+
+  // Amounts below are in the report's base currency — record it so new investments in
+  // other currencies are converted to it before the WAAR is weighted.
+  const _ccySel = document.getElementById('l-existingCcy');
+  const _baseCcy = pd.reportCcy || pd.portCcy || 'USD';
+  if (_ccySel && [..._ccySel.options].some(o => o.value === _baseCcy)) {
+    _ccySel.value = _baseCcy;
+    const _lbl = document.getElementById('l-existingCcyLbl'); if (_lbl) _lbl.textContent = _baseCcy;
+  }
 
   filtered.forEach(h => {
     const val = Math.round(h.convertedHoldingValue || h.holdingValue || 0);

@@ -73,11 +73,54 @@ function readExistingRows() {
 // New transaction ratings — set by portfolio-import.js after Claude assigns ratings
 window._transactionRatings = [];
 
+// ── Currency handling for WAAR ────────────────────────────────────────────────
+// Existing-portfolio amounts are in one currency (selector #l-existingCcy, set from the
+// imported report), while each new investment row has its own currency (select.inv-ccy).
+// Everything is converted to the existing portfolio's currency before weighting —
+// previously a USD amount was mixed 1:1 with GBP amounts.
+window._fxUsd = window._fxUsd || { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+(function prefetchFx() {
+  try {
+    fetch('https://open.er-api.com/v6/latest/USD').then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !d.rates) return;
+      Object.entries(d.rates).forEach(([c, v]) => { if (v > 0) window._fxUsd[c] = 1 / v; });
+      if (window.updateWAAR) window.updateWAAR();
+    }).catch(() => {});
+  } catch (e) { /* keep fallback rates */ }
+})();
+window.fxConvert = function(amount, from, to) {
+  const fx = window._fxUsd || {};
+  const f = fx[from] || 1, t = fx[to] || 1;
+  return amount * f / t;
+};
+window.getWaarCcy = function() {
+  return document.getElementById('l-existingCcy')?.value || 'USD';
+};
+// New investments from Step 2: live amounts, converted to the existing portfolio currency,
+// ratings from the last "Assign ratings" run (matched by row order among named rows).
+window.getWaarNewInvestments = function() {
+  const base = window.getWaarCcy();
+  const ratings = window._transactionRatings || [];
+  const out = [];
+  let idx = 0;
+  document.querySelectorAll('#l-investRows tr').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    const name = inputs[0]?.value || '';
+    if (!name) return;
+    const amt = parseFloat(inputs[2]?.value) || 0;
+    const ccy = tr.querySelector('select.inv-ccy')?.value || 'USD';
+    const rating = ratings[idx]?.rating || 0;
+    idx++;
+    out.push({ name, isin: inputs[1]?.value || '', origAmount: amt, ccy, amount: window.fxConvert(amt, ccy, base), rating });
+  });
+  return out;
+};
+
 window.updateWAAR = window.recalcWAAR = function() {
   const existing = readExistingRows();
   const waarBefore = calcWAAR(existing);
 
-  const newTx = (window._transactionRatings || []).filter(r => r.amount > 0 && r.rating > 0);
+  const newTx = window.getWaarNewInvestments().filter(r => r.amount > 0 && r.rating > 0);
   const all = [...existing, ...newTx];
   const waarAfter = calcWAAR(all);
 

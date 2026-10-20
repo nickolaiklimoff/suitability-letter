@@ -166,7 +166,7 @@
               <span id="investRatingStatus" class="import-status" style="display:block;margin-bottom:8px"></span>
               <div class="table-wrap">
                 <table class="input-table" id="l-investTable">
-                  <thead><tr><th>Investment product</th><th>ISIN</th><th>Investment amount</th><th>Advisory fee</th><th></th></tr></thead>
+                  <thead><tr><th>Investment product</th><th>ISIN</th><th>Investment amount</th><th>Currency</th><th>Advisory fee</th><th></th></tr></thead>
                   <tbody id="l-investRows"></tbody>
                 </table>
                 <button class="btn-add-row" onclick="addInvestRow()">+ Add product</button>
@@ -214,9 +214,15 @@
               </div>
               <span id="existingStatus" class="import-status" style="display:block;margin-bottom:8px"></span>
               <button onclick="importFromPortfolioReport()" style="font-size:12px;background:#2e7d52;color:#ffffff;border:2px solid #2e7d52;padding:5px 14px;border-radius:5px;cursor:pointer;margin-bottom:10px;font-weight:600">↙ Import from Portfolio Report</button>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px">
+                <label for="l-existingCcy" style="margin:0">Currency of the amounts below:</label>
+                <select id="l-existingCcy" onchange="document.getElementById('l-existingCcyLbl').textContent=this.value;updateWAAR()" style="font-size:13px;padding:3px 6px">
+                  <option>USD</option><option>GBP</option><option>EUR</option><option>CHF</option>
+                </select>
+              </div>
               <div class="table-wrap">
                 <table class="input-table">
-                  <thead><tr><th style="width:130px">ISIN</th><th>Product name</th><th>Amount (USD)</th><th style="width:80px">Risk rating</th><th></th></tr></thead>
+                  <thead><tr><th style="width:130px">ISIN</th><th>Product name</th><th>Amount (<span id="l-existingCcyLbl">USD</span>)</th><th style="width:80px">Risk rating</th><th></th></tr></thead>
                   <tbody id="l-existingRows"></tbody>
                 </table>
                 <button class="btn-add-row" onclick="addExistingRow()">+ Add row</button>
@@ -1246,10 +1252,10 @@
 <script src="jszip.min.js"></script>
 <script src="docx.min.js"></script>
 <script src="data.js"></script>
-<script src="waar.js?v=1790000001"></script>
+<script src="waar.js?v=1790000002"></script>
 <script src="portfolio-import.js?v=1790000001"></script>
 <script src="report.js?v=1790000023"></script>
-<script src="app.js?v=1790000016"></script>
+<script src="app.js?v=1790000017"></script>
 <script src="bca-inputs.js?v=1790000001"></script>
 <script src="bca-inputs-ui.js?v=1790000001"></script>
 <script>
