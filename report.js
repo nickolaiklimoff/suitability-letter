@@ -359,7 +359,7 @@ window.parseCbondsExport = function(file) {
             const ccy = String(r[0]||'').trim();
             const qty  = parseFloat(r[1]) || 0;
             const conv = parseFloat(r[2]) || 0;
-            if (!ccy || qty <= 0) continue;
+            if (!ccy || qty === 0) continue; // negative balances (overdrafts) still identify the base ccy: conv/qty = 1
             const ratio = Math.abs(conv / qty - 1);
             if (ratio < bestRatio) { bestRatio = ratio; detectedPortCcy = ccy; }
           }
