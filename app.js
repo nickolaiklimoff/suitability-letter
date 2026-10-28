@@ -1416,8 +1416,10 @@ window.runPortfolioReport = async function() {
     // Portfolio base currency: auto-detected from xlsx, UI dropdown as manual override
     const uiCcy = document.getElementById('r-portfolioCcy')?.value || 'USD';
     const autoCcy = portfolioData._detectedPortCcy || 'USD';
-    // If user manually changed dropdown away from USD, respect that; otherwise use autodetect
-    const portCcy = (uiCcy !== 'USD') ? uiCcy : autoCcy;
+    // The dropdown is hidden and only ever written by this code, so a value saved with the
+    // client (e.g. EUR from an earlier mis-detection) must not override the currency
+    // detected from THIS export. Use the detected currency; the dropdown is a fallback only.
+    const portCcy = portfolioData._detectedPortCcy || uiCcy;
     portfolioData.portCcy = portCcy;
     // Always update dropdown to show detected/active currency
     const ccyEl = document.getElementById('r-portfolioCcy');
