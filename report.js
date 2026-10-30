@@ -2400,10 +2400,17 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     return held + ' · ' + (pa >= 0 ? '+' : '') + pa.toFixed(1) + '% p.a.';
   };
 
+  // Bond income = cbonds "Interest income": coupons received PLUS interest accrued since
+  // purchase, net of the accrued interest paid at purchase. Holding Value already includes
+  // accrued interest, so using only coupons paid left Total PnL (and Income) short of the
+  // cbonds figure by the accrued part (e.g. -$10.4k vs cbonds -$3.9k). Falls back to coupons
+  // paid when the export has no interest income for the bond.
+  const bondIncome = h => (h.interestIncome && Math.abs(h.interestIncome) > 0) ? h.interestIncome : (incomeMap[h.name]||0);
+
   // Bonds performance
   const bondPerfRows = (portfolioData.bonds||[]).map(h => {
     const cost = getCostBasis(h);
-    const coupons = incomeMap[h.name]||0;
+    const coupons = bondIncome(h);
     const totalPnL = h.unrealizedPnL + coupons;
     const pct = cost > 0 ? (totalPnL/cost*100).toFixed(1)+'%' : '—';
     const c = totalPnL>=0?'#3b6d11':'#a32d2d';
@@ -2427,7 +2434,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   }).join('');
 
   const bondTotUnreal = (portfolioData.bonds||[]).reduce((s,h)=>s+h.unrealizedPnL,0);
-  const bondTotIncome = (portfolioData.bonds||[]).reduce((s,h)=>s+(incomeMap[h.name]||0),0);
+  const bondTotIncome = (portfolioData.bonds||[]).reduce((s,h)=>s+bondIncome(h),0);
   const bondTotPnL = bondTotUnreal + bondTotIncome;
   const bondTotCost = (portfolioData.bonds||[]).reduce((s,h)=>s+getCostBasis(h),0);
   const bondTotPct = bondTotCost>0?(bondTotPnL/bondTotCost*100).toFixed(1)+'%':'—';
@@ -2763,7 +2770,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
             <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Coupons Paid</th><th>Coupons % (of cost)</th><th>Total PnL</th><th>Total PnL %</th><th>Held · p.a.</th>
+            <th>Unrealized PnL</th><th>Interest Income</th><th>Interest % (of cost)</th><th>Total PnL</th><th>Total PnL %</th><th>Held · p.a.</th>
           </tr></thead>
           <tbody>${bondPerfRows}
             <tr style="font-weight:600;background:#f5f0eb">
@@ -2778,6 +2785,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           </tbody>
         </table>
         </div>
+        <p style="font-size:11px;color:#888;margin:0.3rem 0 0">Interest income = coupons received plus interest accrued since purchase (net of accrued interest paid at purchase), as reported by cbonds. Holding Value includes accrued interest.</p>
 
         ${(portfolioData.stocks||[]).length > 0 ? `
         <div style="font-size:13px;font-weight:600;margin:1.25rem 0 0.4rem">Stocks</div>
