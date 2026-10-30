@@ -1844,7 +1844,6 @@ function computeRiskContribution(positions, assetRetsMap, portfolioData, EUR_USD
 
 // ─── Section 10: Portfolio Analytics ─────────────────────────────────────────
 async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows, portfolioData, depositData) {
-  const irrHtml = (tradeRows && portfolioData) ? await buildIRRSection(tradeRows, [], portfolioData, depositData) : '';
   const sym = {'USD':'$','EUR':'€','GBP':'£','CHF':'Fr '}[ccy] || ccy+' ';
   const pct = v => (v >= 0 ? '+' : '') + (v*100).toFixed(1) + '%';
   const fmt = v => sym + Math.round(Math.abs(v)).toLocaleString('en-US');
@@ -1866,12 +1865,6 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem">
 
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
-          <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Annualised return, p.a. (indicative)</div>
-          <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.totalReturn>=0?'#3b6d11':'#a32d2d'}">${pct(a.totalReturn)}</div>
-          <div style="font-size:11px;color:#8B7A68">${a.totalReturnCumulative != null ? 'Cumulative ' + pct(a.totalReturnCumulative) + ' · ' : ''}${a.totalReturnPeriod || a.period}</div>
-        </div>
-
-        <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
           <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Volatility (ann.)</div>
           <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:#2C2C2C">${(a.vol*100).toFixed(1)}%</div>
           <div style="font-size:11px;color:#8B7A68">Annualised std. deviation</div>
@@ -1880,7 +1873,7 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
         <div style="background:#F5F0EB;border-radius:6px;padding:0.75rem 1rem">
           <div style="font-size:11px;color:#8B7A68;margin-bottom:0.2rem">Sharpe Ratio</div>
           <div style="font-size:22px;font-weight:700;font-family:'Playfair Display',Georgia,serif;color:${a.sharpe>=1?'#3b6d11':a.sharpe>=0?'#5C5148':'#a32d2d'}">${a.sharpe.toFixed(2)}</div>
-          <div style="font-size:11px;color:#8B7A68">rf = ${(a.rf*100).toFixed(1)}%${a.sharpeReturn != null ? ' · return used ' + pct(a.sharpeReturn) + ' p.a., ' + a.period : ''}</div>
+          <div style="font-size:11px;color:#8B7A68">rf = ${(a.rf*100).toFixed(1)}%</div>
         </div>
 
         <div style="background:#FAF7F4;border:1px solid #E8E0D8;border-radius:6px;padding:0.75rem 1rem">
@@ -1909,13 +1902,12 @@ async function buildAnalyticsSection(a, ccy, waarAssessment, clientIR, tradeRows
 
       <div style="font-size:10px;color:#8B7A68;font-style:italic;margin-top:0.5rem">
         ${a.mode === 'full'
-          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched). Annualised return: money-weighted, indicative only, over its own period shown above — see the note below for basis and limitations.`
-          : `Analytics from portfolio value ${a.chartSegments>1?'charts ('+a.chartSegments+' periods, chain-linked so the capital flow between them is excluded)':'chart'} (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}. Annualised return: money-weighted, indicative only, over its own period shown above (often longer than the chart) — see the note below for basis and limitations.`}
-        Sharpe = (Return − rf) / σ, where the return and σ are both measured over the ${a.period} chart/price window. That return can differ from the annualised money-weighted return above, which is measured over its own (often longer) period from the dates of the capital movements.
+          ? `Full analytics from daily price data (${a.n} observations, ${a.matchedHoldings} holdings matched).`
+          : `Analytics from portfolio value ${a.chartSegments>1?'charts ('+a.chartSegments+' periods, chain-linked so the capital flow between them is excluded)':'chart'} (AI image recognition, ±2–3%) — vol., drawdown and monthly stats only, over ${a.period}.`}
+        Sharpe = (Return − rf) / σ, where the return and σ are both measured over the ${a.period} chart/price window.
       </div>
 
       <!-- Risk/Benchmark moved to sections 7 & 8 -->
-      ${irrHtml}
 
     </div>`;
 }
@@ -2200,6 +2192,52 @@ window.mapToBCARegions = function(weighted) {
     .map(([region, pct]) => ({ region, pct: parseFloat(pct.toFixed(1)) }));
 };
 
+// ─── Indicative return for INTERNAL use (shown outside the report, never printed/exported) ───
+// Money-weighted (XIRR) from the deposit/withdrawal ledger (trade dates as a weaker fallback),
+// terminal value = cbonds securities + brokerage cash (manually entered deposit accounts excluded).
+window.computeIndicativeReturn = async function(portfolioData) {
+  try {
+    const endValue = (portfolioData._returnValue ?? portfolioData.totalValue) || 0;
+    const dw = portfolioData.depositWithdrawalRows || [];
+    if (!(endValue > 0) || (!dw.length && !(portfolioData.tradeRows||[]).length)) return null;
+    const today = new Date();
+    let cfs = [], basis = '';
+    if (dw.length) {
+      let FX = { USD: 1, EUR: 1.16, GBP: 1.34, CHF: 1.12 };
+      try {
+        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+        if (resp.ok) { const d = await resp.json(); FX = { USD: 1 }; Object.entries(d.rates).forEach(([c, r]) => { FX[c] = 1 / r; }); }
+      } catch (e) { /* fallback rates */ }
+      cfs = dw.map(r => {
+        const date = r[1] ? new Date(r[1]) : null;
+        const dir = String(r[0]||'').trim().toLowerCase();
+        const ccy = String(r[3]||'USD').trim().toUpperCase();
+        const amt = (parseFloat(r[4]) || 0) * (FX[ccy] || 1);
+        if (!date || !amt) return null;
+        return { date, amount: dir === 'deposit' ? -Math.abs(amt) : Math.abs(amt) };
+      }).filter(Boolean);
+      basis = dw.length + ' deposit/withdrawal event' + (dw.length===1?'':'s');
+    } else {
+      cfs = buildTradeCashflows(portfolioData.tradeRows, portfolioData.redemptionRows);
+      basis = 'trade dates (approximate: no deposit ledger)';
+    }
+    cfs.sort((a,b) => a.date - b.date);
+    if (!cfs.length) return null;
+    const invested = cfs.filter(c => c.amount < 0).reduce((s,c) => s - c.amount, 0);
+    const withdrawn = cfs.filter(c => c.amount > 0).reduce((s,c) => s + c.amount, 0);
+    const netInvested = invested - withdrawn;
+    const gain = endValue - netInvested;
+    const flows = cfs.concat([{ date: today, amount: endValue }]);
+    const irr = computeIRR(flows);
+    const yrs = (today - cfs[0].date) / (365.25*86400000);
+    // Modified Dietz: gain / time-weighted average capital
+    const T = today - cfs[0].date;
+    const avgCap = T > 0 ? cfs.reduce((s,c) => s + (-c.amount) * ((today - c.date)/T), 0) : 0;
+    const dietz = avgCap > 0 ? gain / avgCap : null;
+    return { irr, dietz, gain, netInvested, endValue, years: yrs, start: cfs[0].date, basis, ccySym: _reportCcySym, simple: netInvested > 0 ? gain/netInvested : null };
+  } catch (e) { console.warn('[indicativeReturn]', e); return null; }
+};
+
 window.generatePortfolioReport = async function(portfolioData, analytics, benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName=true, depositData=null, chartSrc2='') {
   // Set report currency symbol globally for fmtUSD
   _reportCcySym = portfolioData.reportCcySym || '$';
@@ -2229,6 +2267,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
   // accounts: those balances are not in the cbonds trade/deposit ledger, so including
   // them in the terminal value without matching inflows inflates the return.
   if (portfolioData._returnValue == null) portfolioData._returnValue = portfolioData.totalValue || 0;
+  window._lastIndicativeReturn = await window.computeIndicativeReturn(portfolioData);
   if (totalValue > 0) portfolioData.totalValue = totalValue;
   // WAAR corridor assessment
   const waarAssessment = (typeof assessWAAR === 'function')
@@ -2372,34 +2411,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
     ? (h.purchasePrice/100) * h.faceValueNum
     : h.convertedHoldingValue - h.unrealizedPnL;
 
-  // Holding period and annualised return per position, from the trade ledger.
-  // Holding period = value-weighted average buy date (buys matched to the holding
-  // by name or ISIN). Annualised = (1 + total return)^(1/years) - 1, shown only
-  // from 90 days of holding: annualising a shorter period magnifies noise.
-  // Total return includes income (coupons/dividends) and, for stocks, realised P&L.
-  const _normName = x => String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-  const heldCell = (h, fraction) => {
-    const rows = portfolioData.tradeRows || [];
-    const hn = _normName(h.name);
-    let wSum = 0, tSum = 0;
-    rows.forEach(r => {
-      if (String(r[2]||'').trim().toLowerCase() !== 'buy') return;
-      const rn = _normName(r[4]);
-      const match = rn && hn && (rn === hn || rn.includes(hn) || hn.includes(rn)) || (h.isin && String(r[4]||'').includes(h.isin));
-      const d = new Date(r[0]);
-      const w = Math.abs(parseFloat(r[15] || r[12]) || 0);
-      if (!match || isNaN(d) || !w) return;
-      wSum += w; tSum += w * d.getTime();
-    });
-    if (!wSum) return '—';
-    const days = (Date.now() - tSum / wSum) / 86400000;
-    if (!(days > 0)) return '—';
-    const held = days < 45 ? Math.round(days) + ' d' : (days / 30.44).toFixed(1) + ' mo';
-    if (days < 90 || fraction == null || !(fraction > -1)) return held + ' · n/a';
-    const pa = (Math.pow(1 + fraction, 365.25 / days) - 1) * 100;
-    return held + ' · ' + (pa >= 0 ? '+' : '') + pa.toFixed(1) + '% p.a.';
-  };
-
   // Bond income = cbonds "Interest income": coupons received PLUS interest accrued since
   // purchase, net of the accrued interest paid at purchase. Holding Value already includes
   // accrued interest, so using only coupons paid left Total PnL (and Income) short of the
@@ -2429,7 +2440,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${cpnPct}</td>
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
-      <td style="white-space:nowrap">${heldCell(h, cost>0?totalPnL/cost:null)}</td>
     </tr>`;
   }).join('');
 
@@ -2463,7 +2473,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${cost>0?'+'+(divs/cost*100).toFixed(1)+'%':'—'}</td>
       <td style="color:${c}">${fmtUSDSigned(totalPnL)}</td>
       <td style="color:${c}">${totalPnL>=0?'+':''}${pct}</td>
-      <td style="white-space:nowrap">${heldCell(h, cost>0?totalPnL/cost:null)}</td>
     </tr>`;
   };
   const mkFundTotals = arr => {
@@ -2543,7 +2552,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
       <td>${divsOrig!==0?fmtOrig(divsOrig, ccy):'—'}</td>
       <td style="color:${c}">${fmtOrig(totalOrig, ccy, true)}</td>
       <td style="color:${c}">${totalOrig>=0?'+':''}${pct}</td>
-      <td style="white-space:nowrap">${heldCell(h, costOrig>0?totalOrig/costOrig:null)}</td>
     </tr>`;
   }).join('');
 
@@ -2770,7 +2778,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Bond</th><th>ISIN</th><th>Qty</th><th>Face Value</th><th>Price</th>
             <th>Holding Value</th><th>Purch. Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Interest Income</th><th>Interest % (of cost)</th><th>Total PnL</th><th>Total PnL %</th><th>Held · p.a.</th>
+            <th>Unrealized PnL</th><th>Interest Income</th><th>Interest % (of cost)</th><th>Total PnL</th><th>Total PnL %</th>
           </tr></thead>
           <tbody>${bondPerfRows}
             <tr style="font-weight:600;background:#f5f0eb">
@@ -2780,7 +2788,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${bondTotCost>0?'+'+(bondTotIncome/bondTotCost*100).toFixed(1)+'%':'—'}</td>
               <td style="color:${bc}">${fmtUSDSigned(bondTotPnL)}</td>
               <td style="color:${bc}">${bondTotPnL>=0?'+':''}${bondTotPct}</td>
-              <td></td>
             </tr>
           </tbody>
         </table>
@@ -2794,7 +2801,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Name</th><th>Ticker</th><th>CCY</th><th>Qty</th><th>Price</th>
             <th>Value</th><th>Purch. Price</th>
-            <th>Unrealized PnL</th><th>Realized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th><th>Held · p.a.</th>
+            <th>Unrealized PnL</th><th>Realized PnL</th><th>Dividends</th><th>Total P&amp;L</th><th>P&amp;L %</th>
           </tr></thead>
           <tbody>${stockPerfRows}
             <tr style="font-weight:600;background:#f5f0eb">
@@ -2804,7 +2811,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fmtUSD(stockTotIncome)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':'−'}${fmtUSD(stockTotPnL)}</td>
               <td style="color:${sc}">${stockTotPnL>=0?'+':''}${stockTotPct}</td>
-              <td></td>
             </tr>
           </tbody>
         </table>
@@ -2818,7 +2824,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
             <thead><tr>
               <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
               <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th><th>Held · p.a.</th>
+              <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
             </tr></thead>
             <tbody>${rows}
               <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
@@ -2828,7 +2834,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
                 <td>${tot.cost>0?'+'+(tot.income/tot.cost*100).toFixed(1)+'%':'—'}</td>
                 <td style="color:${tot.color}">${fmtUSDSigned(tot.pnl)}</td>
                 <td style="color:${tot.color}">${tot.pnl>=0?'+':''}${tot.pct}</td>
-                <td></td>
               </tr>
             </tbody>
           </table>
@@ -2844,7 +2849,7 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
           <thead><tr>
             <th>Name</th><th>ISIN</th><th>Qty</th><th>Price</th>
             <th>Holding Value</th><th>Purchase Price</th><th>Conv. Value (<span class="ccy-label">USD</span>)</th>
-            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th><th>Held · p.a.</th>
+            <th>Unrealized PnL</th><th>Dividends Paid</th><th>Dividends % (of cost)</th><th>Total P&amp;L</th><th>Total P&amp;L %</th>
           </tr></thead>
           <tbody>${fiFundRows}
             <tr style="font-weight:600;background:#f5f0eb;page-break-inside:avoid;break-inside:avoid">
@@ -2854,7 +2859,6 @@ window.generatePortfolioReport = async function(portfolioData, analytics, benchm
               <td>${fiFundTot.cost>0?'+'+(fiFundTot.income/fiFundTot.cost*100).toFixed(1)+'%':'—'}</td>
               <td style="color:${fiFundTot.color}">${fmtUSDSigned(fiFundTot.pnl)}</td>
               <td style="color:${fiFundTot.color}">${fiFundTot.pnl>=0?'+':''}${fiFundTot.pct}</td>
-              <td></td>
             </tr>
           </tbody>
         </table>

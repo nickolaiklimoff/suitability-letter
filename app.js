@@ -812,6 +812,24 @@ function addInvestRow(name='', isin='', amount='', fee='0') {
 function escVal(s) { return String(s||'').replace(/"/g,'&quot;'); }
 
 // ─── Export "Profiling Calculator" xlsx (ORCAP internal WAAR review format) ──
+// Internal-only indicative return box (outside r-reportContent, so never in print / Word / saved report)
+window.renderIndicativeReturn = function() {
+  const el = document.getElementById('r-indicativeReturn');
+  if (!el) return;
+  const r = window._lastIndicativeReturn;
+  if (!r) { el.innerHTML = ''; return; }
+  const sym = r.ccySym || '$';
+  const pc = v => v == null || !isFinite(v) ? 'n/a' : (v>=0?'+':'') + (v*100).toFixed(1) + '%';
+  const money = v => (v<0?'−':'') + sym + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const short = r.years < 1;
+  el.innerHTML = `<div style="background:#fff8e6;border:1px solid #e8d49a;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;line-height:1.6">
+    <div style="font-weight:600;margin-bottom:4px">Indicative return for your email <span style="font-weight:400;color:#8a6d1a">· internal, not part of the report</span></div>
+    <div><b>${pc(r.irr)} p.a.</b> money-weighted (XIRR) &nbsp;·&nbsp; <b>${pc(r.dietz)}</b> over the period (Modified Dietz) &nbsp;·&nbsp; ${pc(r.simple)} simple on net capital</div>
+    <div style="color:#6b5a2a">Since ${r.start.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})} (${r.years.toFixed(2)} yrs) · net capital ${money(r.netInvested)} → value ${money(r.endValue)} · gain ${money(r.gain)} · ${r.basis}</div>
+    <div style="color:#6b5a2a;font-size:12px;margin-top:2px">${short ? '⚠ Period under 1 year: the annualised figure is very sensitive to timing, prefer the period return. ' : ''}Includes coupons, dividends and accrued interest (they are in the value). Before fees and taxes; terminal value excludes manually entered deposit accounts. Indicative only.</div>
+  </div>`;
+};
+
 window.exportProfilingCalculator = function() {
   const client = clients[currentClientId];
   if (!client) { alert('Select a client first.'); return; }
@@ -1493,6 +1511,7 @@ window.runPortfolioReport = async function() {
     window._inceptionDate = inceptionDate;
     const html = await generatePortfolioReport(portfolioData, analytics, _benchmark, clientIR, client, reportDate, dataDate, chartSrc, breakdownSrc, showClientName, depositData, chartSrc2);
     document.getElementById('r-reportContent').innerHTML = html;
+    renderIndicativeReturn();
     if (useChart && !portfolioData._analytics) {
       const banner = document.createElement('div');
       banner.style.cssText = 'background:#fdecea;border:1px solid #e6a5a0;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#922B21';
@@ -1831,7 +1850,6 @@ Style: professional investment advisory. Do not mention the client's name. Third
   let metrics = '';
   if (analytics) {
     metrics = [
-      analytics.totalReturn != null ? `Annualised return (money-weighted): ${(analytics.totalReturn*100).toFixed(1)}% p.a.` : '',
       analytics.vol         != null ? `Volatility (ann.): ${(analytics.vol*100).toFixed(1)}%` : '',
       analytics.maxDD       != null ? `Max Drawdown: ${(analytics.maxDD*100).toFixed(1)}%` : '',
       analytics.sharpe      != null ? `Sharpe: ${analytics.sharpe.toFixed(2)}` : '',
